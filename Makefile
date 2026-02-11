@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend test test-backend lint db-migrate db-upgrade docker-up docker-down
+.PHONY: dev dev-backend dev-frontend test test-backend lint db-migrate db-upgrade db-seed docker-up docker-down
 
 # Development
 dev:
@@ -18,10 +18,13 @@ test-backend:
 
 # Database
 db-migrate:
-	cd backend && uv run alembic revision --autogenerate -m "$(MSG)"
+	cd backend && PYTHONPATH=. uv run alembic revision --autogenerate -m "$(MSG)"
 
 db-upgrade:
-	cd backend && uv run alembic upgrade head
+	cd backend && PYTHONPATH=. uv run alembic upgrade head
+
+db-seed:
+	cd backend && PYTHONPATH=. uv run python -m app.seed
 
 # Docker
 docker-up:
