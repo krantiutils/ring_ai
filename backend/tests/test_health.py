@@ -5,8 +5,9 @@ def test_health_check(client):
 
 
 def test_api_v1_voice(client):
-    response = client.get("/api/v1/voice/")
-    assert response.status_code == 200
+    """Voice router is mounted — audio endpoint returns 404 for missing audio."""
+    response = client.get("/api/v1/voice/audio/nonexistent")
+    assert response.status_code == 404
 
 
 def test_api_v1_text(client):

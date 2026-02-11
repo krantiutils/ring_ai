@@ -1,7 +1,7 @@
 """Telephony call models."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -94,7 +94,7 @@ class AudioEntry(BaseModel):
 
     audio_bytes: bytes
     content_type: str = "audio/mpeg"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CallContext(BaseModel):
