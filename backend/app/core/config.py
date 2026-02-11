@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # SMS
     SMS_PROVIDER_API_KEY: str = ""
 
+    # Campaign executor
+    CAMPAIGN_BATCH_SIZE: int = 50
+    CAMPAIGN_MAX_RETRIES: int = 3
+    CAMPAIGN_RATE_LIMIT_PER_SECOND: float = 10.0
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
