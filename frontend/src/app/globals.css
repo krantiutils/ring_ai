@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Clay palette */
+  --clay-cream: #FFF8F0;
+  --clay-lavender: #F0E6FF;
+  --clay-mint: #E8F5E9;
+  --clay-coral: #FF6B6B;
+  --clay-teal: #4ECDC4;
+  --clay-gold: #FFD93D;
+  --clay-dark: #2D2D2D;
+  --clay-shadow: rgba(120, 80, 60, 0.15);
+  --clay-shadow-dark: rgba(120, 80, 60, 0.25);
+
+  --background: var(--clay-cream);
+  --foreground: #2D2D2D;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-clay-cream: #FFF8F0;
+  --color-clay-lavender: #F0E6FF;
+  --color-clay-mint: #E8F5E9;
+  --color-clay-coral: #FF6B6B;
+  --color-clay-teal: #4ECDC4;
+  --color-clay-gold: #FFD93D;
+  --color-clay-dark: #2D2D2D;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Clay noise texture overlay — applied to sections */
+.clay-texture {
+  position: relative;
+}
+
+.clay-texture::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  z-index: 1;
+}
+
+/* Clay card base style */
+.clay-surface {
+  background: white;
+  border-radius: 24px;
+  box-shadow:
+    0 4px 16px var(--clay-shadow),
+    0 1px 3px var(--clay-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Squish button keyframes */
+@keyframes squish {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.93, 1.04); }
+  100% { transform: scale(1); }
+}
+
+/* Gentle float for 3D elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Section spacing */
+section {
+  position: relative;
 }
