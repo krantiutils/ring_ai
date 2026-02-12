@@ -250,10 +250,15 @@ def _assert_has_contacts(db: Session, campaign: Campaign) -> None:
 def start_campaign(db: Session, campaign: Campaign) -> Campaign:
     """Transition campaign from draft → active.
 
-    Validates that the campaign has at least one contact (pending interaction).
+    Validates that the campaign has at least one contact (pending interaction)
+    and that the org has sufficient credits to cover the estimated cost.
     """
     _assert_transition(campaign.status, "active")
     _assert_has_contacts(db, campaign)
+
+    # Check credit balance before launching
+    from app.services.credits import check_sufficient_credits
+    check_sufficient_credits(db, campaign.org_id, campaign)
 
     campaign.status = "active"
     campaign.scheduled_at = None
@@ -615,9 +620,15 @@ def _dispatch_interaction(
     """Dispatch a single interaction (voice or text).
 
     On success, marks the interaction as 'in_progress' (Twilio webhook will
-    update to completed/failed). On error, marks it as 'failed' and records
-    the error in metadata.
+    update to completed/failed) and deducts credits. On error, marks it as
+    'failed' and records the error in metadata.
     """
+    from app.services.credits import COST_PER_INTERACTION as CREDIT_COSTS
+    from app.services.credits import consume_credits
+
+    interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE.get(campaign.type)
+    cost = CREDIT_COSTS.get(interaction_type, 1.0)
+
     if campaign.type == "voice":
         call_sid = asyncio.run(
             _dispatch_voice_call(interaction, contact, template, campaign)
@@ -628,7 +639,15 @@ def _dispatch_interaction(
             "template_id": str(template.id),
         }
         # Voice calls stay 'in_progress' — the webhook updates final status
-        db.commit()
+        # Deduct credits for dispatched call
+        interaction.credit_consumed = cost
+        consume_credits(
+            db,
+            campaign.org_id,
+            cost,
+            reference_id=str(interaction.id),
+            description=f"Voice call to {contact.phone}",
+        )
 
     elif campaign.type == "text":
         # SMS dispatch not yet implemented — fail gracefully

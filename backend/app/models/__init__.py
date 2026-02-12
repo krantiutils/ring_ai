@@ -1,6 +1,8 @@
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
 from app.models.contact import Contact
+from app.models.credit import Credit
+from app.models.credit_transaction import CreditTransaction
 from app.models.interaction import Interaction
 from app.models.organization import Organization
 from app.models.otp import OTPRecord
@@ -15,6 +17,8 @@ __all__ = [
     "AnalyticsEvent",
     "Campaign",
     "Contact",
+    "Credit",
+    "CreditTransaction",
     "Interaction",
     "Organization",
     "OTPRecord",

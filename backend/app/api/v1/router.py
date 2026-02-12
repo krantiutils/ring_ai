@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analytics, auth, campaigns, contacts, forms, otp, phone_numbers, templates, text, tts, voice, voice_models
+from app.api.v1.endpoints import analytics, auth, campaigns, contacts, credits, forms, otp, phone_numbers, templates, text, tts, voice, voice_models
 
 api_v1_router = APIRouter()
 
@@ -16,3 +16,4 @@ api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analy
 api_v1_router.include_router(tts.router, prefix="/tts", tags=["tts"])
 api_v1_router.include_router(otp.router, prefix="/otp", tags=["otp"])
 api_v1_router.include_router(phone_numbers.router, prefix="/phone-numbers", tags=["phone-numbers"])
+api_v1_router.include_router(credits.router, prefix="/credits", tags=["credits"])

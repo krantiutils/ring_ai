@@ -37,6 +37,9 @@ class Organization(Base):
     phone_numbers: Mapped[list["PhoneNumber"]] = relationship(
         back_populates="organization"
     )
+    credit: Mapped["Credit | None"] = relationship(
+        back_populates="organization", uselist=False
+    )
 
     def __repr__(self) -> str:
         return f"<Organization {self.name}>"
