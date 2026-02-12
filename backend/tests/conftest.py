@@ -7,9 +7,13 @@ from sqlalchemy.dialects.sqlite import base as sqlite_base
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401 — register models with Base.metadata
+from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import app as fastapi_app
 from app.models import Organization
+
+# Enable debug mode for tests (allows non-HTTPS cookies in TestClient)
+settings.DEBUG = True
 
 # ---------------------------------------------------------------------------
 # SQLite compatibility for PostgreSQL-specific types (JSONB, UUID)

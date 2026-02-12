@@ -10,6 +10,12 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # Auth / JWT
+    SECRET_KEY: str = "CHANGE-ME-in-production-use-a-real-secret"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 1 day
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+
     # TTS
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = ""

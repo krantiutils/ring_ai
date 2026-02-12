@@ -6,6 +6,8 @@ from app.models.organization import Organization
 from app.models.otp import OTPRecord
 from app.models.template import Template
 from app.models.tts_provider_config import TTSProviderConfig
+from app.models.user import User
+from app.models.user_api_key import UserAPIKey
 
 __all__ = [
     "AnalyticsEvent",
@@ -16,4 +18,6 @@ __all__ = [
     "OTPRecord",
     "Template",
     "TTSProviderConfig",
+    "User",
+    "UserAPIKey",
 ]
