@@ -53,6 +53,7 @@ class UserProfileResponse(BaseModel):
     address: str | None
     profile_picture: str | None
     is_verified: bool
+    is_kyc_verified: bool
 
 
 class APIKeyResponse(BaseModel):
