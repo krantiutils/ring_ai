@@ -6,7 +6,7 @@ import io
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -313,6 +313,191 @@ def resume_campaign(db: Session, campaign: Campaign) -> Campaign:
     db.commit()
     db.refresh(campaign)
     return campaign
+
+
+# ---------------------------------------------------------------------------
+# Retry & Relaunch
+# ---------------------------------------------------------------------------
+
+
+class MaxRetriesExceeded(CampaignError):
+    """Raised when a campaign has exhausted all retry attempts."""
+
+
+class NoFailedInteractions(CampaignError):
+    """Raised when retry is called but there are no failed interactions."""
+
+
+def _get_retry_backoff_minutes(campaign: Campaign) -> list[int]:
+    """Return the backoff schedule for this campaign.
+
+    Uses campaign.retry_config["backoff_minutes"] if set,
+    otherwise falls back to the global CAMPAIGN_RETRY_BACKOFF_MINUTES.
+    """
+    if campaign.retry_config and "backoff_minutes" in campaign.retry_config:
+        return list(campaign.retry_config["backoff_minutes"])
+    return list(settings.CAMPAIGN_RETRY_BACKOFF_MINUTES)
+
+
+def _get_max_retries(campaign: Campaign) -> int:
+    """Return the max retry count for this campaign.
+
+    Uses campaign.retry_config["max_retries"] if set,
+    otherwise falls back to the global CAMPAIGN_MAX_RETRIES.
+    """
+    if campaign.retry_config and "max_retries" in campaign.retry_config:
+        return int(campaign.retry_config["max_retries"])
+    return settings.CAMPAIGN_MAX_RETRIES
+
+
+def retry_campaign(
+    db: Session, campaign: Campaign
+) -> tuple[int, datetime | None]:
+    """Retry failed/no-answer contacts in a completed campaign.
+
+    Creates new pending interactions for contacts whose interactions have
+    status='failed' (which includes Twilio NO_ANSWER and BUSY).
+
+    Returns (retried_count, scheduled_at) where scheduled_at is None for
+    immediate execution or a future datetime for backoff-delayed retries.
+
+    Raises:
+        InvalidStateTransition: Campaign is not in 'completed' status.
+        MaxRetriesExceeded: Campaign has already been retried the max number of times.
+        NoFailedInteractions: No failed interactions found to retry.
+    """
+    if campaign.status != "completed":
+        raise InvalidStateTransition(campaign.status, "active")
+
+    max_retries = _get_max_retries(campaign)
+    if campaign.retry_count >= max_retries:
+        raise MaxRetriesExceeded(
+            f"Campaign has already been retried {campaign.retry_count} "
+            f"time(s) (max: {max_retries})"
+        )
+
+    # Find contacts with failed interactions that haven't already been
+    # retried in a later round.
+    # We want distinct contacts whose LATEST interaction is failed.
+    failed_interactions = db.execute(
+        select(Interaction).where(
+            Interaction.campaign_id == campaign.id,
+            Interaction.status == "failed",
+        )
+    ).scalars().all()
+
+    if not failed_interactions:
+        raise NoFailedInteractions(
+            "No failed interactions to retry in this campaign"
+        )
+
+    # Deduplicate by contact_id — only retry each contact once.
+    # A contact may have multiple failed interactions from previous
+    # retry rounds; we only create one new interaction per contact.
+    seen_contacts: set[uuid.UUID] = set()
+    interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE[campaign.type]
+    retry_round = campaign.retry_count + 1
+    retried = 0
+
+    for interaction in failed_interactions:
+        if interaction.contact_id in seen_contacts:
+            continue
+        seen_contacts.add(interaction.contact_id)
+
+        new_interaction = Interaction(
+            campaign_id=campaign.id,
+            contact_id=interaction.contact_id,
+            type=interaction_type,
+            status="pending",
+            metadata_={"retry_round": retry_round},
+        )
+        db.add(new_interaction)
+        retried += 1
+
+    # Determine backoff delay
+    backoff_schedule = _get_retry_backoff_minutes(campaign)
+    delay_index = min(campaign.retry_count, len(backoff_schedule) - 1)
+    delay_minutes = backoff_schedule[delay_index] if backoff_schedule else 0
+
+    campaign.retry_count = retry_round
+    scheduled_at = None
+
+    if delay_minutes > 0:
+        scheduled_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
+        campaign.status = "scheduled"
+        campaign.scheduled_at = scheduled_at
+    else:
+        campaign.status = "active"
+        campaign.scheduled_at = None
+
+    db.commit()
+    db.refresh(campaign)
+    return retried, scheduled_at
+
+
+def relaunch_campaign(db: Session, campaign: Campaign) -> tuple[Campaign, int]:
+    """Create a new draft campaign cloned from the original, targeting only
+    contacts whose interactions failed.
+
+    The new campaign has:
+    - Same settings (type, template, schedule_config, retry_config)
+    - Only contacts that had failed interactions in the source
+    - Status: 'draft' (for review before launch)
+    - source_campaign_id pointing back to the original
+
+    Returns (new_campaign, contacts_imported).
+
+    Raises:
+        CampaignError: Campaign has no failed interactions to relaunch.
+    """
+    if campaign.status not in ("completed", "paused", "active"):
+        raise CampaignError(
+            f"Cannot relaunch a campaign in '{campaign.status}' status"
+        )
+
+    # Find distinct contacts with failed interactions
+    failed_contact_ids = db.execute(
+        select(Interaction.contact_id)
+        .where(
+            Interaction.campaign_id == campaign.id,
+            Interaction.status == "failed",
+        )
+        .distinct()
+    ).scalars().all()
+
+    if not failed_contact_ids:
+        raise NoFailedInteractions(
+            "No failed interactions to relaunch in this campaign"
+        )
+
+    # Clone campaign
+    new_campaign = Campaign(
+        name=f"{campaign.name} (relaunch)",
+        type=campaign.type,
+        org_id=campaign.org_id,
+        template_id=campaign.template_id,
+        schedule_config=campaign.schedule_config,
+        retry_config=campaign.retry_config,
+        source_campaign_id=campaign.id,
+        status="draft",
+    )
+    db.add(new_campaign)
+    db.flush()
+
+    # Create interactions for each failed contact
+    interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE[campaign.type]
+    for contact_id in failed_contact_ids:
+        db.add(Interaction(
+            campaign_id=new_campaign.id,
+            contact_id=contact_id,
+            type=interaction_type,
+            status="pending",
+            metadata_={"source_campaign_id": str(campaign.id)},
+        ))
+
+    db.commit()
+    db.refresh(new_campaign)
+    return new_campaign, len(failed_contact_ids)
 
 
 # ---------------------------------------------------------------------------

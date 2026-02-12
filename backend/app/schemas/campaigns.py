@@ -42,6 +42,29 @@ class CampaignStartRequest(BaseModel):
     schedule: datetime | None = None
 
 
+class RetryRequest(BaseModel):
+    """Optional body for POST /campaigns/{id}/retry."""
+
+    retry_config: dict | None = None
+
+
+class RetryResponse(BaseModel):
+    campaign_id: uuid.UUID
+    retry_round: int
+    retried_count: int
+    scheduled_at: datetime | None = None
+    status: CampaignStatus
+
+
+class RelaunchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    source_campaign_id: uuid.UUID
+    new_campaign_id: uuid.UUID
+    contacts_imported: int
+    status: CampaignStatus
+
+
 class CampaignResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,6 +76,9 @@ class CampaignResponse(BaseModel):
     template_id: uuid.UUID | None
     schedule_config: dict | None
     scheduled_at: datetime | None
+    retry_count: int = 0
+    retry_config: dict | None = None
+    source_campaign_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
