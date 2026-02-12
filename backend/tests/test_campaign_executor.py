@@ -19,7 +19,7 @@ from app.services.telephony.exceptions import (
     TelephonyConfigurationError,
     TelephonyProviderError,
 )
-from app.services.telephony.models import CallResult, CallStatus
+from app.services.telephony.models import CallResult, CallStatus, SmsResult
 from app.tts.exceptions import TTSProviderError
 from app.tts.models import TTSProvider
 
@@ -597,30 +597,223 @@ class TestExecuteBatchPartialCompletion:
 
 
 class TestExecuteBatchSMSCampaign:
-    """Test that SMS campaigns fail gracefully (not yet implemented)."""
+    """Test SMS campaign dispatch via Twilio messages API."""
 
-    def test_sms_campaign_fails_gracefully(self, db, org, voice_template):
-        # Use a text-type template
-        text_template = Template(
-            name="SMS Template",
-            content="Hello {name}",
+    @pytest.fixture
+    def sms_template(self, db, org):
+        """Text template with variable substitution."""
+        template = Template(
+            name="SMS Reminder",
+            content="नमस्ते {name}, तपाईंको बिल {amount|५००} रुपैयाँ बाँकी छ।",
             type="text",
             org_id=org.id,
+            language="ne",
+            variables=["name", "amount"],
         )
-        db.add(text_template)
-        db.flush()
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        return template
 
+    @pytest.fixture
+    def sms_campaign(self, db, org, sms_template):
+        """Active text campaign with a template attached."""
         campaign = Campaign(
-            name="SMS Campaign",
+            name="Bill SMS",
             type="text",
             org_id=org.id,
             status="active",
-            template_id=text_template.id,
+            template_id=sms_template.id,
+        )
+        db.add(campaign)
+        db.commit()
+        db.refresh(campaign)
+        return campaign
+
+    @pytest.fixture
+    def sms_contact(self, db, org):
+        """Contact for SMS tests."""
+        contact = Contact(
+            phone="+9779801234567",
+            name="Hari",
+            org_id=org.id,
+            metadata_={"amount": "१०००"},
+        )
+        db.add(contact)
+        db.commit()
+        db.refresh(contact)
+        return contact
+
+    @pytest.fixture
+    def sms_interaction(self, db, sms_campaign, sms_contact):
+        """Pending SMS interaction."""
+        interaction = Interaction(
+            campaign_id=sms_campaign.id,
+            contact_id=sms_contact.id,
+            type="sms",
+            status="pending",
+        )
+        db.add(interaction)
+        db.commit()
+        db.refresh(interaction)
+        return interaction
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_dispatched_successfully(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_interaction,
+        sms_contact,
+        sms_template,
+    ):
+        mock_provider = MagicMock()
+        mock_provider.default_from_number = "+15551234567"
+        mock_provider.send_sms = AsyncMock(
+            return_value=SmsResult(message_id="SM-001", status="queued")
+        )
+        mock_get_provider.return_value = mock_provider
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        # SMS was sent
+        mock_provider.send_sms.assert_called_once()
+        call_kwargs = mock_provider.send_sms.call_args
+        assert call_kwargs.kwargs["to"] == "+9779801234567"
+        assert call_kwargs.kwargs["from_number"] == "+15551234567"
+        # Template variables should be rendered
+        body = call_kwargs.kwargs["body"]
+        assert "Hari" in body
+        assert "१०००" in body
+
+        # Interaction is completed immediately (no webhook needed for SMS)
+        db.refresh(sms_interaction)
+        assert sms_interaction.status == "completed"
+        assert sms_interaction.metadata_["twilio_message_sid"] == "SM-001"
+        assert sms_interaction.metadata_["template_id"] == str(sms_template.id)
+        assert sms_interaction.ended_at is not None
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_campaign_completes_when_all_sent(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_interaction,
+    ):
+        """SMS campaign auto-completes because interactions are marked completed immediately."""
+        mock_provider = MagicMock()
+        mock_provider.default_from_number = "+15551234567"
+        mock_provider.send_sms = AsyncMock(
+            return_value=SmsResult(message_id="SM-done", status="queued")
+        )
+        mock_get_provider.return_value = mock_provider
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        db.refresh(sms_campaign)
+        assert sms_campaign.status == "completed"
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_twilio_failure_triggers_retry(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_interaction,
+    ):
+        mock_provider = MagicMock()
+        mock_provider.default_from_number = "+15551234567"
+        mock_provider.send_sms = AsyncMock(
+            side_effect=TelephonyProviderError("twilio", "rate limited")
+        )
+        mock_get_provider.return_value = mock_provider
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        db.refresh(sms_interaction)
+        assert sms_interaction.status == "pending"
+        assert sms_interaction.metadata_["retry_count"] == 1
+        assert "rate limited" in sms_interaction.metadata_["last_error"]
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_retries_exhausted_marks_failed(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_interaction,
+    ):
+        """After max retries, SMS interaction should be permanently failed."""
+        sms_interaction.metadata_ = {"retry_count": 2}
+        db.commit()
+
+        mock_provider = MagicMock()
+        mock_provider.default_from_number = "+15551234567"
+        mock_provider.send_sms = AsyncMock(
+            side_effect=TelephonyProviderError("twilio", "persistent failure")
+        )
+        mock_get_provider.return_value = mock_provider
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        db.refresh(sms_interaction)
+        assert sms_interaction.status == "failed"
+        assert sms_interaction.metadata_["retry_count"] == 3
+        assert "Failed after 3 attempts" in sms_interaction.metadata_["error"]
+        assert sms_interaction.ended_at is not None
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_template_render_failure_retries(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        org,
+    ):
+        """Template with undefined variable should trigger retry."""
+        template = Template(
+            name="Bad Template",
+            content="Hello {missing_var}",
+            type="text",
+            org_id=org.id,
+        )
+        db.add(template)
+        db.flush()
+
+        campaign = Campaign(
+            name="Bad SMS",
+            type="text",
+            org_id=org.id,
+            status="active",
+            template_id=template.id,
         )
         db.add(campaign)
         db.flush()
 
-        contact = Contact(phone="+9779800000000", name="Test", org_id=org.id)
+        contact = Contact(phone="+9779800000000", org_id=org.id)
         db.add(contact)
         db.flush()
 
@@ -633,11 +826,90 @@ class TestExecuteBatchSMSCampaign:
         db.add(interaction)
         db.commit()
 
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
         execute_campaign_batch(campaign.id, _make_db_factory(db))
 
         db.refresh(interaction)
-        assert interaction.status == "failed"
-        assert "SMS dispatch not yet implemented" in interaction.metadata_["error"]
+        assert interaction.status == "pending"
+        assert interaction.metadata_["retry_count"] == 1
+        assert "missing_var" in interaction.metadata_["last_error"]
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_sms_config_error_retries(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_interaction,
+    ):
+        """Twilio not configured should trigger retry."""
+        mock_get_provider.side_effect = TelephonyConfigurationError(
+            "Twilio not configured"
+        )
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        db.refresh(sms_interaction)
+        assert sms_interaction.status == "pending"
+        assert sms_interaction.metadata_["retry_count"] == 1
+
+    @patch("app.services.campaigns.settings")
+    @patch("app.services.campaigns.get_twilio_provider")
+    def test_multiple_sms_interactions(
+        self,
+        mock_get_provider,
+        mock_settings,
+        db,
+        sms_campaign,
+        sms_contact,
+        org,
+    ):
+        """Two contacts should both get SMS dispatched."""
+        contact2 = Contact(
+            phone="+9779801234568",
+            name="Sita",
+            org_id=org.id,
+        )
+        db.add(contact2)
+        db.flush()
+
+        for contact in [sms_contact, contact2]:
+            db.add(Interaction(
+                campaign_id=sms_campaign.id,
+                contact_id=contact.id,
+                type="sms",
+                status="pending",
+            ))
+        db.commit()
+
+        mock_provider = MagicMock()
+        mock_provider.default_from_number = "+15551234567"
+        mock_provider.send_sms = AsyncMock(
+            side_effect=[
+                SmsResult(message_id="SM-001", status="queued"),
+                SmsResult(message_id="SM-002", status="queued"),
+            ]
+        )
+        mock_get_provider.return_value = mock_provider
+        mock_settings.CAMPAIGN_BATCH_SIZE = 50
+        mock_settings.CAMPAIGN_MAX_RETRIES = 3
+        mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
+
+        execute_campaign_batch(sms_campaign.id, _make_db_factory(db))
+
+        assert mock_provider.send_sms.call_count == 2
+
+        # Campaign should be completed since all SMS sent
+        db.refresh(sms_campaign)
+        assert sms_campaign.status == "completed"
 
 
 class TestExecuteBatchContactNotFound:

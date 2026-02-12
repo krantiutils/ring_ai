@@ -18,6 +18,7 @@ from app.services.telephony.models import (
     CallStatus,
     CallStatusResponse,
     DTMFRoute,
+    SmsResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,49 @@ class TwilioProvider(BaseTelephonyProvider):
 
         status = _STATUS_MAP.get(call.status, CallStatus.CANCELED)
         return CallResult(call_id=call.sid, status=status)
+
+    async def send_sms(
+        self,
+        to: str,
+        from_number: str,
+        body: str,
+    ) -> SmsResult:
+        """Send an SMS message via Twilio REST API.
+
+        Args:
+            to: Destination phone number (E.164).
+            from_number: Sender phone number (E.164).
+            body: The message text.
+
+        Returns:
+            SmsResult with the Twilio message SID and initial status.
+
+        Raises:
+            TelephonyProviderError: If the Twilio API call fails.
+        """
+        loop = asyncio.get_running_loop()
+        try:
+            message = await loop.run_in_executor(
+                None,
+                partial(
+                    self._client.messages.create,
+                    to=to,
+                    from_=from_number,
+                    body=body,
+                ),
+            )
+        except Exception as exc:
+            raise TelephonyProviderError(
+                "twilio", f"Failed to send SMS to {to}: {exc}"
+            ) from exc
+
+        logger.info(
+            "Twilio SMS sent: sid=%s to=%s status=%s",
+            message.sid,
+            to,
+            message.status,
+        )
+        return SmsResult(message_id=message.sid, status=message.status)
 
 
 def generate_call_twiml(

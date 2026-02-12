@@ -21,6 +21,7 @@ from app.schemas.campaigns import CampaignStats
 from app.services.telephony import (
     AudioEntry,
     CallContext,
+    SmsResult,
     audio_store,
     call_context_store,
     get_twilio_provider,
@@ -605,6 +606,38 @@ async def _dispatch_voice_call(
     return result.call_id
 
 
+async def _dispatch_sms(
+    interaction: Interaction,
+    contact: Contact,
+    template: Template,
+    campaign: Campaign,
+) -> str:
+    """Render template and send SMS via Twilio.
+
+    Returns the Twilio message SID on success.
+
+    Raises:
+        UndefinedVariableError: If a required template variable is missing.
+        TelephonyConfigurationError: If Twilio is not configured.
+        TelephonyProviderError: If the Twilio SMS send fails.
+    """
+    # 1. Render template with contact variables
+    variables = _build_contact_variables(contact)
+    rendered_text = render(template.content, variables)
+
+    # 2. Send SMS via Twilio
+    provider = get_twilio_provider()
+    from_number = provider.default_from_number
+
+    result: SmsResult = await provider.send_sms(
+        to=contact.phone,
+        from_number=from_number,
+        body=rendered_text,
+    )
+
+    return result.message_id
+
+
 def _dispatch_interaction(
     interaction: Interaction,
     contact: Contact,
@@ -614,9 +647,9 @@ def _dispatch_interaction(
 ) -> None:
     """Dispatch a single interaction (voice or text).
 
-    On success, marks the interaction as 'in_progress' (Twilio webhook will
-    update to completed/failed). On error, marks it as 'failed' and records
-    the error in metadata.
+    Voice: marks interaction as 'in_progress' — Twilio webhook updates final status.
+    SMS: marks interaction as 'completed' immediately on successful send.
+    On error, exceptions propagate to the batch executor for retry handling.
     """
     if campaign.type == "voice":
         call_sid = asyncio.run(
@@ -631,16 +664,15 @@ def _dispatch_interaction(
         db.commit()
 
     elif campaign.type == "text":
-        # SMS dispatch not yet implemented — fail gracefully
-        logger.warning(
-            "SMS dispatch not yet implemented, failing interaction %s",
-            interaction.id,
+        message_sid = asyncio.run(
+            _dispatch_sms(interaction, contact, template, campaign)
         )
-        interaction.status = "failed"
+        interaction.status = "completed"
         interaction.ended_at = datetime.now(timezone.utc)
         interaction.metadata_ = {
             **(interaction.metadata_ or {}),
-            "error": "SMS dispatch not yet implemented",
+            "twilio_message_sid": message_sid,
+            "template_id": str(template.id),
         }
         db.commit()
 
