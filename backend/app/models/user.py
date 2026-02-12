@@ -40,6 +40,9 @@ class User(Base):
     api_keys: Mapped[list["UserAPIKey"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.username}>"
