@@ -41,6 +41,9 @@ class Campaign(Base):
     voice_model_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("voice_models.id"), nullable=True
     )
+    form_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("forms.id")
+    )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     audio_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -58,6 +61,7 @@ class Campaign(Base):
     organization: Mapped["Organization"] = relationship(back_populates="campaigns")
     template: Mapped["Template | None"] = relationship(back_populates="campaigns")
     voice_model: Mapped["VoiceModel | None"] = relationship()
+    form: Mapped["Form | None"] = relationship(back_populates="campaigns", foreign_keys=[form_id])
     interactions: Mapped[list["Interaction"]] = relationship(back_populates="campaign")
 
     def __repr__(self) -> str:

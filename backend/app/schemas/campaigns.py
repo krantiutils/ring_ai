@@ -30,6 +30,7 @@ class CampaignCreate(BaseModel):
     category: CampaignCategory | None = None
     template_id: uuid.UUID | None = None
     voice_model_id: uuid.UUID | None = None
+    form_id: uuid.UUID | None = None
     schedule_config: dict | None = None
     audio_file: str | None = None
 
@@ -39,6 +40,7 @@ class CampaignUpdate(BaseModel):
     category: CampaignCategory | None = None
     template_id: uuid.UUID | None = None
     voice_model_id: uuid.UUID | None = None
+    form_id: uuid.UUID | None = None
     schedule_config: dict | None = None
     audio_file: str | None = None
 
@@ -83,6 +85,7 @@ class CampaignResponse(BaseModel):
     category: CampaignCategory | None
     template_id: uuid.UUID | None
     voice_model_id: uuid.UUID | None
+    form_id: uuid.UUID | None
     schedule_config: dict | None
     scheduled_at: datetime | None
     retry_count: int = 0

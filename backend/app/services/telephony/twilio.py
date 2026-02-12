@@ -310,6 +310,120 @@ def generate_dtmf_response_twiml(digit: str, routes: list[DTMFRoute]) -> str:
     return str(response)
 
 
+def generate_form_question_twiml(
+    question: dict,
+    question_index: int,
+    total_questions: int,
+    audio_url: str | None,
+    answer_action_url: str,
+) -> str:
+    """Generate TwiML for a single form question.
+
+    Plays the question (via audio or TTS), then gathers DTMF input.
+    The Gather action URL will receive the digit(s) pressed.
+
+    Args:
+        question: Question dict with type, text, options, required.
+        question_index: 0-based index of the current question.
+        total_questions: Total number of questions in the form.
+        audio_url: URL of pre-synthesized audio for the question, or None to use Say.
+        answer_action_url: URL to POST DTMF input to.
+
+    Returns:
+        TwiML XML string.
+    """
+    response = VoiceResponse()
+    q_type = question.get("type", "text_input")
+
+    # Determine Gather config based on question type
+    if q_type == "multiple_choice":
+        num_digits = 1
+        timeout = 10
+    elif q_type == "rating":
+        num_digits = 1
+        timeout = 10
+    elif q_type == "yes_no":
+        num_digits = 1
+        timeout = 10
+    elif q_type == "numeric":
+        # Numeric can be multi-digit, use finish_on_key '#'
+        num_digits = 10
+        timeout = 15
+    else:
+        # text_input — can't easily do via DTMF, skip with timeout
+        num_digits = 1
+        timeout = 5
+
+    gather = Gather(
+        num_digits=num_digits,
+        action=answer_action_url,
+        method="POST",
+        timeout=timeout,
+        finish_on_key="#" if q_type == "numeric" else "",
+    )
+
+    # Play the question audio or say it
+    if audio_url:
+        gather.play(audio_url)
+    else:
+        gather.say(question.get("text", ""), language="ne-NP")
+
+    # Add DTMF prompt for answer options
+    prompt = _build_form_question_prompt(question)
+    if prompt:
+        gather.say(prompt, language="ne-NP")
+
+    response.append(gather)
+
+    # No input fallback — replay once, then move on
+    if question.get("required", True):
+        response.say(
+            "कुनै इनपुट प्राप्त भएन। कृपया फेरि प्रयास गर्नुहोस्।",
+            language="ne-NP",
+        )
+        # Redirect to same question
+        response.redirect(answer_action_url.replace("/form-answer/", "/form-twiml/"))
+    else:
+        # Optional question — skip to next via answer URL with empty Digits
+        response.redirect(answer_action_url + "?Digits=")
+
+    return str(response)
+
+
+def generate_form_completion_twiml() -> str:
+    """Generate TwiML for form completion — thank you and hang up."""
+    response = VoiceResponse()
+    response.say(
+        "सर्वेक्षण पूरा भयो। तपाईंको सहभागिताको लागि धन्यवाद।",
+        language="ne-NP",
+    )
+    response.hangup()
+    return str(response)
+
+
+def _build_form_question_prompt(question: dict) -> str:
+    """Build DTMF prompt text for a form question."""
+    q_type = question.get("type", "text_input")
+
+    if q_type == "multiple_choice":
+        options = question.get("options", [])
+        parts = []
+        for i, opt in enumerate(options):
+            parts.append(f"{opt} को लागि {i + 1} थिच्नुहोस्।")
+        return " ".join(parts)
+
+    elif q_type == "rating":
+        return "१ देखि ५ सम्मको मूल्याङ्कन दिनुहोस्।"
+
+    elif q_type == "yes_no":
+        return "हो को लागि १ थिच्नुहोस्। होइन को लागि २ थिच्नुहोस्।"
+
+    elif q_type == "numeric":
+        return "नम्बर हाल्नुहोस् र # थिच्नुहोस्।"
+
+    return ""
+
+
 def _build_dtmf_prompt(routes: list[DTMFRoute]) -> str:
     """Build a combined prompt string from DTMF routes."""
     parts = []

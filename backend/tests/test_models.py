@@ -17,6 +17,8 @@ EXPECTED_TABLES = {
     "templates",
     "tts_provider_configs",
     "analytics_events",
+    "forms",
+    "form_responses",
 }
 
 
@@ -34,7 +36,7 @@ def test_campaign_columns():
     cols = {c.name for c in Campaign.__table__.columns}
     assert cols == {
         "id", "org_id", "name", "type", "status", "category",
-        "template_id", "voice_model_id", "schedule_config", "scheduled_at",
+        "template_id", "voice_model_id", "form_id", "schedule_config", "scheduled_at",
         "audio_file", "bulk_file", "retry_count", "retry_config",
         "source_campaign_id", "created_at", "updated_at",
     }
@@ -106,6 +108,7 @@ def test_campaign_foreign_keys():
     fks = {f"{fk.column.table.name}.{fk.column.name}" for fk in Campaign.__table__.foreign_keys}
     assert "organizations.id" in fks
     assert "templates.id" in fks
+    assert "forms.id" in fks
 
 
 def test_interaction_foreign_keys():

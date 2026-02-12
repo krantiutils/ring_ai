@@ -1,6 +1,8 @@
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
 from app.models.contact import Contact
+from app.models.form import Form
+from app.models.form_response import FormResponse
 from app.models.interaction import Interaction
 from app.models.kyc_verification import KYCVerification
 from app.models.organization import Organization
@@ -16,6 +18,8 @@ __all__ = [
     "AnalyticsEvent",
     "Campaign",
     "Contact",
+    "Form",
+    "FormResponse",
     "Interaction",
     "KYCVerification",
     "Organization",
