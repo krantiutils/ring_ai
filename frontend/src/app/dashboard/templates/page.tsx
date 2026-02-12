@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, MessageSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Template } from "@/types/dashboard";
 
@@ -45,65 +45,77 @@ export default function TemplatesPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/40" />
           <input
             type="text"
             placeholder="Search templates..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
-        <button className="ml-auto flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+        <button className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
           <Plus className="w-4 h-4" />
           Create Message Template
         </button>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Title</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Content</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Type</th>
-              <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Actions</th>
+            <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Title</th>
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Content</th>
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Type</th>
+              <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#FF6B6B]/10">
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-gray-400 text-sm">
+                <td colSpan={4} className="px-6 py-12 text-center">
                   <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF6B6B]" />
                   </div>
                 </td>
               </tr>
             ) : templates.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-gray-400 text-sm">
-                  No templates found
+                <td colSpan={4} className="px-6 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center">
+                      <MessageSquare className="w-7 h-7 text-[#FF6B6B]/40" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#2D2D2D]/60">No templates yet</p>
+                      <p className="text-xs text-[#2D2D2D]/40 mt-1">Create a message template to get started</p>
+                    </div>
+                    <button className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+                      <Plus className="w-4 h-4" />
+                      Create Template
+                    </button>
+                  </div>
                 </td>
               </tr>
             ) : (
               templates.map((template) => (
-                <tr key={template.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{template.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 max-w-md truncate">{template.content}</td>
+                <tr key={template.id} className="hover:bg-[#FFF8F0]/50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-[#2D2D2D]">{template.name}</td>
+                  <td className="px-6 py-4 text-sm text-[#2D2D2D]/60 max-w-md truncate">{template.content}</td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 capitalize">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FF6B6B]/15 text-[#FF6B6B] capitalize">
                       {template.type}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors">
+                      <button className="p-1.5 rounded-lg hover:bg-[#FFF8F0] text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors">
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(template.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -116,7 +128,7 @@ export default function TemplatesPage() {
         </table>
 
         {total > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-500">
+          <div className="px-6 py-3 border-t border-[#FF6B6B]/10 text-xs text-[#2D2D2D]/50">
             Showing {templates.length} of {total} templates
           </div>
         )}

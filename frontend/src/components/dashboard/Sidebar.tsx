@@ -35,16 +35,16 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-[#1a1a2e] text-white flex flex-col z-50 transition-all duration-300",
+        "fixed left-0 top-0 h-screen bg-[#FFF8F0] text-[#2D2D2D] flex flex-col z-50 transition-all duration-300 border-r border-[#FF6B6B]/20",
         collapsed ? "w-[72px]" : "w-[260px]",
       )}
     >
-      <div className="flex items-center gap-3 px-5 h-16 border-b border-white/10">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-sm shrink-0">
+      <div className="flex items-center gap-3 px-5 h-16 border-b border-[#FF6B6B]/15">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF6B6B] to-[#ff8787] flex items-center justify-center font-bold text-sm text-white shrink-0">
           R
         </div>
         {!collapsed && (
-          <span className="text-lg font-semibold tracking-tight">Ring AI</span>
+          <span className="text-lg font-semibold tracking-tight text-[#2D2D2D]">Ring AI</span>
         )}
       </div>
 
@@ -64,8 +64,8 @@ export default function Sidebar() {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-white/15 text-white"
-                      : "text-white/60 hover:text-white hover:bg-white/5",
+                      ? "bg-[#FF6B6B] text-white"
+                      : "text-[#2D2D2D]/60 hover:text-[#2D2D2D] hover:bg-[#FF6B6B]/10",
                   )}
                   title={collapsed ? item.label : undefined}
                 >
@@ -80,7 +80,7 @@ export default function Sidebar() {
 
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-center h-12 border-t border-white/10 text-white/40 hover:text-white transition-colors"
+        className="flex items-center justify-center h-12 border-t border-[#FF6B6B]/15 text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors"
       >
         {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
       </button>

@@ -49,74 +49,74 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
       {/* Profile Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-indigo-50">
-            <User className="w-5 h-5 text-indigo-600" />
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 rounded-lg bg-[#FF6B6B]/10">
+            <User className="w-5 h-5 text-[#FF6B6B]" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900">Profile</h3>
+          <h3 className="text-base font-semibold text-[#2D2D2D]">Profile</h3>
         </div>
 
         <div className="space-y-4">
           {/* Avatar */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
-              <User className="w-8 h-8 text-indigo-600" />
+            <div className="w-16 h-16 rounded-full bg-[#FF6B6B]/15 flex items-center justify-center">
+              <User className="w-8 h-8 text-[#FF6B6B]" />
             </div>
-            <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+            <button className="text-sm text-[#FF6B6B] hover:text-[#ff5252] font-medium">
               Upload Picture
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">First Name</label>
               <input
                 type="text"
                 defaultValue={profile?.first_name || ""}
-                className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">Last Name</label>
               <input
                 type="text"
                 defaultValue={profile?.last_name || ""}
-                className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">Email</label>
               <input
                 type="email"
                 defaultValue={profile?.email || ""}
-                className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
+                className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-[#FFF8F0] text-[#2D2D2D]/50"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">Phone Number</label>
               <input
                 type="tel"
                 defaultValue={profile?.phone || ""}
-                className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+            <button className="bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
               Update Profile
             </button>
-            <button className="border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            <button className="border border-[#FF6B6B]/15 text-[#2D2D2D]/70 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#FFF8F0] transition-colors">
               Set Password
             </button>
           </div>
@@ -124,24 +124,24 @@ export default function SettingsPage() {
       </div>
 
       {/* KYC Verification */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-emerald-50">
-            <Shield className="w-5 h-5 text-emerald-600" />
+          <div className="p-2 rounded-lg bg-[#4ECDC4]/10">
+            <Shield className="w-5 h-5 text-[#4ECDC4]" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-900">KYC Verification</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="text-base font-semibold text-[#2D2D2D]">KYC Verification</h3>
+            <p className="text-sm text-[#2D2D2D]/50">
               Status:{" "}
               <span
                 className={
                   kyc?.status === "approved"
-                    ? "text-green-600 font-medium"
+                    ? "text-[#4ECDC4] font-medium"
                     : kyc?.status === "pending"
-                      ? "text-amber-600 font-medium"
+                      ? "text-[#FFD93D] font-medium"
                       : kyc?.status === "rejected"
-                        ? "text-red-600 font-medium"
-                        : "text-gray-400"
+                        ? "text-[#FF6B6B] font-medium"
+                        : "text-[#2D2D2D]/40"
                 }
               >
                 {kyc?.status || "Not submitted"}
@@ -151,50 +151,50 @@ export default function SettingsPage() {
         </div>
 
         {(!kyc || kyc.status === "none" || kyc.status === "rejected") && (
-          <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+          <button className="bg-[#4ECDC4] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#45b8b0] transition-colors">
             Verify KYC
           </button>
         )}
 
         {kyc?.status === "rejected" && kyc.rejection_reason && (
-          <p className="mt-2 text-sm text-red-500">Reason: {kyc.rejection_reason}</p>
+          <p className="mt-2 text-sm text-[#FF6B6B]">Reason: {kyc.rejection_reason}</p>
         )}
       </div>
 
       {/* Token Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-amber-50">
-            <Key className="w-5 h-5 text-amber-600" />
+          <div className="p-2 rounded-lg bg-[#FFD93D]/15">
+            <Key className="w-5 h-5 text-[#FFD93D]" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900">API Token</h3>
+          <h3 className="text-base font-semibold text-[#2D2D2D]">API Token</h3>
         </div>
 
         {token ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-              <code className="text-sm font-mono text-gray-700 flex-1">
-                {showToken ? token : token.slice(0, 8) + "••••••••••••••••"}
+            <div className="flex items-center gap-3 bg-[#FFF8F0] rounded-lg p-3">
+              <code className="text-sm font-mono text-[#2D2D2D]/70 flex-1">
+                {showToken ? token : token.slice(0, 8) + "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"}
               </code>
               <button
                 onClick={() => setShowToken(!showToken)}
-                className="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors"
+                className="p-2 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/50 transition-colors"
               >
                 {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
               <button
                 onClick={() => copyToClipboard(token)}
-                className="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors"
+                className="p-2 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/50 transition-colors"
               >
-                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4 text-[#4ECDC4]" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-amber-600">Save this token — it won&apos;t be shown again.</p>
+            <p className="text-xs text-[#FFD93D]">Save this token — it won&apos;t be shown again.</p>
           </div>
         ) : (
           <button
             onClick={handleGenerateToken}
-            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+            className="bg-[#FFD93D] text-[#2D2D2D] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ffd024] transition-colors"
           >
             Generate Token
           </button>
@@ -202,12 +202,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Notifications Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-blue-50">
-            <Bell className="w-5 h-5 text-blue-600" />
+          <div className="p-2 rounded-lg bg-[#4ECDC4]/10">
+            <Bell className="w-5 h-5 text-[#4ECDC4]" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+          <h3 className="text-base font-semibold text-[#2D2D2D]">Notifications</h3>
         </div>
 
         <div className="space-y-3">
@@ -218,11 +218,11 @@ export default function SettingsPage() {
             { label: "KYC status updates", key: "kyc_updates" },
           ].map((item) => (
             <label key={item.key} className="flex items-center justify-between">
-              <span className="text-sm text-gray-700">{item.label}</span>
+              <span className="text-sm text-[#2D2D2D]/70">{item.label}</span>
               <input
                 type="checkbox"
                 defaultChecked
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#FF6B6B]/30 text-[#FF6B6B] focus:ring-[#FF6B6B]/40"
               />
             </label>
           ))}

@@ -9,12 +9,12 @@ import { formatNumber, formatDuration } from "@/lib/utils";
 import type { OverviewAnalytics, CarrierStat } from "@/types/dashboard";
 
 const STATUS_COLORS: Record<string, string> = {
-  Answered: "#10b981",
+  Answered: "#4ECDC4",
   Unanswered: "#94a3b8",
-  HungUp: "#f59e0b",
-  Failed: "#ef4444",
-  Terminated: "#8b5cf6",
-  Completed: "#3b82f6",
+  HungUp: "#FFD93D",
+  Failed: "#FF6B6B",
+  Terminated: "#ff8787",
+  Completed: "#4ECDC4",
 };
 
 export default function AnalyticsPage() {
@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
       </div>
     );
   }
@@ -65,43 +65,43 @@ export default function AnalyticsPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/40" />
           <input
             type="text"
             placeholder="Search by campaign name"
             value={searchCampaign}
             onChange={(e) => setSearchCampaign(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
         <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/40" />
           <input
             type="text"
             placeholder="Search by phone number"
             value={searchPhone}
             onChange={(e) => setSearchPhone(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
-        <button className="ml-auto flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+        <button className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
           <FileDown className="w-4 h-4" />
           Export as PDF
         </button>
       </div>
 
       {/* Call Status Breakdown Chart */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Call Status Breakdown</h3>
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+        <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Call Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={callStatusData} barSize={44}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
             <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} />
+            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #FF6B6B26", fontSize: "13px" }} />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
               {callStatusData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name] || "#6366f1"} />
+                <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name] || "#FF6B6B"} />
               ))}
             </Bar>
           </BarChart>
@@ -109,31 +109,41 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Carrier Summary */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Carrier Summary</h3>
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#FF6B6B]/10">
+          <h3 className="text-sm font-semibold text-[#2D2D2D]">Carrier Summary</h3>
         </div>
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Carrier</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Success</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Fail</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6 py-3">Pickup %</th>
+            <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Carrier</th>
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Success</th>
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Fail</th>
+              <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-6 py-3">Pickup %</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#FF6B6B]/10">
             {carriers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-sm">No carrier data</td>
+                <td colSpan={4} className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#FFF8F0] flex items-center justify-center">
+                      <Phone className="w-6 h-6 text-[#FF6B6B]/40" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#2D2D2D]/60">No carrier data yet</p>
+                      <p className="text-xs text-[#2D2D2D]/40 mt-1">Carrier stats will appear after your first campaign</p>
+                    </div>
+                  </div>
+                </td>
               </tr>
             ) : (
               carriers.map((c) => (
-                <tr key={c.carrier} className="hover:bg-gray-50/50">
-                  <td className="px-6 py-3 text-sm font-medium text-gray-900">{c.carrier}</td>
-                  <td className="px-6 py-3 text-sm text-green-600">{c.successful}</td>
-                  <td className="px-6 py-3 text-sm text-red-500">{c.failed}</td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{c.pickup_rate.toFixed(1)}%</td>
+                <tr key={c.carrier} className="hover:bg-[#FFF8F0]/50">
+                  <td className="px-6 py-3 text-sm font-medium text-[#2D2D2D]">{c.carrier}</td>
+                  <td className="px-6 py-3 text-sm text-[#4ECDC4]">{c.successful}</td>
+                  <td className="px-6 py-3 text-sm text-[#FF6B6B]">{c.failed}</td>
+                  <td className="px-6 py-3 text-sm text-[#2D2D2D]/60">{c.pickup_rate.toFixed(1)}%</td>
                 </tr>
               ))
             )}
@@ -147,40 +157,40 @@ export default function AnalyticsPage() {
           title="Total Credits Used"
           value={formatNumber(overview?.total_credits_consumed || 0)}
           icon={DollarSign}
-          iconColor="text-red-500"
+          iconColor="text-[#FF6B6B]"
         />
         <StatWidget
           title="Current Attempted Calls"
           value={formatNumber(overview?.total_reach || 0)}
           subtitle={`Successful: ${statusBreakdown["completed"] || 0} / Failed: ${statusBreakdown["failed"] || 0}`}
           icon={Phone}
-          iconColor="text-blue-500"
+          iconColor="text-[#4ECDC4]"
         />
         <StatWidget
           title="Total SMS Sent"
           value="0"
           icon={MessageSquare}
-          iconColor="text-purple-500"
+          iconColor="text-[#FFD93D]"
         />
         <StatWidget
           title="Current Playback %"
           value="0%"
           subtitle="Voice message listen time"
           icon={Headphones}
-          iconColor="text-violet-500"
+          iconColor="text-[#FF6B6B]"
         />
         <StatWidget
           title="Current Pickup Rate %"
           value={overview ? `${overview.delivery_rate.toFixed(1)}%` : "0%"}
           subtitle="Percentage of successful call pickups"
           icon={Target}
-          iconColor="text-emerald-500"
+          iconColor="text-[#4ECDC4]"
         />
         <StatWidget
           title="Current Call Duration"
           value={formatDuration(0)}
           icon={Clock}
-          iconColor="text-orange-500"
+          iconColor="text-[#FFD93D]"
         />
       </div>
     </div>

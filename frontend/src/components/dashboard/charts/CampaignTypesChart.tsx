@@ -1,8 +1,9 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { Megaphone } from "lucide-react";
 
-const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444"];
+const COLORS = ["#FF6B6B", "#4ECDC4", "#FFD93D", "#ff8787"];
 
 interface CampaignTypesChartProps {
   data: Record<string, number>;
@@ -16,18 +17,24 @@ export default function CampaignTypesChart({ data }: CampaignTypesChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Campaign Types</h3>
-        <div className="h-[250px] flex items-center justify-center text-gray-400 text-sm">
-          No data available
+      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+        <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Campaign Types</h3>
+        <div className="h-[250px] flex flex-col items-center justify-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-[#FFF8F0] flex items-center justify-center">
+            <Megaphone className="w-6 h-6 text-[#FF6B6B]/40" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-[#2D2D2D]/60">No campaign data yet</p>
+            <p className="text-xs text-[#2D2D2D]/40 mt-1">Create your first campaign to see analytics</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">Campaign Types</h3>
+    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+      <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Campaign Types</h3>
       <ResponsiveContainer width="100%" height={250}>
         <PieChart>
           <Pie
@@ -44,7 +51,7 @@ export default function CampaignTypesChart({ data }: CampaignTypesChartProps) {
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }}
+            contentStyle={{ borderRadius: "8px", border: "1px solid #FF6B6B26", fontSize: "13px" }}
           />
           <Legend
             verticalAlign="bottom"
