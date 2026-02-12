@@ -5,11 +5,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models import Interaction, Template
+from app.models import Interaction, PhoneNumber, Template
 from app.schemas.voice import CampaignCallRequest, CampaignCallResponse, CallStatusResponse
 from app.services.telephony import (
     AudioEntry,
@@ -120,11 +121,26 @@ async def initiate_campaign_call(
     except TelephonyConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    from_number = payload.from_number or provider.default_from_number
+    from_number = payload.from_number
+    if not from_number:
+        # Try to resolve from org's broker phone numbers
+        broker_phone = db.execute(
+            select(PhoneNumber).where(
+                PhoneNumber.org_id == template.org_id,
+                PhoneNumber.is_active.is_(True),
+                PhoneNumber.is_broker.is_(True),
+            ).limit(1)
+        ).scalar_one_or_none()
+        if broker_phone is not None:
+            from_number = broker_phone.phone_number
+        else:
+            # Fall back to global default
+            from_number = provider.default_from_number
     if not from_number:
         raise HTTPException(
             status_code=422,
-            detail="No from_number provided and no default Twilio number configured",
+            detail="No from_number provided, no broker phone configured for this org, "
+            "and no default Twilio number configured",
         )
 
     base_url = settings.TWILIO_BASE_URL

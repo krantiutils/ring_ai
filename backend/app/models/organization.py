@@ -34,6 +34,9 @@ class Organization(Base):
     tts_configs: Mapped[list["TTSProviderConfig"]] = relationship(
         back_populates="organization"
     )
+    phone_numbers: Mapped[list["PhoneNumber"]] = relationship(
+        back_populates="organization"
+    )
 
     def __repr__(self) -> str:
         return f"<Organization {self.name}>"
