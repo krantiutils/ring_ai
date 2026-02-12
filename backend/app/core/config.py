@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     CAMPAIGN_MAX_RETRIES: int = 3
     CAMPAIGN_RATE_LIMIT_PER_SECOND: float = 10.0
 
+    # Campaign retry backoff: delay in minutes for each retry round
+    # Index 0 = first retry, index 1 = second retry, etc.
+    CAMPAIGN_RETRY_BACKOFF_MINUTES: list[int] = [0, 30, 120]
+
     # Scheduler
     SCHEDULER_POLL_INTERVAL_SECONDS: int = 30
 

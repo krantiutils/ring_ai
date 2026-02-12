@@ -20,16 +20,23 @@ from app.schemas.campaigns import (
     CampaignWithStats,
     ContactListResponse,
     ContactUploadResponse,
+    RelaunchResponse,
+    RetryRequest,
+    RetryResponse,
 )
 from app.services.campaigns import (
     CampaignError,
     InvalidStateTransition,
+    MaxRetriesExceeded,
+    NoFailedInteractions,
     calculate_stats,
     cancel_schedule,
     execute_campaign_batch,
     generate_report_csv,
     pause_campaign,
+    relaunch_campaign,
     resume_campaign,
+    retry_campaign,
     schedule_campaign,
     start_campaign,
     upload_contacts_to_campaign,
@@ -122,6 +129,9 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         template_id=campaign.template_id,
         schedule_config=campaign.schedule_config,
         scheduled_at=campaign.scheduled_at,
+        retry_count=campaign.retry_count,
+        retry_config=campaign.retry_config,
+        source_campaign_id=campaign.source_campaign_id,
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
         stats=stats,
@@ -265,6 +275,71 @@ def resume_campaign_endpoint(
     # Kick off background executor for remaining interactions
     background_tasks.add_task(execute_campaign_batch, campaign.id, SessionLocal)
     return campaign
+
+
+# ---------------------------------------------------------------------------
+# Retry & Relaunch
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{campaign_id}/retry", response_model=RetryResponse)
+def retry_campaign_endpoint(
+    campaign_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    body: RetryRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    campaign = _get_campaign_or_404(campaign_id, db)
+
+    # Apply per-request retry_config override if provided
+    if body and body.retry_config is not None:
+        campaign.retry_config = body.retry_config
+        db.commit()
+
+    try:
+        retried, scheduled_at = retry_campaign(db, campaign)
+    except InvalidStateTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except MaxRetriesExceeded as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except NoFailedInteractions as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # If immediate (no backoff), kick off background executor
+    if scheduled_at is None:
+        background_tasks.add_task(
+            execute_campaign_batch, campaign.id, SessionLocal
+        )
+
+    return RetryResponse(
+        campaign_id=campaign.id,
+        retry_round=campaign.retry_count,
+        retried_count=retried,
+        scheduled_at=scheduled_at,
+        status=campaign.status,
+    )
+
+
+@router.post("/{campaign_id}/relaunch", response_model=RelaunchResponse, status_code=201)
+def relaunch_campaign_endpoint(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    campaign = _get_campaign_or_404(campaign_id, db)
+
+    try:
+        new_campaign, contacts_imported = relaunch_campaign(db, campaign)
+    except NoFailedInteractions as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except CampaignError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    return RelaunchResponse(
+        source_campaign_id=campaign.id,
+        new_campaign_id=new_campaign.id,
+        contacts_imported=contacts_imported,
+        status=new_campaign.status,
+    )
 
 
 # ---------------------------------------------------------------------------
