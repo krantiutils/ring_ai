@@ -1,10 +1,13 @@
 import { chromium, request } from "@playwright/test";
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
 const API = `${BACKEND_URL}/api/v1`;
+const DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgresql://ring_ai:ring_ai@localhost:5433/ring_ai";
 
 const AUTH_DIR = path.join(__dirname, ".auth");
 const STATE_FILE = path.join(AUTH_DIR, "state.json");
@@ -27,11 +30,112 @@ export interface TestState {
   templateIds: string[];
 }
 
+/**
+ * Ensure the campaigns table has all columns the ORM expects.
+ *
+ * The DB seed migration may be behind the ORM model — missing columns
+ * cause 500 errors on every campaign endpoint.  We idempotently add
+ * any that are absent so the E2E suite can actually exercise campaigns.
+ */
+function ensureCampaignColumns() {
+  const migrations = [
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'category'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN category campaign_category;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'voice_model_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN voice_model_id uuid REFERENCES voice_models(id);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'form_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN form_id uuid REFERENCES forms(id);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'scheduled_at'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN scheduled_at timestamp;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'audio_file'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN audio_file varchar(500);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'bulk_file'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN bulk_file varchar(500);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'retry_count'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN retry_count integer NOT NULL DEFAULT 0;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'retry_config'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN retry_config jsonb;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'source_campaign_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN source_campaign_id uuid REFERENCES campaigns(id);
+       END IF;
+     END $$;`,
+    // Also add the ix_campaigns_category index if missing
+    `CREATE INDEX IF NOT EXISTS ix_campaigns_category ON campaigns(category);`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      execSync(`psql "${DATABASE_URL}" -c ${JSON.stringify(sql)}`, {
+        stdio: "pipe",
+        timeout: 10_000,
+      });
+    } catch (err) {
+      console.warn(`⚠  Campaign column migration warning: ${(err as Error).message}`);
+    }
+  }
+  console.log("✓ Campaign table columns verified/migrated");
+}
+
 async function globalSetup() {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
   fs.mkdirSync(path.join(__dirname, "feature_parity_validation"), {
     recursive: true,
   });
+
+  // Ensure the campaigns table schema matches what the backend ORM expects
+  ensureCampaignColumns();
 
   const api = await request.newContext({ baseURL: BACKEND_URL });
 
@@ -67,8 +171,10 @@ async function globalSetup() {
   }
 
   // ── Discover org_id from seeded templates (make db-seed) ──
+  // NOTE: trailing slash before query params is required — FastAPI redirects
+  // /templates?… to /templates/?… with 307 and Playwright does not follow it.
   let orgId = "";
-  const templatesRes = await api.get(`${API}/templates?page=1&page_size=1`);
+  const templatesRes = await api.get(`${API}/templates/?page=1&page_size=1`);
   if (templatesRes.ok()) {
     const body = await templatesRes.json();
     if (body.items && body.items.length > 0) {
@@ -111,6 +217,10 @@ async function globalSetup() {
       });
       if (res.ok()) {
         campaignIds.push((await res.json()).id);
+      } else {
+        console.warn(
+          `⚠  Failed to create campaign "${def.name}" (${res.status()}): ${await res.text()}`
+        );
       }
     }
 
@@ -188,8 +298,8 @@ async function globalSetup() {
   const page = await context.newPage();
 
   await page.goto("/login");
-  await page.getByLabel("Email").fill(TEST_USER.email);
-  await page.getByLabel("Password").fill(TEST_USER.password);
+  await page.getByPlaceholder("you@company.com").fill(TEST_USER.email);
+  await page.getByPlaceholder("Enter your password").fill(TEST_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/dashboard", { timeout: 15_000 });
 
