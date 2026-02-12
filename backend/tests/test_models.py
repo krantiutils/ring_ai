@@ -39,7 +39,7 @@ def test_campaign_columns():
     cols = {c.name for c in Campaign.__table__.columns}
     assert cols == {
         "id", "org_id", "name", "type", "status", "template_id",
-        "schedule_config", "created_at", "updated_at",
+        "schedule_config", "scheduled_at", "created_at", "updated_at",
     }
 
 

@@ -71,7 +71,8 @@ class ContactNotInCampaign(CampaignError):
 # ---------------------------------------------------------------------------
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"active"},
+    "draft": {"active", "scheduled"},
+    "scheduled": {"active", "draft"},
     "active": {"paused", "completed"},
     "paused": {"active"},
     "completed": set(),
@@ -234,24 +235,62 @@ def upload_contacts_to_campaign(
 # ---------------------------------------------------------------------------
 
 
+def _assert_has_contacts(db: Session, campaign: Campaign) -> None:
+    """Raise CampaignError if campaign has no contacts."""
+    contact_count = db.execute(
+        select(func.count())
+        .select_from(Interaction)
+        .where(Interaction.campaign_id == campaign.id)
+    ).scalar_one()
+    if contact_count == 0:
+        raise CampaignError("Cannot start campaign with no contacts")
+
+
 def start_campaign(db: Session, campaign: Campaign) -> Campaign:
     """Transition campaign from draft → active.
 
     Validates that the campaign has at least one contact (pending interaction).
     """
     _assert_transition(campaign.status, "active")
-
-    # Verify there are contacts
-    contact_count = db.execute(
-        select(func.count())
-        .select_from(Interaction)
-        .where(Interaction.campaign_id == campaign.id)
-    ).scalar_one()
-
-    if contact_count == 0:
-        raise CampaignError("Cannot start campaign with no contacts")
+    _assert_has_contacts(db, campaign)
 
     campaign.status = "active"
+    campaign.scheduled_at = None
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def schedule_campaign(
+    db: Session, campaign: Campaign, scheduled_at: datetime
+) -> Campaign:
+    """Transition campaign from draft → scheduled.
+
+    Validates contacts exist and that scheduled_at is in the future.
+    """
+    _assert_transition(campaign.status, "scheduled")
+    _assert_has_contacts(db, campaign)
+
+    now = datetime.now(timezone.utc)
+    # Normalise to UTC for comparison
+    compare_dt = scheduled_at if scheduled_at.tzinfo else scheduled_at.replace(
+        tzinfo=timezone.utc
+    )
+    if compare_dt <= now:
+        raise CampaignError("Scheduled time must be in the future")
+
+    campaign.status = "scheduled"
+    campaign.scheduled_at = scheduled_at
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def cancel_schedule(db: Session, campaign: Campaign) -> Campaign:
+    """Cancel a scheduled campaign — transition back to draft."""
+    _assert_transition(campaign.status, "draft")
+    campaign.status = "draft"
+    campaign.scheduled_at = None
     db.commit()
     db.refresh(campaign)
     return campaign
