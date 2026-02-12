@@ -106,3 +106,10 @@ class CallContext(BaseModel):
     record: bool = False
     record_consent_text: str | None = None
     interaction_id: uuid.UUID | None = None
+
+
+class SmsResult(BaseModel):
+    """Result of sending an SMS message via a telephony provider."""
+
+    message_id: str
+    status: str
