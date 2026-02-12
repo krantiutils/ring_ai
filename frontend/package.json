@@ -12,10 +12,15 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.182.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.34.0",
+    "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.4.0",
     "three": "^0.182.0"
   },
   "devDependencies": {
