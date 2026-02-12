@@ -5,6 +5,8 @@ from app.models.interaction import Interaction
 from app.models.organization import Organization
 from app.models.template import Template
 from app.models.tts_provider_config import TTSProviderConfig
+from app.models.user import User
+from app.models.user_api_key import UserAPIKey
 
 __all__ = [
     "AnalyticsEvent",
@@ -14,4 +16,6 @@ __all__ = [
     "Organization",
     "Template",
     "TTSProviderConfig",
+    "User",
+    "UserAPIKey",
 ]
