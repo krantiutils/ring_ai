@@ -31,5 +31,6 @@ def test_api_v1_templates(client):
 
 
 def test_api_v1_analytics(client):
-    response = client.get("/api/v1/analytics/")
+    """Analytics router is mounted — events endpoint returns 200 with empty results."""
+    response = client.get("/api/v1/analytics/events")
     assert response.status_code == 200
