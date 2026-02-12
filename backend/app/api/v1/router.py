@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     contacts,
     forms,
     kyc,
+    notifications,
     otp,
     phone_numbers,
     templates,
@@ -31,4 +32,5 @@ api_v1_router.include_router(templates.router, prefix="/templates", tags=["templ
 api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_v1_router.include_router(tts.router, prefix="/tts", tags=["tts"])
 api_v1_router.include_router(otp.router, prefix="/otp", tags=["otp"])
+api_v1_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_v1_router.include_router(phone_numbers.router, prefix="/phone-numbers", tags=["phone-numbers"])

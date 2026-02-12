@@ -5,6 +5,7 @@ from app.models.form import Form
 from app.models.form_response import FormResponse
 from app.models.interaction import Interaction
 from app.models.kyc_verification import KYCVerification
+from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.otp import OTPRecord
 from app.models.phone_number import PhoneNumber
@@ -22,6 +23,7 @@ __all__ = [
     "FormResponse",
     "Interaction",
     "KYCVerification",
+    "Notification",
     "Organization",
     "OTPRecord",
     "PhoneNumber",
