@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/feature_parity_validation/*.png
+/feature_parity_validation/**/*.png
 
 # next.js
 /.next/
