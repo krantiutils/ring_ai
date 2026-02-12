@@ -205,12 +205,16 @@ def upload_contacts_to_campaign(
                     Contact.phone == phone,
                 )
             ).scalar_one()
+            # Backfill carrier if not already set
+            if contact.carrier is None:
+                contact.carrier = detect_carrier(phone)
         else:
             contact = Contact(
                 phone=phone,
                 name=row["name"],
                 metadata_=row["metadata_"],
                 org_id=campaign.org_id,
+                carrier=detect_carrier(phone),
             )
             db.add(contact)
             db.flush()
@@ -397,26 +401,22 @@ _NEPAL_CARRIER_PREFIXES: dict[str, str] = {
     "984": "NTC",
     "985": "NTC",
     "986": "NTC",
-    "974": "NTC",
-    "975": "NTC",
     # Ncell
     "980": "Ncell",
     "981": "Ncell",
     "982": "Ncell",
-    # Smart Cell
-    "961": "Smart Cell",
-    "962": "Smart Cell",
-    "988": "Smart Cell",
-    # UTL (United Telecom)
-    "972": "UTL",
+    # SmartCell
+    "961": "SmartCell",
+    "962": "SmartCell",
+    "988": "SmartCell",
 }
 
 
-def detect_carrier(phone: str) -> str | None:
+def detect_carrier(phone: str) -> str:
     """Detect Nepal mobile carrier from phone number prefix.
 
     Accepts numbers with or without country code (+977 / 977).
-    Returns carrier name or None if not a recognized Nepal mobile number.
+    Returns carrier name: "NTC", "Ncell", "SmartCell", or "Unknown".
     """
     # Strip whitespace and leading +
     cleaned = phone.strip().lstrip("+")
@@ -427,11 +427,11 @@ def detect_carrier(phone: str) -> str | None:
     elif cleaned.startswith("9") and len(cleaned) == 10:
         subscriber = cleaned
     else:
-        return None
+        return "Unknown"
 
     # Match first 3 digits of subscriber number
     prefix = subscriber[:3]
-    return _NEPAL_CARRIER_PREFIXES.get(prefix)
+    return _NEPAL_CARRIER_PREFIXES.get(prefix, "Unknown")
 
 
 # ---------------------------------------------------------------------------
@@ -475,13 +475,14 @@ def generate_report_csv(db: Session, campaign_id: uuid.UUID) -> Generator[str, N
     for interaction, contact in results:
         buf = io.StringIO()
         writer = csv.writer(buf)
+        carrier = contact.carrier if contact.carrier else detect_carrier(contact.phone)
         writer.writerow([
             contact.phone,
             contact.name or "",
             interaction.status,
             interaction.duration_seconds if interaction.duration_seconds is not None else "",
             interaction.credit_consumed if interaction.credit_consumed is not None else "",
-            detect_carrier(contact.phone) or "",
+            carrier,
             interaction.audio_url or "",
             interaction.updated_at.isoformat() if interaction.updated_at else "",
         ])

@@ -61,7 +61,9 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)):
         name=payload.name,
         type=payload.type,
         org_id=payload.org_id,
+        category=payload.category,
         template_id=payload.template_id,
+        voice_model_id=payload.voice_model_id,
         schedule_config=payload.schedule_config,
         status="draft",
     )
@@ -77,6 +79,7 @@ def list_campaigns(
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = Query(None),
     type: str | None = Query(None),
+    category: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     query = select(Campaign)
@@ -88,6 +91,9 @@ def list_campaigns(
     if type is not None:
         query = query.where(Campaign.type == type)
         count_query = count_query.where(Campaign.type == type)
+    if category is not None:
+        query = query.where(Campaign.category == category)
+        count_query = count_query.where(Campaign.category == category)
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
@@ -119,7 +125,9 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         name=campaign.name,
         type=campaign.type,
         status=campaign.status,
+        category=campaign.category,
         template_id=campaign.template_id,
+        voice_model_id=campaign.voice_model_id,
         schedule_config=campaign.schedule_config,
         scheduled_at=campaign.scheduled_at,
         created_at=campaign.created_at,

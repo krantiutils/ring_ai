@@ -918,22 +918,19 @@ class TestDetectCarrier:
         assert detect_carrier("+9779821234567") == "Ncell"
 
     def test_smart_cell(self):
-        assert detect_carrier("+9779611234567") == "Smart Cell"
+        assert detect_carrier("+9779611234567") == "SmartCell"
 
     def test_smart_cell_988(self):
-        assert detect_carrier("9881234567") == "Smart Cell"
-
-    def test_utl(self):
-        assert detect_carrier("+9779721234567") == "UTL"
+        assert detect_carrier("9881234567") == "SmartCell"
 
     def test_unknown_prefix(self):
-        assert detect_carrier("+9779991234567") is None
+        assert detect_carrier("+9779991234567") == "Unknown"
 
     def test_non_nepal_number(self):
-        assert detect_carrier("+14155551234") is None
+        assert detect_carrier("+14155551234") == "Unknown"
 
     def test_empty_string(self):
-        assert detect_carrier("") is None
+        assert detect_carrier("") == "Unknown"
 
     def test_whitespace_handling(self):
         assert detect_carrier("  +9779841234567  ") == "NTC"

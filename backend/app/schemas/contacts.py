@@ -15,6 +15,7 @@ class ContactDetailResponse(BaseModel):
     org_id: uuid.UUID
     phone: str
     name: str | None
+    carrier: str | None = None
     attributes: dict[str, str] | None = Field(
         None,
         description="Custom key-value attributes stored in contact metadata",

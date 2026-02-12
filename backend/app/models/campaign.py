@@ -14,6 +14,7 @@ class Campaign(Base):
         Index("ix_campaigns_org_id", "org_id"),
         Index("ix_campaigns_status", "status"),
         Index("ix_campaigns_org_status", "org_id", "status"),
+        Index("ix_campaigns_category", "category"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -34,8 +35,18 @@ class Campaign(Base):
         nullable=False,
         server_default="draft",
     )
+    category: Mapped[str | None] = mapped_column(
+        Enum(
+            "text", "voice", "survey", "combined",
+            name="campaign_category",
+        ),
+        nullable=True,
+    )
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("templates.id")
+    )
+    voice_model_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("voice_models.id"), nullable=True
     )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -46,6 +57,7 @@ class Campaign(Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="campaigns")
     template: Mapped["Template | None"] = relationship(back_populates="campaigns")
+    voice_model: Mapped["VoiceModel | None"] = relationship()
     interactions: Mapped[list["Interaction"]] = relationship(
         back_populates="campaign"
     )

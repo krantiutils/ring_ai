@@ -129,11 +129,11 @@ class TestListVoiceModels:
         assert response.status_code == 200
 
         data = response.json()
-        assert len(data) >= 2  # At least Hemkala and Sagar
+        assert len(data) == 5  # Rija, Rija Premium, Prashanna, Shreegya, Binod
 
         names = [v["voice_display_name"] for v in data]
-        assert "Hemkala" in names
-        assert "Sagar" in names
+        assert "Rija" in names
+        assert "Prashanna" in names
 
     def test_list_returns_correct_schema(self, client, db):
         """Each voice model should have id, voice_display_name, voice_internal_name, is_premium."""

@@ -16,6 +16,7 @@ from app.schemas.contacts import (
     ContactDetailResponse,
     ContactUpdate,
 )
+from app.services.campaigns import detect_carrier
 from app.services.templates import UndefinedVariableError, render
 
 router = APIRouter()
@@ -44,6 +45,7 @@ def _contact_to_detail(contact: Contact) -> ContactDetailResponse:
         org_id=contact.org_id,
         phone=contact.phone,
         name=contact.name,
+        carrier=contact.carrier,
         attributes=attrs,
         created_at=contact.created_at,
     )
@@ -91,6 +93,10 @@ def update_contact(
 
     for field, value in update_data.items():
         setattr(contact, field, value)
+
+    # Re-detect carrier when phone number changes
+    if "phone" in update_data:
+        contact.carrier = detect_carrier(contact.phone)
 
     db.commit()
     db.refresh(contact)
