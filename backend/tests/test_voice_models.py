@@ -6,13 +6,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models import Campaign, Contact, Template, VoiceModel
-from app.services.telephony import AudioEntry, CallContext, audio_store, call_context_store
+from app.services.telephony import (
+    audio_store,
+    call_context_store,
+)
 from app.services.telephony.exceptions import (
     TelephonyConfigurationError,
     TelephonyProviderError,
 )
 from app.services.telephony.models import CallResult, CallStatus
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -248,9 +250,7 @@ class TestTestSpeak:
     def test_tts_failure(self, mock_tts, client, db, voice_campaign):
         from app.tts.exceptions import TTSProviderError
 
-        mock_tts.synthesize = AsyncMock(
-            side_effect=TTSProviderError("edge_tts", "synthesis failed")
-        )
+        mock_tts.synthesize = AsyncMock(side_effect=TTSProviderError("edge_tts", "synthesis failed"))
 
         response = client.post(
             f"/api/v1/voice-models/test-speak/{voice_campaign.id}/",
@@ -291,9 +291,7 @@ class TestTestSpeak:
 class TestDemoCall:
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_with_number(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
+    def test_demo_call_with_number(self, mock_tts, mock_get_provider, client, db, voice_campaign):
         mock_tts.synthesize = AsyncMock(
             return_value=MagicMock(
                 audio_bytes=b"demo-audio",
@@ -307,9 +305,7 @@ class TestDemoCall:
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
         mock_provider.initiate_call = AsyncMock(
-            return_value=CallResult(
-                call_id="CA-demo-123", status=CallStatus.INITIATED
-            )
+            return_value=CallResult(call_id="CA-demo-123", status=CallStatus.INITIATED)
         )
         mock_get_provider.return_value = mock_provider
 
@@ -334,9 +330,7 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_with_contact_id(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign, test_contact
-    ):
+    def test_demo_call_with_contact_id(self, mock_tts, mock_get_provider, client, db, voice_campaign, test_contact):
         mock_tts.synthesize = AsyncMock(
             return_value=MagicMock(
                 audio_bytes=b"demo-audio",
@@ -350,9 +344,7 @@ class TestDemoCall:
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
         mock_provider.initiate_call = AsyncMock(
-            return_value=CallResult(
-                call_id="CA-demo-456", status=CallStatus.INITIATED
-            )
+            return_value=CallResult(call_id="CA-demo-456", status=CallStatus.INITIATED)
         )
         mock_get_provider.return_value = mock_provider
 
@@ -413,15 +405,9 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_twilio_not_configured(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
-        mock_get_provider.side_effect = TelephonyConfigurationError(
-            "Twilio not configured"
-        )
+    def test_demo_call_twilio_not_configured(self, mock_tts, mock_get_provider, client, db, voice_campaign):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
+        mock_get_provider.side_effect = TelephonyConfigurationError("Twilio not configured")
 
         with patch("app.api.v1.endpoints.voice_models.settings") as mock_settings:
             mock_settings.AZURE_TTS_KEY = ""
@@ -439,18 +425,12 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_twilio_initiation_failure(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
+    def test_demo_call_twilio_initiation_failure(self, mock_tts, mock_get_provider, client, db, voice_campaign):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.initiate_call = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "network error")
-        )
+        mock_provider.initiate_call = AsyncMock(side_effect=TelephonyProviderError("twilio", "network error"))
         mock_get_provider.return_value = mock_provider
 
         with patch("app.api.v1.endpoints.voice_models.settings") as mock_settings:
@@ -470,14 +450,10 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_tts_failure(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
+    def test_demo_call_tts_failure(self, mock_tts, mock_get_provider, client, db, voice_campaign):
         from app.tts.exceptions import TTSProviderError
 
-        mock_tts.synthesize = AsyncMock(
-            side_effect=TTSProviderError("edge_tts", "synthesis failed")
-        )
+        mock_tts.synthesize = AsyncMock(side_effect=TTSProviderError("edge_tts", "synthesis failed"))
 
         with patch("app.api.v1.endpoints.voice_models.settings") as mock_settings:
             mock_settings.AZURE_TTS_KEY = ""
@@ -493,12 +469,8 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_no_base_url(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
+    def test_demo_call_no_base_url(self, mock_tts, mock_get_provider, client, db, voice_campaign):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
@@ -519,12 +491,8 @@ class TestDemoCall:
 
     @patch("app.api.v1.endpoints.voice_models.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice_models.tts_router")
-    def test_demo_call_no_from_number(
-        self, mock_tts, mock_get_provider, client, db, voice_campaign
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
+    def test_demo_call_no_from_number(self, mock_tts, mock_get_provider, client, db, voice_campaign):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = ""

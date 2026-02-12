@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ring_ai
+      POSTGRES_PASSWORD: ring_ai
+      POSTGRES_DB: ring_ai
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ring_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ring_ai:ring_ai@postgres:5432/ring_ai
+      DEBUG: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.50.0-noble
+    working_dir: /e2e
+    volumes:
+      - ./e2e:/e2e
+    environment:
+      BACKEND_URL: http://backend:8000
+      FRONTEND_URL: http://frontend:3000
+      CI: "true"
+    depends_on:
+      frontend:
+        condition: service_healthy
+    command: >
+      bash -c "
+        cd /e2e &&
+        npm ci &&
+        mkdir -p feature_parity_validation &&
+        npx playwright test
+      "

@@ -10,7 +10,6 @@ from app.core.database import get_db
 from app.models.otp import OTPRecord
 from app.schemas.otp import (
     OTPListResponse,
-    OTPRecordResponse,
     OTPSendRequest,
     OTPSendResponse,
 )
@@ -125,12 +124,7 @@ def list_otps(
     total = db.execute(count_query).scalar_one()
 
     offset = (page - 1) * page_size
-    query = (
-        select(OTPRecord)
-        .order_by(OTPRecord.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-    )
+    query = select(OTPRecord).order_by(OTPRecord.created_at.desc()).offset(offset).limit(page_size)
     records = db.execute(query).scalars().all()
 
     return OTPListResponse(

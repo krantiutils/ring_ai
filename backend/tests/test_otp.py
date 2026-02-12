@@ -1,7 +1,6 @@
 """Tests for OTP service — generation, delivery, and API endpoints."""
 
-import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -11,7 +10,6 @@ from app.services.otp import (
     OTPValidationError,
     generate_otp,
 )
-
 
 # ---------------------------------------------------------------------------
 # OTP generation tests
@@ -33,12 +31,10 @@ class TestGenerateOTP:
     def test_zero_padded(self):
         """OTP should be zero-padded to the requested length."""
         # Run enough times that we'd expect at least one leading-zero case
-        seen_leading_zero = False
         for _ in range(1000):
             otp = generate_otp(6)
             assert len(otp) == 6
             if otp[0] == "0":
-                seen_leading_zero = True
                 break
         # Statistically very likely to see a leading zero in 1000 tries
         # but don't hard-assert in case of extreme (un)luck — just verify format
@@ -217,9 +213,7 @@ class TestSendOTPVoice:
 
     @patch("app.api.v1.endpoints.otp.send_otp_voice")
     def test_voice_delivery_failure(self, mock_send_voice, client, org):
-        mock_send_voice.side_effect = OTPDeliveryError(
-            "voice", "TTS synthesis failed"
-        )
+        mock_send_voice.side_effect = OTPDeliveryError("voice", "TTS synthesis failed")
 
         response = client.post(
             "/api/v1/otp/send",
@@ -237,9 +231,7 @@ class TestSendOTPVoice:
 
     @patch("app.api.v1.endpoints.otp.send_otp_sms")
     def test_sms_delivery_failure(self, mock_send_sms, client, org):
-        mock_send_sms.side_effect = OTPDeliveryError(
-            "text", "Twilio error"
-        )
+        mock_send_sms.side_effect = OTPDeliveryError("text", "Twilio error")
 
         response = client.post(
             "/api/v1/otp/send",

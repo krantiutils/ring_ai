@@ -55,9 +55,7 @@ class TwilioProvider(BaseTelephonyProvider):
         default_from_number: str,
     ) -> None:
         if not account_sid or not auth_token:
-            raise TelephonyConfigurationError(
-                "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required"
-            )
+            raise TelephonyConfigurationError("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required")
         self._account_sid = account_sid
         self._auth_token = auth_token
         self._default_from_number = default_from_number
@@ -119,9 +117,7 @@ class TwilioProvider(BaseTelephonyProvider):
                 partial(self._client.calls, call_id).fetch,
             )
         except Exception as exc:
-            raise TelephonyProviderError(
-                "twilio", f"Failed to fetch call {call_id}: {exc}"
-            ) from exc
+            raise TelephonyProviderError("twilio", f"Failed to fetch call {call_id}: {exc}") from exc
 
         status = _STATUS_MAP.get(call.status, CallStatus.FAILED)
         duration = int(call.duration) if call.duration else None
@@ -150,9 +146,7 @@ class TwilioProvider(BaseTelephonyProvider):
                 ),
             )
         except Exception as exc:
-            raise TelephonyProviderError(
-                "twilio", f"Failed to cancel call {call_id}: {exc}"
-            ) from exc
+            raise TelephonyProviderError("twilio", f"Failed to cancel call {call_id}: {exc}") from exc
 
         status = _STATUS_MAP.get(call.status, CallStatus.CANCELED)
         return CallResult(call_id=call.sid, status=status)

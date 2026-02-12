@@ -15,7 +15,6 @@ from app.services.telephony import (
     get_twilio_provider,
 )
 from app.services.telephony.exceptions import (
-    TelephonyConfigurationError,
     TelephonyProviderError,
 )
 from app.tts import tts_router

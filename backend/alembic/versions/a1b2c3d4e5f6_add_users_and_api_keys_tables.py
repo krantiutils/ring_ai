@@ -5,10 +5,12 @@ Revises: 3134a9e01ece
 Create Date: 2026-02-12 08:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "a1b2c3d4e5f6"
@@ -82,12 +84,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_user_api_keys_user_id", "user_api_keys", ["user_id"], unique=False
-    )
-    op.create_index(
-        "ix_user_api_keys_key_hash", "user_api_keys", ["key_hash"], unique=False
-    )
+    op.create_index("ix_user_api_keys_user_id", "user_api_keys", ["user_id"], unique=False)
+    op.create_index("ix_user_api_keys_key_hash", "user_api_keys", ["key_hash"], unique=False)
 
 
 def downgrade() -> None:

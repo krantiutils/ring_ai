@@ -18,9 +18,7 @@ settings.DEBUG = True
 # ---------------------------------------------------------------------------
 # SQLite compatibility for PostgreSQL-specific types (JSONB, UUID)
 # ---------------------------------------------------------------------------
-sqlite_base.SQLiteTypeCompiler.visit_JSONB = (
-    lambda self, type_, **kw: self.visit_JSON(type_, **kw)
-)
+sqlite_base.SQLiteTypeCompiler.visit_JSONB = lambda self, type_, **kw: self.visit_JSON(type_, **kw)
 
 # In-memory SQLite for tests — no PostgreSQL dependency needed
 TEST_DATABASE_URL = "sqlite://"

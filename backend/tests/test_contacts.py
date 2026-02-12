@@ -2,11 +2,9 @@
 
 import uuid
 
-import pytest
-
+from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
-from app.models.campaign import Campaign
 from app.models.template import Template
 
 NONEXISTENT_UUID = str(uuid.uuid4())
@@ -263,9 +261,8 @@ class TestDeleteContact:
 
         # Interaction should also be gone
         from sqlalchemy import select
-        remaining = db.execute(
-            select(Interaction).where(Interaction.contact_id == contact.id)
-        ).scalar_one_or_none()
+
+        remaining = db.execute(select(Interaction).where(Interaction.contact_id == contact.id)).scalar_one_or_none()
         assert remaining is None
 
     def test_delete_not_found(self, client):
@@ -281,7 +278,8 @@ class TestDeleteContact:
 class TestRenderTemplateForContact:
     def test_render_with_metadata(self, client, db, org_id):
         contact = _create_contact(
-            db, org_id,
+            db,
+            org_id,
             name="Ram",
             metadata_={"age": "25"},
         )
@@ -347,12 +345,14 @@ class TestRenderTemplateForContact:
 
     def test_render_conditional_block(self, client, db, org_id):
         contact = _create_contact(
-            db, org_id,
+            db,
+            org_id,
             name="Ram",
             metadata_={"vip": "true"},
         )
         template = _create_template(
-            db, org_id,
+            db,
+            org_id,
             content="Hello {name}!{?vip} You are VIP!{/vip}",
         )
         resp = client.post(
@@ -365,7 +365,8 @@ class TestRenderTemplateForContact:
     def test_render_conditional_block_falsy(self, client, db, org_id):
         contact = _create_contact(db, org_id, name="Ram", metadata_=None)
         template = _create_template(
-            db, org_id,
+            db,
+            org_id,
             content="Hello {name}!{?vip} You are VIP!{/vip}",
         )
         resp = client.post(

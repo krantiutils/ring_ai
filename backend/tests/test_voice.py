@@ -1,12 +1,10 @@
 """Tests for outbound voice calling — telephony service + API endpoints."""
 
 import uuid
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from xml.etree import ElementTree
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.models import Interaction, Template
 from app.services.telephony import (
@@ -25,7 +23,6 @@ from app.services.telephony.twilio import (
     generate_call_twiml,
     generate_dtmf_response_twiml,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -469,9 +466,7 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_success(
-        self, mock_tts, mock_get_provider, client, db, voice_template
-    ):
+    def test_campaign_call_success(self, mock_tts, mock_get_provider, client, db, voice_template):
         # Mock TTS
         mock_tts.synthesize = AsyncMock(
             return_value=MagicMock(
@@ -523,9 +518,7 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_template_not_found(
-        self, mock_tts, mock_get_provider, client
-    ):
+    def test_campaign_call_template_not_found(self, mock_tts, mock_get_provider, client):
         response = client.post(
             "/api/v1/voice/campaign-call",
             json={
@@ -539,9 +532,7 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_wrong_template_type(
-        self, mock_tts, mock_get_provider, client, text_template
-    ):
+    def test_campaign_call_wrong_template_type(self, mock_tts, mock_get_provider, client, text_template):
         response = client.post(
             "/api/v1/voice/campaign-call",
             json={
@@ -555,9 +546,7 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_missing_variable(
-        self, mock_tts, mock_get_provider, client, voice_template
-    ):
+    def test_campaign_call_missing_variable(self, mock_tts, mock_get_provider, client, voice_template):
         response = client.post(
             "/api/v1/voice/campaign-call",
             json={
@@ -571,14 +560,10 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_tts_failure(
-        self, mock_tts, mock_get_provider, client, voice_template
-    ):
+    def test_campaign_call_tts_failure(self, mock_tts, mock_get_provider, client, voice_template):
         from app.tts.exceptions import TTSProviderError
 
-        mock_tts.synthesize = AsyncMock(
-            side_effect=TTSProviderError("edge_tts", "synthesis failed")
-        )
+        mock_tts.synthesize = AsyncMock(side_effect=TTSProviderError("edge_tts", "synthesis failed"))
 
         response = client.post(
             "/api/v1/voice/campaign-call",
@@ -593,15 +578,9 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_twilio_not_configured(
-        self, mock_tts, mock_get_provider, client, voice_template
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
-        mock_get_provider.side_effect = TelephonyConfigurationError(
-            "Twilio not configured"
-        )
+    def test_campaign_call_twilio_not_configured(self, mock_tts, mock_get_provider, client, voice_template):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
+        mock_get_provider.side_effect = TelephonyConfigurationError("Twilio not configured")
 
         response = client.post(
             "/api/v1/voice/campaign-call",
@@ -615,18 +594,12 @@ class TestCampaignCallEndpoint:
 
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     @patch("app.api.v1.endpoints.voice.tts_router")
-    def test_campaign_call_twilio_initiate_failure(
-        self, mock_tts, mock_get_provider, client, voice_template
-    ):
-        mock_tts.synthesize = AsyncMock(
-            return_value=MagicMock(audio_bytes=b"audio", output_format="mp3")
-        )
+    def test_campaign_call_twilio_initiate_failure(self, mock_tts, mock_get_provider, client, voice_template):
+        mock_tts.synthesize = AsyncMock(return_value=MagicMock(audio_bytes=b"audio", output_format="mp3"))
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.initiate_call = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "network error")
-        )
+        mock_provider.initiate_call = AsyncMock(side_effect=TelephonyProviderError("twilio", "network error"))
         mock_get_provider.return_value = mock_provider
 
         with patch("app.api.v1.endpoints.voice.settings") as mock_settings:
@@ -650,7 +623,9 @@ class TestCampaignCallEndpoint:
 class TestGetCallStatus:
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     def test_get_call_status(self, mock_get_provider, client):
-        from app.services.telephony.models import CallStatusResponse as ProviderCallStatus
+        from app.services.telephony.models import (
+            CallStatusResponse as ProviderCallStatus,
+        )
 
         mock_provider = MagicMock()
         mock_provider.get_call_status = AsyncMock(
@@ -676,9 +651,7 @@ class TestGetCallStatus:
     @patch("app.api.v1.endpoints.voice.get_twilio_provider")
     def test_get_call_status_twilio_error(self, mock_get_provider, client):
         mock_provider = MagicMock()
-        mock_provider.get_call_status = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "not found")
-        )
+        mock_provider.get_call_status = AsyncMock(side_effect=TelephonyProviderError("twilio", "not found"))
         mock_get_provider.return_value = mock_provider
 
         response = client.get("/api/v1/voice/calls/CA-bad")

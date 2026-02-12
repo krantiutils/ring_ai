@@ -167,9 +167,7 @@ async def test_speak(
         tts_result = await tts_router.synthesize(payload.message, tts_config)
     except TTSError as exc:
         logger.error("Test-speak TTS synthesis failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail=f"TTS synthesis failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
 
     # Store audio temporarily
     audio_id = str(uuid.uuid4())
@@ -211,9 +209,7 @@ async def demo_call(
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     if campaign.template_id is None:
-        raise HTTPException(
-            status_code=422, detail="Campaign has no linked template"
-        )
+        raise HTTPException(status_code=422, detail="Campaign has no linked template")
 
     # Load template
     template = db.get(Template, campaign.template_id)
@@ -279,9 +275,7 @@ async def demo_call(
         tts_result = await tts_router.synthesize(rendered_text, tts_config)
     except TTSError as exc:
         logger.error("Demo call TTS synthesis failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail=f"TTS synthesis failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
 
     # Store audio for Twilio to fetch
     audio_id = str(uuid.uuid4())

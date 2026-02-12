@@ -68,10 +68,12 @@ def _upload_csv(client, campaign_id, csv_bytes):
 
 class TestParseContactsCsv:
     def test_basic_csv(self):
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         rows, errors = parse_contacts_csv(csv_bytes, uuid.uuid4())
         assert len(rows) == 2
         assert errors == []
@@ -94,10 +96,12 @@ class TestParseContactsCsv:
         assert any("phone" in e.lower() for e in errors)
 
     def test_empty_phone_skipped(self):
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["", "NoPhone"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["", "NoPhone"],
+            ]
+        )
         rows, errors = parse_contacts_csv(csv_bytes, uuid.uuid4())
         assert len(rows) == 1
         assert len(errors) == 1
@@ -285,10 +289,12 @@ class TestDeleteCampaign:
 class TestContactUpload:
     def test_upload_csv(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         resp = _upload_csv(client, created["id"], csv_bytes)
         assert resp.status_code == 201
         data = resp.json()
@@ -297,9 +303,11 @@ class TestContactUpload:
 
     def test_upload_duplicate_phones_skipped(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # Upload again — same phone should be skipped
@@ -340,10 +348,12 @@ class TestContactUpload:
 class TestListCampaignContacts:
     def test_list_contacts(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         resp = client.get(f"/api/v1/campaigns/{created['id']}/contacts")
@@ -370,27 +380,19 @@ class TestRemoveContact:
         _upload_csv(client, created["id"], csv_bytes)
 
         # Get the contact ID
-        contacts_resp = client.get(
-            f"/api/v1/campaigns/{created['id']}/contacts"
-        )
+        contacts_resp = client.get(f"/api/v1/campaigns/{created['id']}/contacts")
         contact_id = contacts_resp.json()["items"][0]["id"]
 
-        resp = client.delete(
-            f"/api/v1/campaigns/{created['id']}/contacts/{contact_id}"
-        )
+        resp = client.delete(f"/api/v1/campaigns/{created['id']}/contacts/{contact_id}")
         assert resp.status_code == 204
 
         # Verify removed
-        contacts_resp = client.get(
-            f"/api/v1/campaigns/{created['id']}/contacts"
-        )
+        contacts_resp = client.get(f"/api/v1/campaigns/{created['id']}/contacts")
         assert contacts_resp.json()["total"] == 0
 
     def test_remove_nonexistent_contact(self, client, org_id):
         created = _create_campaign(client, org_id)
-        resp = client.delete(
-            f"/api/v1/campaigns/{created['id']}/contacts/{NONEXISTENT_UUID}"
-        )
+        resp = client.delete(f"/api/v1/campaigns/{created['id']}/contacts/{NONEXISTENT_UUID}")
         assert resp.status_code == 404
 
     def test_remove_from_non_draft_rejected(self, client, org_id, db):
@@ -398,9 +400,7 @@ class TestRemoveContact:
         csv_bytes = _make_csv([["+9779801234567", "Ram"]])
         _upload_csv(client, created["id"], csv_bytes)
 
-        contacts_resp = client.get(
-            f"/api/v1/campaigns/{created['id']}/contacts"
-        )
+        contacts_resp = client.get(f"/api/v1/campaigns/{created['id']}/contacts")
         contact_id = contacts_resp.json()["items"][0]["id"]
 
         # Set campaign to active
@@ -408,9 +408,7 @@ class TestRemoveContact:
         campaign.status = "active"
         db.commit()
 
-        resp = client.delete(
-            f"/api/v1/campaigns/{created['id']}/contacts/{contact_id}"
-        )
+        resp = client.delete(f"/api/v1/campaigns/{created['id']}/contacts/{contact_id}")
         assert resp.status_code == 409
 
 
@@ -423,10 +421,12 @@ class TestCampaignLifecycle:
     def _campaign_with_contacts(self, client, org_id):
         """Helper: create a draft campaign with 2 contacts."""
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
         return created
 
@@ -506,10 +506,12 @@ class TestCampaignStats:
 
     def test_stats_with_contacts(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         resp = client.get(f"/api/v1/campaigns/{created['id']}")
@@ -519,17 +521,17 @@ class TestCampaignStats:
 
     def test_stats_after_completion(self, client, org_id, db):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # Manually mark one interaction as completed
         interaction = db.execute(
-            Interaction.__table__.select().where(
-                Interaction.campaign_id == uuid.UUID(created["id"])
-            )
+            Interaction.__table__.select().where(Interaction.campaign_id == uuid.UUID(created["id"]))
         ).first()
         db.execute(
             Interaction.__table__.update()
@@ -708,10 +710,12 @@ class TestScheduleCampaignAPI:
 
     def _campaign_with_contacts(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
         return created
 
@@ -861,9 +865,7 @@ class TestSchedulerService:
     def test_activates_multiple_due_campaigns(self, db, org):
         campaigns = []
         for i in range(3):
-            c = Campaign(
-                name=f"Batch {i}", type="voice", org_id=org.id, status="draft"
-            )
+            c = Campaign(name=f"Batch {i}", type="voice", org_id=org.id, status="draft")
             db.add(c)
             db.flush()
 
@@ -955,8 +957,14 @@ class TestGenerateReportCsv:
         reader = csv.reader(io.StringIO(rows[0]))
         header = next(reader)
         assert header == [
-            "contact_number", "contact_name", "status", "call_duration",
-            "credit_consumed", "carrier", "playback_url", "updated_at",
+            "contact_number",
+            "contact_name",
+            "status",
+            "call_duration",
+            "credit_consumed",
+            "carrier",
+            "playback_url",
+            "updated_at",
         ]
 
     def test_report_with_interactions(self, db, org):
@@ -1000,10 +1008,12 @@ class TestGenerateReportCsv:
         db.add(campaign)
         db.flush()
 
-        for i, (phone, name) in enumerate([
-            ("+9779801234567", "Sita"),
-            ("+9779841234568", "Ram"),
-        ]):
+        for i, (phone, name) in enumerate(
+            [
+                ("+9779801234567", "Sita"),
+                ("+9779841234568", "Ram"),
+            ]
+        ):
             contact = Contact(phone=phone, name=name, org_id=org.id)
             db.add(contact)
             db.flush()
@@ -1065,25 +1075,31 @@ class TestDownloadReport:
         reader = csv.reader(io.StringIO(resp.text))
         header = next(reader)
         assert header == [
-            "contact_number", "contact_name", "status", "call_duration",
-            "credit_consumed", "carrier", "playback_url", "updated_at",
+            "contact_number",
+            "contact_name",
+            "status",
+            "call_duration",
+            "credit_consumed",
+            "carrier",
+            "playback_url",
+            "updated_at",
         ]
         data_rows = list(reader)
         assert len(data_rows) == 0
 
     def test_download_with_contacts(self, client, org_id, db):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779841234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779841234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # Set one interaction to completed with credit
         interaction = db.execute(
-            Interaction.__table__.select().where(
-                Interaction.campaign_id == uuid.UUID(created["id"])
-            )
+            Interaction.__table__.select().where(Interaction.campaign_id == uuid.UUID(created["id"]))
         ).first()
         db.execute(
             Interaction.__table__.update()
@@ -1101,7 +1117,7 @@ class TestDownloadReport:
         assert resp.status_code == 200
 
         reader = csv.reader(io.StringIO(resp.text))
-        header = next(reader)
+        next(reader)  # skip header
         data_rows = list(reader)
         assert len(data_rows) == 2
 

@@ -2,7 +2,14 @@
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -98,15 +105,7 @@ def list_campaigns(
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
-    campaigns = (
-        db.execute(
-            query.order_by(Campaign.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
-        .scalars()
-        .all()
-    )
+    campaigns = db.execute(query.order_by(Campaign.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
 
     return CampaignListResponse(
         items=campaigns,
@@ -146,9 +145,7 @@ def download_campaign_report(
     campaign = _get_campaign_or_404(campaign_id, db)
     filename = f"campaign_{campaign.name}_{campaign_id}.csv"
     # Sanitize filename: replace anything that's not alphanumeric, dash, underscore, or dot
-    safe_filename = "".join(
-        c if c.isalnum() or c in "-_." else "_" for c in filename
-    )
+    safe_filename = "".join(c if c.isalnum() or c in "-_." else "_" for c in filename)
 
     return StreamingResponse(
         generate_report_csv(db, campaign_id),
@@ -193,11 +190,7 @@ def delete_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         )
 
     # Delete associated interactions first
-    db.execute(
-        Interaction.__table__.delete().where(
-            Interaction.campaign_id == campaign.id
-        )
-    )
+    db.execute(Interaction.__table__.delete().where(Interaction.campaign_id == campaign.id))
     db.delete(campaign)
     db.commit()
 
@@ -223,9 +216,7 @@ def start_campaign_endpoint(
         else:
             campaign = start_campaign(db, campaign)
             # Kick off background executor only for immediate start
-            background_tasks.add_task(
-                execute_campaign_batch, campaign.id, SessionLocal
-            )
+            background_tasks.add_task(execute_campaign_batch, campaign.id, SessionLocal)
     except InvalidStateTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except CampaignError as exc:
@@ -377,9 +368,7 @@ async def upload_contacts(
         raise HTTPException(status_code=422, detail="Uploaded file is empty")
 
     try:
-        created, skipped, errors = upload_contacts_to_campaign(
-            db, campaign, csv_bytes
-        )
+        created, skipped, errors = upload_contacts_to_campaign(db, campaign, csv_bytes)
     except InvalidStateTransition:
         raise HTTPException(
             status_code=409,
@@ -414,11 +403,7 @@ def list_campaign_contacts(
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
-    contacts = (
-        db.execute(query.offset(offset).limit(page_size))
-        .scalars()
-        .all()
-    )
+    contacts = db.execute(query.offset(offset).limit(page_size)).scalars().all()
 
     return ContactListResponse(
         items=contacts,
@@ -451,9 +436,7 @@ def remove_contact_from_campaign(
     ).scalar_one_or_none()
 
     if interaction is None:
-        raise HTTPException(
-            status_code=404, detail="Contact not found in this campaign"
-        )
+        raise HTTPException(status_code=404, detail="Contact not found in this campaign")
 
     db.delete(interaction)
     db.commit()

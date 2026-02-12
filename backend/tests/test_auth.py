@@ -1,14 +1,10 @@
-import hashlib
 import time
-import uuid
 
 import jwt
-import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.models.user import User
-from app.models.user_api_key import UserAPIKey
 from app.services.auth import (
     create_access_token,
     create_refresh_token,
@@ -95,9 +91,7 @@ class TestRegister:
         assert "Username already taken" in resp.json()["detail"]
 
     def test_register_short_password(self, client: TestClient):
-        resp = client.post(
-            REGISTER_URL, json=_register_payload(password="short")
-        )
+        resp = client.post(REGISTER_URL, json=_register_payload(password="short"))
         assert resp.status_code == 422
 
     def test_register_missing_fields(self, client: TestClient):
@@ -108,9 +102,7 @@ class TestRegister:
         client.post(REGISTER_URL, json=_register_payload())
         resp = client.post(
             REGISTER_URL,
-            json=_register_payload(
-                username="other", email="TEST@example.com"
-            ),
+            json=_register_payload(username="other", email="TEST@example.com"),
         )
         assert resp.status_code == 409
 
@@ -164,9 +156,7 @@ class TestLogin:
             json={"email": "test@example.com", "password": "strongpassword123"},
         )
         token = resp.json()["access_token"]
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         assert payload["sub"] == str(user.id)
         assert payload["type"] == "access"
 
@@ -178,9 +168,9 @@ class TestLogin:
 
 class TestRefresh:
     def test_refresh_success(self, client: TestClient, db):
-        user = _create_test_user(db)
+        _create_test_user(db)
         # Login first to get refresh cookie
-        login_resp = client.post(
+        client.post(
             LOGIN_URL,
             json={"email": "test@example.com", "password": "strongpassword123"},
         )
@@ -202,9 +192,7 @@ class TestRefresh:
             "exp": time.time() - 10,
             "type": "refresh",
         }
-        expired_token = jwt.encode(
-            expired_payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-        )
+        expired_token = jwt.encode(expired_payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         client.cookies.set("refresh_token", expired_token)
         resp = client.post(REFRESH_URL)
         assert resp.status_code == 401
@@ -250,9 +238,7 @@ class TestUserProfile:
             "exp": time.time() - 10,
             "type": "access",
         }
-        expired_token = jwt.encode(
-            expired_payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-        )
+        expired_token = jwt.encode(expired_payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         resp = client.get(PROFILE_URL, headers=_auth_header(expired_token))
         assert resp.status_code == 401
         assert "expired" in resp.json()["detail"].lower()
@@ -330,9 +316,7 @@ class TestAPIKeys:
         assert resp.json()["email"] == "test@example.com"
 
     def test_invalid_api_key(self, client: TestClient):
-        resp = client.get(
-            PROFILE_URL, headers=_auth_header("rai_bogus_key_value")
-        )
+        resp = client.get(PROFILE_URL, headers=_auth_header("rai_bogus_key_value"))
         assert resp.status_code == 401
 
     def test_api_key_no_auth(self, client: TestClient):
@@ -346,9 +330,7 @@ class TestAPIKeys:
 
 
 class TestTokenTypeSafety:
-    def test_refresh_token_cannot_access_protected_endpoints(
-        self, client: TestClient, db
-    ):
+    def test_refresh_token_cannot_access_protected_endpoints(self, client: TestClient, db):
         user = _create_test_user(db)
         refresh_token = create_refresh_token(user.id)
         resp = client.get(PROFILE_URL, headers=_auth_header(refresh_token))
@@ -375,9 +357,7 @@ class TestEdgeCases:
             "exp": time.time() + 3600,
             "type": "access",
         }
-        token = jwt.encode(
-            payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-        )
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         resp = client.get(PROFILE_URL, headers=_auth_header(token))
         assert resp.status_code == 401
 
@@ -386,9 +366,7 @@ class TestEdgeCases:
             "exp": time.time() + 3600,
             "type": "access",
         }
-        token = jwt.encode(
-            payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-        )
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         resp = client.get(PROFILE_URL, headers=_auth_header(token))
         assert resp.status_code == 401
 

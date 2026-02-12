@@ -16,21 +16,13 @@ class OTPRecord(Base):
         Index("ix_otp_records_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     otp: Mapped[str] = mapped_column(String(20), nullable=False)
-    otp_options: Mapped[str] = mapped_column(
-        Enum("personnel", "generated", name="otp_type"), nullable=False
-    )
-    sms_send_options: Mapped[str] = mapped_column(
-        Enum("text", "voice", name="delivery_method"), nullable=False
-    )
+    otp_options: Mapped[str] = mapped_column(Enum("personnel", "generated", name="otp_type"), nullable=False)
+    sms_send_options: Mapped[str] = mapped_column(Enum("text", "voice", name="delivery_method"), nullable=False)
     voice_input: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

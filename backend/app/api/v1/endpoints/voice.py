@@ -3,7 +3,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,12 +11,15 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.models import Interaction, PhoneNumber, Template
-from app.schemas.voice import CampaignCallRequest, CampaignCallResponse, CallStatusResponse
+from app.schemas.voice import (
+    CallStatusResponse,
+    CampaignCallRequest,
+    CampaignCallResponse,
+)
 from app.services.telephony import (
     AudioEntry,
     CallContext,
     CallStatus,
-    WebhookPayload,
     audio_store,
     call_context_store,
     generate_call_twiml,
@@ -91,9 +94,7 @@ async def initiate_campaign_call(
         rate=payload.tts_config.rate,
         pitch=payload.tts_config.pitch,
         fallback_provider=(
-            TTSProvider(payload.tts_config.fallback_provider)
-            if payload.tts_config.fallback_provider
-            else None
+            TTSProvider(payload.tts_config.fallback_provider) if payload.tts_config.fallback_provider else None
         ),
     )
 
@@ -101,9 +102,7 @@ async def initiate_campaign_call(
         tts_result = await tts_router.synthesize(rendered_text, tts_config)
     except TTSError as exc:
         logger.error("TTS synthesis failed for campaign call: %s", exc)
-        raise HTTPException(
-            status_code=502, detail=f"TTS synthesis failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
 
     # 4. Store audio for Twilio to fetch
     audio_id = str(uuid.uuid4())
@@ -125,11 +124,13 @@ async def initiate_campaign_call(
     if not from_number:
         # Try to resolve from org's broker phone numbers
         broker_phone = db.execute(
-            select(PhoneNumber).where(
+            select(PhoneNumber)
+            .where(
                 PhoneNumber.org_id == template.org_id,
                 PhoneNumber.is_active.is_(True),
                 PhoneNumber.is_broker.is_(True),
-            ).limit(1)
+            )
+            .limit(1)
         ).scalar_one_or_none()
         if broker_phone is not None:
             from_number = broker_phone.phone_number
@@ -147,8 +148,7 @@ async def initiate_campaign_call(
     if not base_url:
         raise HTTPException(
             status_code=503,
-            detail="TWILIO_BASE_URL not configured. "
-            "Set it to a publicly reachable URL for Twilio callbacks.",
+            detail="TWILIO_BASE_URL not configured. Set it to a publicly reachable URL for Twilio callbacks.",
         )
 
     # Generate a temporary call ID for TwiML URL (will be replaced by Twilio's CallSid)
@@ -305,9 +305,7 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
         try:
             interaction = db.get(Interaction, context.interaction_id)
             if interaction:
-                interaction_status = _CALL_TO_INTERACTION_STATUS.get(
-                    call_status, "in_progress"
-                )
+                interaction_status = _CALL_TO_INTERACTION_STATUS.get(call_status, "in_progress")
                 interaction.status = interaction_status
 
                 if call_duration:

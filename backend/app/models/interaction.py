@@ -18,15 +18,9 @@ class Interaction(Base):
         Index("ix_interactions_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    campaign_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=False
-    )
-    contact_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=False)
+    contact_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=False)
     type: Mapped[str] = mapped_column(
         Enum(
             "outbound_call",
@@ -57,15 +51,11 @@ class Interaction(Base):
     sentiment_score: Mapped[float | None] = mapped_column(Float)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     campaign: Mapped["Campaign"] = relationship(back_populates="interactions")
     contact: Mapped["Contact"] = relationship(back_populates="interactions")
-    analytics_events: Mapped[list["AnalyticsEvent"]] = relationship(
-        back_populates="interaction"
-    )
+    analytics_events: Mapped[list["AnalyticsEvent"]] = relationship(back_populates="interaction")
 
     def __repr__(self) -> str:
         return f"<Interaction {self.type}/{self.status}>"

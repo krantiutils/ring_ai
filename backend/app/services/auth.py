@@ -22,9 +22,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-    )
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -33,9 +31,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "exp": expire,
@@ -45,9 +41,7 @@ def create_access_token(user_id: uuid.UUID) -> str:
 
 
 def create_refresh_token(user_id: uuid.UUID) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-    )
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
         "exp": expire,
@@ -58,9 +52,7 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
 
 def decode_token(token: str) -> dict:
     """Decode and validate a JWT token. Raises jwt.PyJWTError on failure."""
-    return jwt.decode(
-        token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-    )
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 # ---------------------------------------------------------------------------
@@ -127,17 +119,13 @@ def create_user(
 
 
 def get_active_api_key(db: Session, user_id: uuid.UUID) -> UserAPIKey | None:
-    return (
-        db.query(UserAPIKey)
-        .filter(UserAPIKey.user_id == user_id, UserAPIKey.is_active.is_(True))
-        .first()
-    )
+    return db.query(UserAPIKey).filter(UserAPIKey.user_id == user_id, UserAPIKey.is_active.is_(True)).first()
 
 
 def soft_delete_previous_keys(db: Session, user_id: uuid.UUID) -> None:
-    db.query(UserAPIKey).filter(
-        UserAPIKey.user_id == user_id, UserAPIKey.is_active.is_(True)
-    ).update({"is_active": False})
+    db.query(UserAPIKey).filter(UserAPIKey.user_id == user_id, UserAPIKey.is_active.is_(True)).update(
+        {"is_active": False}
+    )
 
 
 def create_api_key(db: Session, user_id: uuid.UUID) -> str:
@@ -158,11 +146,7 @@ def create_api_key(db: Session, user_id: uuid.UUID) -> str:
 def get_user_by_api_key(db: Session, raw_key: str) -> User | None:
     """Look up a user by raw API key. Updates last_used timestamp."""
     key_hash = hash_api_key(raw_key)
-    api_key = (
-        db.query(UserAPIKey)
-        .filter(UserAPIKey.key_hash == key_hash, UserAPIKey.is_active.is_(True))
-        .first()
-    )
+    api_key = db.query(UserAPIKey).filter(UserAPIKey.key_hash == key_hash, UserAPIKey.is_active.is_(True)).first()
     if api_key is None:
         return None
     api_key.last_used = func.now()

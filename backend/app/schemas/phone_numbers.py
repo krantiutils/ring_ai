@@ -5,9 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PhoneNumberCreate(BaseModel):
-    phone_number: str = Field(
-        ..., min_length=1, max_length=20, description="E.164 phone number"
-    )
+    phone_number: str = Field(..., min_length=1, max_length=20, description="E.164 phone number")
     org_id: uuid.UUID
     is_broker: bool = False
 

@@ -16,21 +16,15 @@ class Contact(Base):
         Index("ix_contacts_org_phone", "org_id", "phone"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255))
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     organization: Mapped["Organization"] = relationship(back_populates="contacts")
-    interactions: Mapped[list["Interaction"]] = relationship(
-        back_populates="contact"
-    )
+    interactions: Mapped[list["Interaction"]] = relationship(back_populates="contact")
 
     def __repr__(self) -> str:
         return f"<Contact {self.phone}>"

@@ -16,19 +16,13 @@ class AnalyticsEvent(Base):
         Index("ix_analytics_events_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    interaction_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("interactions.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interaction_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("interactions.id"), nullable=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     event_data: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    interaction: Mapped["Interaction"] = relationship(
-        back_populates="analytics_events"
-    )
+    interaction: Mapped["Interaction"] = relationship(back_populates="analytics_events")
 
     def __repr__(self) -> str:
         return f"<AnalyticsEvent {self.event_type}>"

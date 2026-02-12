@@ -21,9 +21,7 @@ class VoiceModel(Base):
         Index("ix_voice_models_internal_name", "voice_internal_name", unique=True),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     voice_display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     voice_internal_name: Mapped[str] = mapped_column(String(100), nullable=False)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
