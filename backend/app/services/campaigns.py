@@ -5,6 +5,7 @@ import io
 import logging
 import time
 import uuid
+from collections.abc import Generator
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -327,6 +328,108 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
         delivery_rate=delivery_rate,
         cost_estimate=cost_estimate,
     )
+
+
+# ---------------------------------------------------------------------------
+# Carrier detection (Nepal phone prefixes)
+# ---------------------------------------------------------------------------
+
+# Nepal mobile prefixes → carrier mapping
+# Sources: NTA (Nepal Telecommunications Authority) allocations
+_NEPAL_CARRIER_PREFIXES: dict[str, str] = {
+    # NTC (Nepal Telecom)
+    "984": "NTC",
+    "985": "NTC",
+    "986": "NTC",
+    "974": "NTC",
+    "975": "NTC",
+    # Ncell
+    "980": "Ncell",
+    "981": "Ncell",
+    "982": "Ncell",
+    # Smart Cell
+    "961": "Smart Cell",
+    "962": "Smart Cell",
+    "988": "Smart Cell",
+    # UTL (United Telecom)
+    "972": "UTL",
+}
+
+
+def detect_carrier(phone: str) -> str | None:
+    """Detect Nepal mobile carrier from phone number prefix.
+
+    Accepts numbers with or without country code (+977 / 977).
+    Returns carrier name or None if not a recognized Nepal mobile number.
+    """
+    # Strip whitespace and leading +
+    cleaned = phone.strip().lstrip("+")
+
+    # Extract the subscriber number (strip country code 977 if present)
+    if cleaned.startswith("977") and len(cleaned) >= 13:
+        subscriber = cleaned[3:]
+    elif cleaned.startswith("9") and len(cleaned) == 10:
+        subscriber = cleaned
+    else:
+        return None
+
+    # Match first 3 digits of subscriber number
+    prefix = subscriber[:3]
+    return _NEPAL_CARRIER_PREFIXES.get(prefix)
+
+
+# ---------------------------------------------------------------------------
+# CSV report generation
+# ---------------------------------------------------------------------------
+
+REPORT_CSV_COLUMNS = [
+    "contact_number",
+    "contact_name",
+    "status",
+    "call_duration",
+    "credit_consumed",
+    "carrier",
+    "playback_url",
+    "updated_at",
+]
+
+
+def generate_report_csv(db: Session, campaign_id: uuid.UUID) -> Generator[str, None, None]:
+    """Generate CSV report rows for a campaign as a string generator.
+
+    Yields CSV lines (header first, then one line per interaction).
+    Joins interactions with contacts to produce the report.
+    """
+    # Write header
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(REPORT_CSV_COLUMNS)
+    yield buf.getvalue()
+
+    # Query all interactions for this campaign, joined with contacts
+    query = (
+        select(Interaction, Contact)
+        .join(Contact, Interaction.contact_id == Contact.id)
+        .where(Interaction.campaign_id == campaign_id)
+        .order_by(Interaction.created_at)
+    )
+
+    results = db.execute(query).all()
+
+    for interaction, contact in results:
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            contact.phone,
+            contact.name or "",
+            interaction.status,
+            interaction.duration_seconds if interaction.duration_seconds is not None else "",
+            interaction.credit_consumed if interaction.credit_consumed is not None else "",
+            detect_carrier(contact.phone) or "",
+            interaction.audio_url or "",
+            interaction.updated_at.isoformat() if interaction.updated_at else "",
+        ])
+        yield buf.getvalue()
 
 
 # ---------------------------------------------------------------------------

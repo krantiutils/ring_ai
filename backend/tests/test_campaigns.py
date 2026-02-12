@@ -1,5 +1,6 @@
 """Tests for campaign management API — CRUD, lifecycle, contacts, and stats."""
 
+import csv
 import io
 import uuid
 
@@ -12,6 +13,8 @@ from app.services.campaigns import (
     CampaignError,
     InvalidStateTransition,
     calculate_stats,
+    detect_carrier,
+    generate_report_csv,
     parse_contacts_csv,
     start_campaign,
 )
@@ -616,3 +619,234 @@ class TestStateTransitions:
 
         with pytest.raises(InvalidStateTransition):
             start_campaign(db, campaign)
+
+
+# ---------------------------------------------------------------------------
+# Carrier detection unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestDetectCarrier:
+    def test_ntc_with_country_code(self):
+        assert detect_carrier("+9779841234567") == "NTC"
+
+    def test_ntc_without_plus(self):
+        assert detect_carrier("9779851234567") == "NTC"
+
+    def test_ntc_local_format(self):
+        assert detect_carrier("9861234567") == "NTC"
+
+    def test_ncell(self):
+        assert detect_carrier("+9779801234567") == "Ncell"
+
+    def test_ncell_981(self):
+        assert detect_carrier("9811234567") == "Ncell"
+
+    def test_ncell_982(self):
+        assert detect_carrier("+9779821234567") == "Ncell"
+
+    def test_smart_cell(self):
+        assert detect_carrier("+9779611234567") == "Smart Cell"
+
+    def test_smart_cell_988(self):
+        assert detect_carrier("9881234567") == "Smart Cell"
+
+    def test_utl(self):
+        assert detect_carrier("+9779721234567") == "UTL"
+
+    def test_unknown_prefix(self):
+        assert detect_carrier("+9779991234567") is None
+
+    def test_non_nepal_number(self):
+        assert detect_carrier("+14155551234") is None
+
+    def test_empty_string(self):
+        assert detect_carrier("") is None
+
+    def test_whitespace_handling(self):
+        assert detect_carrier("  +9779841234567  ") == "NTC"
+
+
+# ---------------------------------------------------------------------------
+# CSV report generation tests
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateReportCsv:
+    def test_empty_campaign_has_header_only(self, db, org):
+        campaign = Campaign(name="Empty", type="voice", org_id=org.id, status="draft")
+        db.add(campaign)
+        db.commit()
+
+        rows = list(generate_report_csv(db, campaign.id))
+        assert len(rows) == 1  # Header only
+        reader = csv.reader(io.StringIO(rows[0]))
+        header = next(reader)
+        assert header == [
+            "contact_number", "contact_name", "status", "call_duration",
+            "credit_consumed", "carrier", "playback_url", "updated_at",
+        ]
+
+    def test_report_with_interactions(self, db, org):
+        campaign = Campaign(name="Report", type="voice", org_id=org.id, status="active")
+        db.add(campaign)
+        db.flush()
+
+        contact = Contact(phone="+9779841234567", name="Ram", org_id=org.id)
+        db.add(contact)
+        db.flush()
+
+        interaction = Interaction(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            type="outbound_call",
+            status="completed",
+            duration_seconds=45,
+            credit_consumed=2.0,
+            audio_url="https://example.com/recording.mp3",
+        )
+        db.add(interaction)
+        db.commit()
+
+        rows = list(generate_report_csv(db, campaign.id))
+        assert len(rows) == 2  # Header + 1 data row
+
+        # Parse the data row
+        reader = csv.reader(io.StringIO(rows[1]))
+        data = next(reader)
+        assert data[0] == "+9779841234567"  # contact_number
+        assert data[1] == "Ram"  # contact_name
+        assert data[2] == "completed"  # status
+        assert data[3] == "45"  # call_duration
+        assert data[4] == "2.0"  # credit_consumed
+        assert data[5] == "NTC"  # carrier (984 prefix)
+        assert data[6] == "https://example.com/recording.mp3"  # playback_url
+        assert data[7] != ""  # updated_at should be set
+
+    def test_report_multiple_interactions(self, db, org):
+        campaign = Campaign(name="Multi", type="voice", org_id=org.id, status="active")
+        db.add(campaign)
+        db.flush()
+
+        for i, (phone, name) in enumerate([
+            ("+9779801234567", "Sita"),
+            ("+9779841234568", "Ram"),
+        ]):
+            contact = Contact(phone=phone, name=name, org_id=org.id)
+            db.add(contact)
+            db.flush()
+            interaction = Interaction(
+                campaign_id=campaign.id,
+                contact_id=contact.id,
+                type="outbound_call",
+                status="pending" if i == 0 else "completed",
+            )
+            db.add(interaction)
+
+        db.commit()
+
+        rows = list(generate_report_csv(db, campaign.id))
+        assert len(rows) == 3  # Header + 2 data rows
+
+    def test_report_null_fields_as_empty(self, db, org):
+        campaign = Campaign(name="Nulls", type="voice", org_id=org.id, status="draft")
+        db.add(campaign)
+        db.flush()
+
+        contact = Contact(phone="+9779801234567", org_id=org.id)
+        db.add(contact)
+        db.flush()
+
+        interaction = Interaction(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            type="outbound_call",
+            status="pending",
+        )
+        db.add(interaction)
+        db.commit()
+
+        rows = list(generate_report_csv(db, campaign.id))
+        reader = csv.reader(io.StringIO(rows[1]))
+        data = next(reader)
+        assert data[1] == ""  # name is None
+        assert data[3] == ""  # duration is None
+        assert data[4] == ""  # credit_consumed is None
+        assert data[6] == ""  # audio_url is None
+
+
+# ---------------------------------------------------------------------------
+# CSV report download endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadReport:
+    def test_download_empty_campaign(self, client, org_id):
+        created = _create_campaign(client, org_id)
+        resp = client.get(f"/api/v1/campaigns/{created['id']}/report/download")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "text/csv; charset=utf-8"
+        assert "attachment" in resp.headers["content-disposition"]
+        assert ".csv" in resp.headers["content-disposition"]
+
+        # Parse CSV content
+        reader = csv.reader(io.StringIO(resp.text))
+        header = next(reader)
+        assert header == [
+            "contact_number", "contact_name", "status", "call_duration",
+            "credit_consumed", "carrier", "playback_url", "updated_at",
+        ]
+        data_rows = list(reader)
+        assert len(data_rows) == 0
+
+    def test_download_with_contacts(self, client, org_id, db):
+        created = _create_campaign(client, org_id)
+        csv_bytes = _make_csv([
+            ["+9779841234567", "Ram"],
+            ["+9779801234568", "Sita"],
+        ])
+        _upload_csv(client, created["id"], csv_bytes)
+
+        # Set one interaction to completed with credit
+        interaction = db.execute(
+            Interaction.__table__.select().where(
+                Interaction.campaign_id == uuid.UUID(created["id"])
+            )
+        ).first()
+        db.execute(
+            Interaction.__table__.update()
+            .where(Interaction.id == interaction.id)
+            .values(
+                status="completed",
+                duration_seconds=30,
+                credit_consumed=2.0,
+                audio_url="https://example.com/play.mp3",
+            )
+        )
+        db.commit()
+
+        resp = client.get(f"/api/v1/campaigns/{created['id']}/report/download")
+        assert resp.status_code == 200
+
+        reader = csv.reader(io.StringIO(resp.text))
+        header = next(reader)
+        data_rows = list(reader)
+        assert len(data_rows) == 2
+
+        # Find the completed row
+        completed_row = [r for r in data_rows if r[2] == "completed"][0]
+        assert completed_row[3] == "30"  # duration
+        assert completed_row[4] == "2.0"  # credit_consumed
+        assert completed_row[6] == "https://example.com/play.mp3"  # playback_url
+
+    def test_download_not_found(self, client):
+        resp = client.get(f"/api/v1/campaigns/{NONEXISTENT_UUID}/report/download")
+        assert resp.status_code == 404
+
+    def test_download_filename_in_header(self, client, org_id):
+        created = _create_campaign(client, org_id, name="My Test Campaign")
+        resp = client.get(f"/api/v1/campaigns/{created['id']}/report/download")
+        assert resp.status_code == 200
+        disposition = resp.headers["content-disposition"]
+        assert "My_Test_Campaign" in disposition
+        assert ".csv" in disposition

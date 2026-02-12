@@ -51,11 +51,15 @@ class Interaction(Base):
     started_at: Mapped[datetime | None] = mapped_column()
     ended_at: Mapped[datetime | None] = mapped_column()
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    credit_consumed: Mapped[float | None] = mapped_column(Float)
     transcript: Mapped[str | None] = mapped_column(Text)
     audio_url: Mapped[str | None] = mapped_column(String(500))
     sentiment_score: Mapped[float | None] = mapped_column(Float)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
 
     campaign: Mapped["Campaign"] = relationship(back_populates="interactions")
     contact: Mapped["Contact"] = relationship(back_populates="interactions")
