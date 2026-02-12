@@ -53,7 +53,9 @@ def test_interaction_columns():
     assert cols == {
         "id", "campaign_id", "contact_id", "type", "status", "started_at",
         "ended_at", "duration_seconds", "credit_consumed", "transcript",
-        "audio_url", "sentiment_score", "metadata", "created_at", "updated_at",
+        "audio_url", "audio_duration_seconds", "playback_duration_seconds",
+        "playback_percentage", "sentiment_score", "metadata", "created_at",
+        "updated_at",
     }
 
 

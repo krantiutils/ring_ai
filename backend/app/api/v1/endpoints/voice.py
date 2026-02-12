@@ -188,6 +188,7 @@ async def initiate_campaign_call(
     # Keep temp_call_id mapping too (TwiML URL uses it)
 
     # 7. Create Interaction record (best-effort — don't fail the call if DB write fails)
+    audio_duration_sec = max(1, tts_result.duration_ms // 1000)
     interaction_id = None
     try:
         interaction = Interaction(
@@ -195,6 +196,7 @@ async def initiate_campaign_call(
             contact_id=template.org_id,  # placeholder
             type="outbound_call",
             status="in_progress",
+            audio_duration_seconds=audio_duration_sec,
             metadata_={
                 "twilio_call_sid": result.call_id,
                 "template_id": str(payload.template_id),
@@ -312,6 +314,19 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
 
                 if call_duration:
                     interaction.duration_seconds = int(call_duration)
+
+                    # Calculate playback tracking metrics
+                    dur = int(call_duration)
+                    if interaction.audio_duration_seconds and interaction.audio_duration_seconds > 0:
+                        playback = min(dur, interaction.audio_duration_seconds)
+                        interaction.playback_duration_seconds = playback
+                        interaction.playback_percentage = min(
+                            100.0,
+                            (playback / interaction.audio_duration_seconds) * 100,
+                        )
+                    else:
+                        # No audio duration recorded — store call duration as playback
+                        interaction.playback_duration_seconds = dur
 
                 if recording_url:
                     interaction.audio_url = recording_url
