@@ -3,6 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,7 @@ from app.services.campaigns import (
     calculate_stats,
     cancel_schedule,
     execute_campaign_batch,
+    generate_report_csv,
     pause_campaign,
     resume_campaign,
     schedule_campaign,
@@ -123,6 +125,27 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
         stats=stats,
+    )
+
+
+@router.get("/{campaign_id}/report/download")
+def download_campaign_report(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    campaign = _get_campaign_or_404(campaign_id, db)
+    filename = f"campaign_{campaign.name}_{campaign_id}.csv"
+    # Sanitize filename: replace anything that's not alphanumeric, dash, underscore, or dot
+    safe_filename = "".join(
+        c if c.isalnum() or c in "-_." else "_" for c in filename
+    )
+
+    return StreamingResponse(
+        generate_report_csv(db, campaign_id),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_filename}"',
+        },
     )
 
 
