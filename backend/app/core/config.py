@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Index 0 = first retry, index 1 = second retry, etc.
     CAMPAIGN_RETRY_BACKOFF_MINUTES: list[int] = [0, 30, 120]
 
+    # File uploads
+    UPLOAD_DIR: str = "uploads"
+
     # Scheduler
     SCHEDULER_POLL_INTERVAL_SECONDS: int = 30
 

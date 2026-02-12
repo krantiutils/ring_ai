@@ -35,6 +35,8 @@ class Campaign(Base):
     template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("templates.id"))
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    audio_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    bulk_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
     retry_count: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="0"
     )
