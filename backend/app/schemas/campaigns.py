@@ -28,12 +28,14 @@ class CampaignCreate(BaseModel):
     org_id: uuid.UUID
     template_id: uuid.UUID | None = None
     schedule_config: dict | None = None
+    audio_file: str | None = None
 
 
 class CampaignUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     template_id: uuid.UUID | None = None
     schedule_config: dict | None = None
+    audio_file: str | None = None
 
 
 class CampaignStartRequest(BaseModel):
@@ -53,6 +55,8 @@ class CampaignResponse(BaseModel):
     template_id: uuid.UUID | None
     schedule_config: dict | None
     scheduled_at: datetime | None
+    audio_file: str | None
+    bulk_file: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -105,3 +109,9 @@ class ContactUploadResponse(BaseModel):
     created: int
     skipped: int
     errors: list[str]
+
+
+class AudioUploadResponse(BaseModel):
+    audio_file: str
+    content_type: str
+    size_bytes: int

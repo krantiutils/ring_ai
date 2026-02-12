@@ -531,10 +531,14 @@ def _build_tts_config(template: Template) -> TTSConfig:
 async def _dispatch_voice_call(
     interaction: Interaction,
     contact: Contact,
-    template: Template,
+    template: Template | None,
     campaign: Campaign,
+    preloaded_audio: bytes | None = None,
 ) -> str:
-    """Render template, synthesize TTS, initiate Twilio call.
+    """Render template + synthesize TTS, or use pre-recorded audio, then initiate Twilio call.
+
+    If the campaign has an audio_file, preloaded_audio must be provided (read
+    once per batch for efficiency). Template rendering and TTS are skipped.
 
     Returns the Twilio CallSid on success.
 
@@ -544,23 +548,37 @@ async def _dispatch_voice_call(
         TelephonyConfigurationError: If Twilio is not configured.
         TelephonyProviderError: If the Twilio call initiation fails.
     """
-    # 1. Render template with contact variables
-    variables = _build_contact_variables(contact)
-    rendered_text = render(template.content, variables)
+    if preloaded_audio is not None:
+        # Pre-recorded audio path: skip TTS entirely
+        content_type = (
+            "audio/wav" if campaign.audio_file and campaign.audio_file.endswith(".wav")
+            else "audio/mpeg"
+        )
+        audio_id = str(uuid.uuid4())
+        audio_store.put(
+            audio_id,
+            AudioEntry(audio_bytes=preloaded_audio, content_type=content_type),
+        )
+    else:
+        # TTS path: render template and synthesize
+        if template is None:
+            raise TelephonyConfigurationError(
+                "Campaign has no template and no audio file — cannot dispatch voice call"
+            )
+        variables = _build_contact_variables(contact)
+        rendered_text = render(template.content, variables)
 
-    # 2. Synthesize TTS audio
-    tts_config = _build_tts_config(template)
-    tts_result = await tts_router.synthesize(rendered_text, tts_config)
+        tts_config = _build_tts_config(template)
+        tts_result = await tts_router.synthesize(rendered_text, tts_config)
 
-    # 3. Store audio for Twilio to fetch
-    audio_id = str(uuid.uuid4())
-    audio_store.put(
-        audio_id,
-        AudioEntry(
-            audio_bytes=tts_result.audio_bytes,
-            content_type="audio/mpeg",
-        ),
-    )
+        audio_id = str(uuid.uuid4())
+        audio_store.put(
+            audio_id,
+            AudioEntry(
+                audio_bytes=tts_result.audio_bytes,
+                content_type="audio/mpeg",
+            ),
+        )
 
     # 4. Get Twilio provider and base URL
     provider = get_twilio_provider()
@@ -608,9 +626,10 @@ async def _dispatch_voice_call(
 def _dispatch_interaction(
     interaction: Interaction,
     contact: Contact,
-    template: Template,
+    template: Template | None,
     campaign: Campaign,
     db: Session,
+    preloaded_audio: bytes | None = None,
 ) -> None:
     """Dispatch a single interaction (voice or text).
 
@@ -620,13 +639,20 @@ def _dispatch_interaction(
     """
     if campaign.type == "voice":
         call_sid = asyncio.run(
-            _dispatch_voice_call(interaction, contact, template, campaign)
+            _dispatch_voice_call(
+                interaction, contact, template, campaign,
+                preloaded_audio=preloaded_audio,
+            )
         )
-        interaction.metadata_ = {
+        meta = {
             **(interaction.metadata_ or {}),
             "twilio_call_sid": call_sid,
-            "template_id": str(template.id),
         }
+        if template is not None:
+            meta["template_id"] = str(template.id)
+        if campaign.audio_file:
+            meta["audio_source"] = "uploaded"
+        interaction.metadata_ = meta
         # Voice calls stay 'in_progress' — the webhook updates final status
         db.commit()
 
@@ -684,15 +710,28 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
             )
             return
 
-        # Load template — required for voice/text campaigns
+        # Load template (required unless campaign has a pre-recorded audio file)
         template = db.get(Template, campaign.template_id) if campaign.template_id else None
-        if template is None:
+        if template is None and not campaign.audio_file:
             logger.error(
-                "Campaign %s has no template (template_id=%s), cannot execute",
+                "Campaign %s has no template and no audio file, cannot execute",
                 campaign_id,
-                campaign.template_id,
             )
             return
+
+        # Pre-load audio file once for the entire batch (if using pre-recorded audio)
+        preloaded_audio: bytes | None = None
+        if campaign.audio_file:
+            try:
+                with open(campaign.audio_file, "rb") as af:
+                    preloaded_audio = af.read()
+            except OSError:
+                logger.error(
+                    "Campaign %s audio file not readable: %s",
+                    campaign_id,
+                    campaign.audio_file,
+                )
+                return
 
         batch_size = settings.CAMPAIGN_BATCH_SIZE
         max_retries = settings.CAMPAIGN_MAX_RETRIES
@@ -755,7 +794,10 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
                 continue
 
             try:
-                _dispatch_interaction(interaction, contact, template, campaign, db)
+                _dispatch_interaction(
+                    interaction, contact, template, campaign, db,
+                    preloaded_audio=preloaded_audio,
+                )
             except (UndefinedVariableError, TTSError, TelephonyConfigurationError, TelephonyProviderError) as exc:
                 retry_count = (interaction.metadata_ or {}).get("retry_count", 0)
                 logger.warning(

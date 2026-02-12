@@ -4,6 +4,9 @@
 .beads/
 .logs/
 
+# Uploads
+uploads/
+
 # Python
 __pycache__/
 *.py[cod]

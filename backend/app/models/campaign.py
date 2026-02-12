@@ -39,6 +39,8 @@ class Campaign(Base):
     )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    audio_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    bulk_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()

@@ -1,17 +1,20 @@
 """Campaign management API — CRUD, lifecycle, contacts, and stats."""
 
+import os
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal, get_db
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.schemas.campaigns import (
+    AudioUploadResponse,
     CampaignCreate,
     CampaignListResponse,
     CampaignResponse,
@@ -63,6 +66,7 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)):
         org_id=payload.org_id,
         template_id=payload.template_id,
         schedule_config=payload.schedule_config,
+        audio_file=payload.audio_file,
         status="draft",
     )
     db.add(campaign)
@@ -122,6 +126,8 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         template_id=campaign.template_id,
         schedule_config=campaign.schedule_config,
         scheduled_at=campaign.scheduled_at,
+        audio_file=campaign.audio_file,
+        bulk_file=campaign.bulk_file,
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
         stats=stats,
@@ -268,6 +274,114 @@ def resume_campaign_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Audio file upload
+# ---------------------------------------------------------------------------
+
+ALLOWED_AUDIO_CONTENT_TYPES = {
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+}
+
+# Map content types to canonical file extensions
+_AUDIO_EXTENSION_MAP = {
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/wave": ".wav",
+}
+
+
+@router.post(
+    "/{campaign_id}/upload-audio",
+    response_model=AudioUploadResponse,
+    status_code=201,
+)
+async def upload_audio(
+    campaign_id: uuid.UUID,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+):
+    """Upload a pre-recorded audio file for a campaign.
+
+    Accepts MP3 or WAV files. The uploaded audio will be played directly
+    during campaign calls instead of synthesizing TTS.
+    """
+    campaign = _get_campaign_or_404(campaign_id, db)
+
+    if campaign.status != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail="Can only upload audio to campaigns in draft status",
+        )
+
+    if file.content_type not in ALLOWED_AUDIO_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported audio format: {file.content_type}. "
+            f"Accepted formats: MP3, WAV",
+        )
+
+    audio_bytes = await file.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=422, detail="Uploaded audio file is empty")
+
+    # Determine file extension from content type
+    ext = _AUDIO_EXTENSION_MAP.get(file.content_type, ".mp3")
+
+    # Store file on disk
+    audio_dir = os.path.join(settings.UPLOAD_DIR, "audio")
+    os.makedirs(audio_dir, exist_ok=True)
+
+    filename = f"{campaign_id}_{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(audio_dir, filename)
+
+    with open(file_path, "wb") as f:
+        f.write(audio_bytes)
+
+    # Update campaign with the audio file path
+    campaign.audio_file = file_path
+    db.commit()
+    db.refresh(campaign)
+
+    return AudioUploadResponse(
+        audio_file=file_path,
+        content_type=file.content_type,
+        size_bytes=len(audio_bytes),
+    )
+
+
+@router.get("/{campaign_id}/audio")
+def serve_campaign_audio(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Serve the uploaded audio file for a campaign."""
+    campaign = _get_campaign_or_404(campaign_id, db)
+
+    if not campaign.audio_file:
+        raise HTTPException(status_code=404, detail="No audio file uploaded for this campaign")
+
+    if not os.path.isfile(campaign.audio_file):
+        raise HTTPException(status_code=404, detail="Audio file not found on disk")
+
+    # Determine media type from extension
+    if campaign.audio_file.endswith(".wav"):
+        media_type = "audio/wav"
+    else:
+        media_type = "audio/mpeg"
+
+    return FileResponse(
+        path=campaign.audio_file,
+        media_type=media_type,
+        filename=os.path.basename(campaign.audio_file),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Contact management
 # ---------------------------------------------------------------------------
 
@@ -310,6 +424,11 @@ async def upload_contacts(
             status_code=409,
             detail="Can only upload contacts to campaigns in draft status",
         )
+
+    # Store CSV filename reference on campaign
+    if file.filename:
+        campaign.bulk_file = file.filename
+        db.commit()
 
     return ContactUploadResponse(created=created, skipped=skipped, errors=errors)
 
