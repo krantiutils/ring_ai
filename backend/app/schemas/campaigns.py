@@ -106,6 +106,8 @@ class CampaignStats(BaseModel):
     avg_duration_seconds: float | None = None
     delivery_rate: float | None = None
     cost_estimate: float | None = None
+    avg_playback_percentage: float | None = None
+    avg_playback_duration_seconds: float | None = None
 
 
 class CampaignWithStats(CampaignResponse):

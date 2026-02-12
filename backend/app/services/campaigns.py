@@ -552,6 +552,34 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
     else:
         cost_estimate = None
 
+    # Average playback percentage for completed interactions with playback data
+    avg_playback_pct_result = db.execute(
+        select(func.avg(Interaction.playback_percentage)).where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.status == "completed",
+            Interaction.playback_percentage.isnot(None),
+        )
+    ).scalar_one()
+    avg_playback_pct = (
+        round(float(avg_playback_pct_result), 1)
+        if avg_playback_pct_result is not None
+        else None
+    )
+
+    # Average playback duration for completed interactions
+    avg_playback_dur_result = db.execute(
+        select(func.avg(Interaction.playback_duration_seconds)).where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.status == "completed",
+            Interaction.playback_duration_seconds.isnot(None),
+        )
+    ).scalar_one()
+    avg_playback_dur = (
+        float(avg_playback_dur_result)
+        if avg_playback_dur_result is not None
+        else None
+    )
+
     return CampaignStats(
         total_contacts=total,
         completed=completed,
@@ -561,6 +589,8 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
         avg_duration_seconds=avg_duration,
         delivery_rate=delivery_rate,
         cost_estimate=cost_estimate,
+        avg_playback_percentage=avg_playback_pct,
+        avg_playback_duration_seconds=avg_playback_dur,
     )
 
 
@@ -617,6 +647,9 @@ REPORT_CSV_COLUMNS = [
     "contact_name",
     "status",
     "call_duration",
+    "audio_duration",
+    "playback_duration",
+    "playback_percentage",
     "credit_consumed",
     "carrier",
     "playback_url",
@@ -650,18 +683,19 @@ def generate_report_csv(db: Session, campaign_id: uuid.UUID) -> Generator[str, N
         buf = io.StringIO()
         writer = csv.writer(buf)
         carrier = contact.carrier if contact.carrier else detect_carrier(contact.phone)
-        writer.writerow(
-            [
-                contact.phone,
-                contact.name or "",
-                interaction.status,
-                interaction.duration_seconds if interaction.duration_seconds is not None else "",
-                interaction.credit_consumed if interaction.credit_consumed is not None else "",
-                carrier,
-                interaction.audio_url or "",
-                interaction.updated_at.isoformat() if interaction.updated_at else "",
-            ]
-        )
+        writer.writerow([
+            contact.phone,
+            contact.name or "",
+            interaction.status,
+            interaction.duration_seconds if interaction.duration_seconds is not None else "",
+            interaction.audio_duration_seconds if interaction.audio_duration_seconds is not None else "",
+            interaction.playback_duration_seconds if interaction.playback_duration_seconds is not None else "",
+            f"{interaction.playback_percentage:.1f}" if interaction.playback_percentage is not None else "",
+            interaction.credit_consumed if interaction.credit_consumed is not None else "",
+            carrier,
+            interaction.audio_url or "",
+            interaction.updated_at.isoformat() if interaction.updated_at else "",
+        ])
         yield buf.getvalue()
 
 
@@ -743,6 +777,10 @@ async def _dispatch_voice_call(
 
         tts_config = _build_tts_config(template)
         tts_result = await tts_router.synthesize(rendered_text, tts_config)
+
+        # Store audio duration on the interaction for playback tracking
+        audio_duration_sec = max(1, tts_result.duration_ms // 1000)
+        interaction.audio_duration_seconds = audio_duration_sec
 
         audio_id = str(uuid.uuid4())
         audio_store.put(

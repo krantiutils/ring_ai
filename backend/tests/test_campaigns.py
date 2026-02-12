@@ -967,6 +967,9 @@ class TestGenerateReportCsv:
             "contact_name",
             "status",
             "call_duration",
+            "audio_duration",
+            "playback_duration",
+            "playback_percentage",
             "credit_consumed",
             "carrier",
             "playback_url",
@@ -1004,10 +1007,10 @@ class TestGenerateReportCsv:
         assert data[1] == "Ram"  # contact_name
         assert data[2] == "completed"  # status
         assert data[3] == "45"  # call_duration
-        assert data[4] == "2.0"  # credit_consumed
-        assert data[5] == "NTC"  # carrier (984 prefix)
-        assert data[6] == "https://example.com/recording.mp3"  # playback_url
-        assert data[7] != ""  # updated_at should be set
+        assert data[7] == "2.0"  # credit_consumed
+        assert data[8] == "NTC"  # carrier (984 prefix)
+        assert data[9] == "https://example.com/recording.mp3"  # playback_url
+        assert data[10] != ""  # updated_at should be set
 
     def test_report_multiple_interactions(self, db, org):
         campaign = Campaign(name="Multi", type="voice", org_id=org.id, status="active")
@@ -1059,8 +1062,11 @@ class TestGenerateReportCsv:
         data = next(reader)
         assert data[1] == ""  # name is None
         assert data[3] == ""  # duration is None
-        assert data[4] == ""  # credit_consumed is None
-        assert data[6] == ""  # audio_url is None
+        assert data[4] == ""  # audio_duration is None
+        assert data[5] == ""  # playback_duration is None
+        assert data[6] == ""  # playback_percentage is None
+        assert data[7] == ""  # credit_consumed is None
+        assert data[9] == ""  # audio_url is None
 
 
 # ---------------------------------------------------------------------------
@@ -1085,6 +1091,9 @@ class TestDownloadReport:
             "contact_name",
             "status",
             "call_duration",
+            "audio_duration",
+            "playback_duration",
+            "playback_percentage",
             "credit_consumed",
             "carrier",
             "playback_url",
@@ -1130,8 +1139,8 @@ class TestDownloadReport:
         # Find the completed row
         completed_row = [r for r in data_rows if r[2] == "completed"][0]
         assert completed_row[3] == "30"  # duration
-        assert completed_row[4] == "2.0"  # credit_consumed
-        assert completed_row[6] == "https://example.com/play.mp3"  # playback_url
+        assert completed_row[7] == "2.0"  # credit_consumed
+        assert completed_row[9] == "https://example.com/play.mp3"  # playback_url
 
     def test_download_not_found(self, client):
         resp = client.get(f"/api/v1/campaigns/{NONEXISTENT_UUID}/report/download")

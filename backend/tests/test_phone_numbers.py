@@ -295,6 +295,7 @@ class TestBrokerPhoneResolution:
 
         mock_tts_result = MagicMock()
         mock_tts_result.audio_bytes = b"fake-audio"
+        mock_tts_result.duration_ms = 5000
 
         with (
             patch(
