@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 CampaignType = Literal["voice", "text", "form"]
 CampaignStatus = Literal["draft", "scheduled", "active", "paused", "completed"]
+CampaignCategory = Literal["text", "voice", "survey", "combined"]
 
 
 # ---------------------------------------------------------------------------
@@ -26,14 +27,18 @@ class CampaignCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     type: CampaignType
     org_id: uuid.UUID
+    category: CampaignCategory | None = None
     template_id: uuid.UUID | None = None
+    voice_model_id: uuid.UUID | None = None
     schedule_config: dict | None = None
     audio_file: str | None = None
 
 
 class CampaignUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
+    category: CampaignCategory | None = None
     template_id: uuid.UUID | None = None
+    voice_model_id: uuid.UUID | None = None
     schedule_config: dict | None = None
     audio_file: str | None = None
 
@@ -75,7 +80,9 @@ class CampaignResponse(BaseModel):
     name: str
     type: CampaignType
     status: CampaignStatus
+    category: CampaignCategory | None
     template_id: uuid.UUID | None
+    voice_model_id: uuid.UUID | None
     schedule_config: dict | None
     scheduled_at: datetime | None
     retry_count: int = 0
@@ -120,6 +127,7 @@ class ContactResponse(BaseModel):
     id: uuid.UUID
     phone: str
     name: str | None
+    carrier: str | None = None
     metadata_: dict | None = Field(None, alias="metadata_")
     created_at: datetime
 

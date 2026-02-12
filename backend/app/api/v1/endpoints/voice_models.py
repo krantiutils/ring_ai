@@ -4,6 +4,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -36,11 +37,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Default voices seeded when no VoiceModel rows exist.
-# These map to the known Edge TTS + Azure Nepali voices,
-# plus display-friendly names matching TingTing's voice list.
+# TingTing voice list: Rija (free), Rija Premium, Prashanna, Shreegya, Binod.
+# Global voices (org_id=None) available to all organizations.
 DEFAULT_VOICES: list[dict] = [
     {
-        "voice_display_name": "Hemkala",
+        "voice_display_name": "Rija",
         "voice_internal_name": "ne-NP-HemkalaNeural",
         "provider": "edge_tts",
         "locale": "ne-NP",
@@ -48,15 +49,7 @@ DEFAULT_VOICES: list[dict] = [
         "is_premium": False,
     },
     {
-        "voice_display_name": "Sagar",
-        "voice_internal_name": "ne-NP-SagarNeural",
-        "provider": "edge_tts",
-        "locale": "ne-NP",
-        "gender": "Male",
-        "is_premium": False,
-    },
-    {
-        "voice_display_name": "Hemkala Premium",
+        "voice_display_name": "Rija Premium",
         "voice_internal_name": "ne-NP-HemkalaNeural-azure",
         "provider": "azure",
         "locale": "ne-NP",
@@ -64,12 +57,28 @@ DEFAULT_VOICES: list[dict] = [
         "is_premium": True,
     },
     {
-        "voice_display_name": "Sagar Premium",
+        "voice_display_name": "Prashanna",
+        "voice_internal_name": "ne-NP-SagarNeural",
+        "provider": "edge_tts",
+        "locale": "ne-NP",
+        "gender": "Male",
+        "is_premium": False,
+    },
+    {
+        "voice_display_name": "Shreegya",
         "voice_internal_name": "ne-NP-SagarNeural-azure",
         "provider": "azure",
         "locale": "ne-NP",
-        "gender": "Male",
+        "gender": "Female",
         "is_premium": True,
+    },
+    {
+        "voice_display_name": "Binod",
+        "voice_internal_name": "ne-NP-BinodNeural",
+        "provider": "edge_tts",
+        "locale": "ne-NP",
+        "gender": "Male",
+        "is_premium": False,
     },
 ]
 
@@ -105,12 +114,26 @@ def _resolve_voice_internal_name(voice_model: VoiceModel) -> tuple[TTSProvider, 
 
 
 @router.get("/", response_model=list[VoiceModelResponse])
-def list_voice_models(db: Session = Depends(get_db)):
+def list_voice_models(
+    org_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+):
     """List available voice models.
 
-    Returns all configured voice models, seeding defaults on first call.
+    Returns global voices (org_id=NULL) plus any org-specific voices.
+    Seeds defaults on first call.
     """
-    models = _seed_default_voices(db)
+    _seed_default_voices(db)
+
+    query = select(VoiceModel)
+    if org_id is not None:
+        query = query.where(
+            or_(VoiceModel.org_id.is_(None), VoiceModel.org_id == org_id)
+        )
+    else:
+        query = query.where(VoiceModel.org_id.is_(None))
+
+    models = db.execute(query).scalars().all()
     return models
 
 

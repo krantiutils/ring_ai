@@ -12,6 +12,7 @@ class VoiceModelResponse(BaseModel):
     voice_display_name: str
     voice_internal_name: str
     is_premium: bool
+    org_id: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}
 

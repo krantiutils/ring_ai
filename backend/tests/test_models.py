@@ -33,16 +33,16 @@ def test_organization_columns():
 def test_campaign_columns():
     cols = {c.name for c in Campaign.__table__.columns}
     assert cols == {
-        "id", "org_id", "name", "type", "status", "template_id",
-        "schedule_config", "scheduled_at", "audio_file", "bulk_file",
-        "retry_count", "retry_config", "source_campaign_id",
-        "created_at", "updated_at",
+        "id", "org_id", "name", "type", "status", "category",
+        "template_id", "voice_model_id", "schedule_config", "scheduled_at",
+        "audio_file", "bulk_file", "retry_count", "retry_config",
+        "source_campaign_id", "created_at", "updated_at",
     }
 
 
 def test_contact_columns():
     cols = {c.name for c in Contact.__table__.columns}
-    assert cols == {"id", "org_id", "phone", "name", "metadata", "created_at"}
+    assert cols == {"id", "org_id", "phone", "name", "carrier", "metadata", "created_at"}
 
 
 def test_interaction_columns():

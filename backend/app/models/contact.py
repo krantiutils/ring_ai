@@ -14,12 +14,14 @@ class Contact(Base):
         Index("ix_contacts_org_id", "org_id"),
         Index("ix_contacts_phone", "phone"),
         Index("ix_contacts_org_phone", "org_id", "phone"),
+        Index("ix_contacts_carrier", "carrier"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255))
+    carrier: Mapped[str | None] = mapped_column(String(50), nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
