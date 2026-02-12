@@ -14,6 +14,7 @@ from app.schemas.campaigns import (
     CampaignCreate,
     CampaignListResponse,
     CampaignResponse,
+    CampaignStartRequest,
     CampaignUpdate,
     CampaignWithStats,
     ContactListResponse,
@@ -23,9 +24,11 @@ from app.services.campaigns import (
     CampaignError,
     InvalidStateTransition,
     calculate_stats,
+    cancel_schedule,
     execute_campaign_batch,
     pause_campaign,
     resume_campaign,
+    schedule_campaign,
     start_campaign,
     upload_contacts_to_campaign,
 )
@@ -116,6 +119,7 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         status=campaign.status,
         template_id=campaign.template_id,
         schedule_config=campaign.schedule_config,
+        scheduled_at=campaign.scheduled_at,
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
         stats=stats,
@@ -174,18 +178,39 @@ def delete_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
 def start_campaign_endpoint(
     campaign_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    body: CampaignStartRequest | None = None,
     db: Session = Depends(get_db),
 ):
     campaign = _get_campaign_or_404(campaign_id, db)
+    schedule_dt = body.schedule if body else None
+
     try:
-        campaign = start_campaign(db, campaign)
+        if schedule_dt is not None:
+            campaign = schedule_campaign(db, campaign, schedule_dt)
+        else:
+            campaign = start_campaign(db, campaign)
+            # Kick off background executor only for immediate start
+            background_tasks.add_task(
+                execute_campaign_batch, campaign.id, SessionLocal
+            )
     except InvalidStateTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except CampaignError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    # Kick off background executor
-    background_tasks.add_task(execute_campaign_batch, campaign.id, SessionLocal)
+    return campaign
+
+
+@router.post("/{campaign_id}/cancel-schedule", response_model=CampaignResponse)
+def cancel_schedule_endpoint(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    campaign = _get_campaign_or_404(campaign_id, db)
+    try:
+        campaign = cancel_schedule(db, campaign)
+    except InvalidStateTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return campaign
 
 

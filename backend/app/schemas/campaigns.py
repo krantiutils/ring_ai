@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 CampaignType = Literal["voice", "text", "form"]
-CampaignStatus = Literal["draft", "active", "paused", "completed"]
+CampaignStatus = Literal["draft", "scheduled", "active", "paused", "completed"]
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +36,12 @@ class CampaignUpdate(BaseModel):
     schedule_config: dict | None = None
 
 
+class CampaignStartRequest(BaseModel):
+    """Optional body for POST /campaigns/{id}/start."""
+
+    schedule: datetime | None = None
+
+
 class CampaignResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,6 +52,7 @@ class CampaignResponse(BaseModel):
     status: CampaignStatus
     template_id: uuid.UUID | None
     schedule_config: dict | None
+    scheduled_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

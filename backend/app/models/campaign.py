@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,7 +27,10 @@ class Campaign(Base):
         Enum("voice", "text", "form", name="campaign_type"), nullable=False
     )
     status: Mapped[str] = mapped_column(
-        Enum("draft", "active", "paused", "completed", name="campaign_status"),
+        Enum(
+            "draft", "scheduled", "active", "paused", "completed",
+            name="campaign_status",
+        ),
         nullable=False,
         server_default="draft",
     )
@@ -35,6 +38,7 @@ class Campaign(Base):
         UUID(as_uuid=True), ForeignKey("templates.id")
     )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()

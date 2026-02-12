@@ -2,6 +2,7 @@
 
 import io
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -12,9 +13,12 @@ from app.services.campaigns import (
     CampaignError,
     InvalidStateTransition,
     calculate_stats,
+    cancel_schedule,
     parse_contacts_csv,
+    schedule_campaign,
     start_campaign,
 )
+from app.services.scheduler import activate_due_campaigns
 
 NONEXISTENT_UUID = str(uuid.uuid4())
 
@@ -616,3 +620,271 @@ class TestStateTransitions:
 
         with pytest.raises(InvalidStateTransition):
             start_campaign(db, campaign)
+
+
+# ---------------------------------------------------------------------------
+# Campaign scheduling tests
+# ---------------------------------------------------------------------------
+
+
+def _draft_campaign_with_contact(db, org):
+    """Create a draft campaign with one contact and pending interaction."""
+    campaign = Campaign(name="Scheduled", type="voice", org_id=org.id, status="draft")
+    db.add(campaign)
+    db.flush()
+
+    contact = Contact(phone="+9779801234567", org_id=org.id)
+    db.add(contact)
+    db.flush()
+
+    interaction = Interaction(
+        campaign_id=campaign.id,
+        contact_id=contact.id,
+        type="outbound_call",
+        status="pending",
+    )
+    db.add(interaction)
+    db.commit()
+    return campaign
+
+
+class TestScheduleCampaign:
+    """Service-level tests for schedule_campaign / cancel_schedule."""
+
+    def test_schedule_campaign(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        result = schedule_campaign(db, campaign, future)
+        assert result.status == "scheduled"
+        assert result.scheduled_at is not None
+
+    def test_schedule_past_rejected(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        with pytest.raises(CampaignError, match="future"):
+            schedule_campaign(db, campaign, past)
+
+    def test_schedule_no_contacts_rejected(self, db, org):
+        campaign = Campaign(name="Empty", type="voice", org_id=org.id, status="draft")
+        db.add(campaign)
+        db.commit()
+
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        with pytest.raises(CampaignError, match="no contacts"):
+            schedule_campaign(db, campaign, future)
+
+    def test_schedule_active_rejected(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        campaign.status = "active"
+        db.commit()
+
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        with pytest.raises(InvalidStateTransition):
+            schedule_campaign(db, campaign, future)
+
+    def test_cancel_schedule(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        schedule_campaign(db, campaign, future)
+        assert campaign.status == "scheduled"
+
+        result = cancel_schedule(db, campaign)
+        assert result.status == "draft"
+        assert result.scheduled_at is None
+
+    def test_cancel_non_scheduled_rejected(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        with pytest.raises(InvalidStateTransition):
+            cancel_schedule(db, campaign)
+
+
+class TestScheduleCampaignAPI:
+    """HTTP-level tests for scheduling via the start endpoint."""
+
+    def _campaign_with_contacts(self, client, org_id):
+        created = _create_campaign(client, org_id)
+        csv_bytes = _make_csv([
+            ["+9779801234567", "Ram"],
+            ["+9779801234568", "Sita"],
+        ])
+        _upload_csv(client, created["id"], csv_bytes)
+        return created
+
+    def test_start_with_schedule(self, client, org_id):
+        created = self._campaign_with_contacts(client, org_id)
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": future},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "scheduled"
+        assert data["scheduled_at"] is not None
+
+    def test_start_without_schedule_immediate(self, client, org_id):
+        created = self._campaign_with_contacts(client, org_id)
+
+        resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "active"
+
+    def test_start_with_past_schedule_rejected(self, client, org_id):
+        created = self._campaign_with_contacts(client, org_id)
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": past},
+        )
+        assert resp.status_code == 422
+
+    def test_cancel_schedule_endpoint(self, client, org_id):
+        created = self._campaign_with_contacts(client, org_id)
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
+        # Schedule it
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": future},
+        )
+        assert resp.json()["status"] == "scheduled"
+
+        # Cancel it
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/cancel-schedule",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "draft"
+        assert resp.json()["scheduled_at"] is None
+
+    def test_cancel_non_scheduled_rejected(self, client, org_id):
+        created = self._campaign_with_contacts(client, org_id)
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/cancel-schedule",
+        )
+        assert resp.status_code == 409
+
+    def test_scheduled_campaign_response_fields(self, client, org_id):
+        """Verify scheduled_at is present in all campaign responses."""
+        created = _create_campaign(client, org_id)
+        assert created["scheduled_at"] is None
+
+        resp = client.get(f"/api/v1/campaigns/{created['id']}")
+        assert "scheduled_at" in resp.json()
+
+    def test_list_filter_by_scheduled(self, client, org_id):
+        """Filter campaigns by status='scheduled'."""
+        created = self._campaign_with_contacts(client, org_id)
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": future},
+        )
+
+        resp = client.get("/api/v1/campaigns/?status=scheduled")
+        data = resp.json()
+        assert data["total"] == 1
+        assert data["items"][0]["status"] == "scheduled"
+
+    def test_full_schedule_lifecycle(self, client, org_id):
+        """draft → schedule → cancel → schedule → (verify still scheduled)."""
+        created = self._campaign_with_contacts(client, org_id)
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
+        # Schedule
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": future},
+        )
+        assert resp.json()["status"] == "scheduled"
+
+        # Cancel
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/cancel-schedule",
+        )
+        assert resp.json()["status"] == "draft"
+
+        # Re-schedule
+        future2 = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+        resp = client.post(
+            f"/api/v1/campaigns/{created['id']}/start",
+            json={"schedule": future2},
+        )
+        assert resp.json()["status"] == "scheduled"
+
+
+class TestSchedulerService:
+    """Tests for the background scheduler that activates due campaigns."""
+
+    def test_activates_due_campaign(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        # Set to scheduled with a past time (already due)
+        campaign.status = "scheduled"
+        campaign.scheduled_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        db.commit()
+
+        activated = activate_due_campaigns(db)
+        assert activated == 1
+
+        db.refresh(campaign)
+        assert campaign.status == "active"
+        assert campaign.scheduled_at is None
+
+    def test_skips_future_campaign(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        campaign.status = "scheduled"
+        campaign.scheduled_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        db.commit()
+
+        activated = activate_due_campaigns(db)
+        assert activated == 0
+
+        db.refresh(campaign)
+        assert campaign.status == "scheduled"
+
+    def test_skips_non_scheduled_campaigns(self, db, org):
+        campaign = _draft_campaign_with_contact(db, org)
+        # draft campaign with scheduled_at set (should not be picked up)
+        campaign.scheduled_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.commit()
+
+        activated = activate_due_campaigns(db)
+        assert activated == 0
+
+    def test_activates_multiple_due_campaigns(self, db, org):
+        campaigns = []
+        for i in range(3):
+            c = Campaign(
+                name=f"Batch {i}", type="voice", org_id=org.id, status="draft"
+            )
+            db.add(c)
+            db.flush()
+
+            contact = Contact(phone=f"+977980123456{i}", org_id=org.id)
+            db.add(contact)
+            db.flush()
+
+            interaction = Interaction(
+                campaign_id=c.id,
+                contact_id=contact.id,
+                type="outbound_call",
+                status="pending",
+            )
+            db.add(interaction)
+
+            c.status = "scheduled"
+            c.scheduled_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+            campaigns.append(c)
+
+        db.commit()
+
+        activated = activate_due_campaigns(db)
+        assert activated == 3
+
+        for c in campaigns:
+            db.refresh(c)
+            assert c.status == "active"

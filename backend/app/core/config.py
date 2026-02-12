@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     CAMPAIGN_MAX_RETRIES: int = 3
     CAMPAIGN_RATE_LIMIT_PER_SECOND: float = 10.0
 
+    # Scheduler
+    SCHEDULER_POLL_INTERVAL_SECONDS: int = 30
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
