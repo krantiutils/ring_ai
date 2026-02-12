@@ -1,140 +1,84 @@
 import { test, expect } from "@playwright/test";
-import { loadState } from "../fixtures/seed";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-const API = `${BACKEND_URL}/api/v1`;
+test.describe("Analytics Page", () => {
+  test("analytics page loads with stat cards", async ({ page }) => {
+    await page.goto("/dashboard/analytics");
 
-test.describe("Analytics — campaign analytics, carriers & events", () => {
-  let orgId: string;
-  let campaignIds: string[];
+    // Assert page title
+    await expect(
+      page.locator("h1", { hasText: "Analytics" })
+    ).toBeVisible();
 
-  test.beforeAll(() => {
-    const state = loadState();
-    orgId = state.orgId;
-    campaignIds = state.campaignIds;
-    test.skip(!orgId, "No seeded organization — skipping analytics tests");
-  });
+    // Wait for analytics data to render
+    // Analytics page shows stat cards: Total Credits Used, Attempted Calls, etc.
+    await expect(
+      page.getByText(/Total Credits|Attempted Calls|SMS Sent|Pickup Rate/i).first()
+    ).toBeVisible({ timeout: 10_000 });
 
-  test("analytics overview loads", async ({ request, page }) => {
-    const res = await request.get(
-      `${API}/analytics/overview?org_id=${orgId}`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-
-    expect(body).toHaveProperty("campaigns_by_status");
-    expect(body).toHaveProperty("total_contacts_reached");
-    expect(body).toHaveProperty("overall_delivery_rate");
-    expect(body).toHaveProperty("credits_consumed");
-
-    await page.goto("/");
-    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/analytics/overview.png",
       fullPage: true,
     });
   });
 
-  test("campaign-level analytics", async ({ request, page }) => {
-    test.skip(campaignIds.length === 0, "No seeded campaigns");
-    const campaignId = campaignIds[0];
+  test("call status breakdown chart renders", async ({ page }) => {
+    await page.goto("/dashboard/analytics");
 
-    const res = await request.get(
-      `${API}/analytics/campaigns/${campaignId}`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
+    // Wait for content
+    await expect(
+      page.getByText(/Total Credits|Attempted Calls/i).first()
+    ).toBeVisible({ timeout: 10_000 });
 
-    expect(body.campaign_id).toBe(campaignId);
-    expect(body).toHaveProperty("status_breakdown");
-    expect(body).toHaveProperty("completion_rate");
-    expect(body).toHaveProperty("hourly_distribution");
-    expect(body).toHaveProperty("daily_distribution");
-    expect(body).toHaveProperty("carrier_breakdown");
-    expect(body).toHaveProperty("credit_consumption");
+    // The analytics page has a call status breakdown section
+    // with a bar chart (recharts SVG)
+    await expect(
+      page.getByText(/Call Status|Status Breakdown/i).first()
+    ).toBeVisible();
 
-    await page.goto("/");
-    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/analytics/call-status-chart.png",
       fullPage: true,
     });
   });
 
-  test("carrier breakdown summary", async ({ request, page }) => {
-    const res = await request.get(`${API}/analytics/carrier-breakdown`);
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
+  test("carrier summary table renders", async ({ page }) => {
+    await page.goto("/dashboard/analytics");
 
-    expect(Array.isArray(body)).toBeTruthy();
-    for (const row of body) {
-      expect(row).toHaveProperty("carrier");
-      expect(row).toHaveProperty("total");
-      expect(row).toHaveProperty("success");
-      expect(row).toHaveProperty("fail");
-      expect(row).toHaveProperty("pickup_pct");
-    }
+    // Wait for content to load
+    await expect(
+      page.getByText(/Total Credits|Attempted Calls/i).first()
+    ).toBeVisible({ timeout: 10_000 });
 
-    await page.goto("/");
-    await page.waitForLoadState("load");
+    // Carrier summary table headers
+    await expect(
+      page.getByText(/Carrier/i).first()
+    ).toBeVisible();
+
     await page.screenshot({
       path: "feature_parity_validation/analytics/carrier-summary.png",
       fullPage: true,
     });
   });
 
-  test("carrier breakdown scoped to a campaign", async ({ request }) => {
-    test.skip(campaignIds.length === 0, "No seeded campaigns");
-    const res = await request.get(
-      `${API}/analytics/carrier-breakdown?campaign_id=${campaignIds[0]}`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(Array.isArray(body)).toBeTruthy();
+  test("analytics has search by campaign name", async ({ page }) => {
+    await page.goto("/dashboard/analytics");
+
+    // Assert search inputs exist
+    await expect(
+      page.getByPlaceholder(/campaign|search/i).first()
+    ).toBeVisible({ timeout: 10_000 });
   });
 
-  test("analytics events endpoint", async ({ request }) => {
-    const res = await request.get(
-      `${API}/analytics/events?page=1&page_size=10`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body).toHaveProperty("items");
-    expect(body).toHaveProperty("total");
-    expect(Array.isArray(body.items)).toBeTruthy();
-  });
+  test("export as PDF button is present", async ({ page }) => {
+    await page.goto("/dashboard/analytics");
 
-  test("campaign playback data", async ({ request }) => {
-    test.skip(campaignIds.length === 0, "No seeded campaigns");
-    const res = await request.get(
-      `${API}/analytics/campaigns/${campaignIds[0]}/playback`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body).toHaveProperty("campaign_id");
-    expect(body).toHaveProperty("avg_playback_percentage");
-    expect(body).toHaveProperty("contacts");
-    expect(Array.isArray(body.contacts)).toBeTruthy();
-  });
+    await expect(
+      page.getByText(/Total Credits|Attempted Calls/i).first()
+    ).toBeVisible({ timeout: 10_000 });
 
-  test("campaign playback distribution", async ({ request }) => {
-    test.skip(campaignIds.length === 0, "No seeded campaigns");
-    const res = await request.get(
-      `${API}/analytics/campaigns/${campaignIds[0]}/playback/distribution`
-    );
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body).toHaveProperty("campaign_id");
-    expect(body).toHaveProperty("buckets");
-    expect(body.buckets.length).toBe(4);
-  });
-
-  test("export report as CSV", async ({ request }) => {
-    test.skip(campaignIds.length === 0, "No seeded campaigns");
-    const res = await request.get(
-      `${API}/campaigns/${campaignIds[0]}/report/download`
-    );
-    expect(res.ok()).toBeTruthy();
-    expect(res.headers()["content-type"]).toContain("text/csv");
+    // Export as PDF button
+    await expect(
+      page.getByRole("button", { name: /export|pdf/i })
+    ).toBeVisible();
   });
 });

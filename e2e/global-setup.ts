@@ -1,9 +1,14 @@
-import { request } from "@playwright/test";
+import { chromium, request } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
 const API = `${BACKEND_URL}/api/v1`;
+
+const AUTH_DIR = path.join(__dirname, ".auth");
+const STATE_FILE = path.join(AUTH_DIR, "state.json");
+const STORAGE_STATE_FILE = path.join(AUTH_DIR, "storageState.json");
 
 const TEST_USER = {
   first_name: "E2E",
@@ -23,15 +28,14 @@ export interface TestState {
 }
 
 async function globalSetup() {
-  const stateDir = path.join(__dirname, ".auth");
-  fs.mkdirSync(stateDir, { recursive: true });
+  fs.mkdirSync(AUTH_DIR, { recursive: true });
   fs.mkdirSync(path.join(__dirname, "feature_parity_validation"), {
     recursive: true,
   });
 
   const api = await request.newContext({ baseURL: BACKEND_URL });
 
-  // --- Register test user (idempotent — 409 if already exists) ---
+  // ── Register test user (idempotent — 409 if already exists) ──
   const registerRes = await api.post(`${API}/auth/register`, {
     data: TEST_USER,
   });
@@ -40,7 +44,7 @@ async function globalSetup() {
     userId = (await registerRes.json()).id;
   }
 
-  // --- Login ---
+  // ── Login via API ──
   const loginRes = await api.post(`${API}/auth/login`, {
     data: { email: TEST_USER.email, password: TEST_USER.password },
   });
@@ -52,7 +56,7 @@ async function globalSetup() {
   const accessToken: string = (await loginRes.json()).access_token;
   const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
-  // --- Resolve userId from profile if registration returned 409 ---
+  // ── Resolve userId from profile if registration returned 409 ──
   if (!userId) {
     const profileRes = await api.get(`${API}/auth/user-profile`, {
       headers: authHeaders,
@@ -62,12 +66,12 @@ async function globalSetup() {
     }
   }
 
-  // --- Discover org_id from seeded templates (make db-seed) ---
+  // ── Discover org_id from seeded templates (make db-seed) ──
   let orgId = "";
   const templatesRes = await api.get(`${API}/templates?page=1&page_size=1`);
   if (templatesRes.ok()) {
     const body = await templatesRes.json();
-    if (body.items.length > 0) {
+    if (body.items && body.items.length > 0) {
       orgId = body.items[0].org_id;
     }
   }
@@ -79,12 +83,12 @@ async function globalSetup() {
     );
   }
 
-  // --- Seed additional test data via API ---
+  // ── Seed additional test data via API ──
   const campaignIds: string[] = [];
   const templateIds: string[] = [];
 
   if (orgId) {
-    // Purchase credits so cost-estimation tests work
+    // Purchase credits
     await api.post(`${API}/credits/purchase`, {
       data: {
         org_id: orgId,
@@ -168,7 +172,7 @@ async function globalSetup() {
     }
   }
 
-  // --- Persist state ---
+  // ── Persist API state ──
   const state: TestState = {
     accessToken,
     orgId,
@@ -176,13 +180,28 @@ async function globalSetup() {
     campaignIds,
     templateIds,
   };
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
-  fs.writeFileSync(
-    path.join(stateDir, "state.json"),
-    JSON.stringify(state, null, 2)
-  );
+  // ── Browser-based auth: save storageState for Playwright ──
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ baseURL: FRONTEND_URL });
+  const page = await context.newPage();
 
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(TEST_USER.email);
+  await page.getByLabel("Password").fill(TEST_USER.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL("**/dashboard", { timeout: 15_000 });
+
+  // Inject the access token into localStorage (matches the app's auth mechanism)
+  await page.evaluate((token: string) => {
+    localStorage.setItem("access_token", token);
+  }, accessToken);
+
+  await context.storageState({ path: STORAGE_STATE_FILE });
+  await browser.close();
   await api.dispose();
+
   console.log(
     `✓ Global setup complete — user=${userId}, org=${orgId}, ` +
       `campaigns=${campaignIds.length}, templates=${templateIds.length}`
