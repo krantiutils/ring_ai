@@ -51,6 +51,7 @@ from app.services.campaigns import (
     start_campaign,
     upload_contacts_to_campaign,
 )
+from app.services.credits import InsufficientCreditsError
 
 router = APIRouter()
 
@@ -233,6 +234,15 @@ def start_campaign_endpoint(
             campaign = start_campaign(db, campaign)
             # Kick off background executor only for immediate start
             background_tasks.add_task(execute_campaign_batch, campaign.id, SessionLocal)
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "message": str(exc),
+                "required": exc.required,
+                "available": exc.available,
+            },
+        )
     except InvalidStateTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except CampaignError as exc:

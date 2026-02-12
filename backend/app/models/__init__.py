@@ -1,6 +1,8 @@
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
 from app.models.contact import Contact
+from app.models.credit import Credit
+from app.models.credit_transaction import CreditTransaction
 from app.models.form import Form
 from app.models.form_response import FormResponse
 from app.models.interaction import Interaction
@@ -19,6 +21,8 @@ __all__ = [
     "AnalyticsEvent",
     "Campaign",
     "Contact",
+    "Credit",
+    "CreditTransaction",
     "Form",
     "FormResponse",
     "Interaction",

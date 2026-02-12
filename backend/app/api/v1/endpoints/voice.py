@@ -327,6 +327,34 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
                 interaction.metadata_ = existing_meta
 
                 db.commit()
+
+                # Refund credits for failed calls that didn't connect
+                if interaction_status == "failed" and interaction.campaign_id:
+                    try:
+                        from app.models.campaign import Campaign
+                        from app.services.credits import (
+                            COST_PER_INTERACTION as CREDIT_COSTS,
+                            refund_credits,
+                        )
+                        from app.services.campaigns import CAMPAIGN_TYPE_TO_INTERACTION_TYPE
+
+                        campaign = db.get(Campaign, interaction.campaign_id)
+                        if campaign:
+                            itype = CAMPAIGN_TYPE_TO_INTERACTION_TYPE.get(campaign.type)
+                            cost = CREDIT_COSTS.get(itype, 1.0)
+                            refund_credits(
+                                db,
+                                campaign.org_id,
+                                cost,
+                                reference_id=str(interaction.id),
+                                description=f"Refund for failed call ({call_status_str})",
+                            )
+                    except Exception:
+                        logger.exception(
+                            "Failed to refund credits for interaction %s",
+                            context.interaction_id,
+                        )
+
                 logger.info(
                     "Updated interaction %s: status=%s duration=%s",
                     context.interaction_id,

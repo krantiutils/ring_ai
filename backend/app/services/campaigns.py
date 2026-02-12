@@ -252,10 +252,15 @@ def _assert_has_contacts(db: Session, campaign: Campaign) -> None:
 def start_campaign(db: Session, campaign: Campaign) -> Campaign:
     """Transition campaign from draft → active.
 
-    Validates that the campaign has at least one contact (pending interaction).
+    Validates that the campaign has at least one contact (pending interaction)
+    and that the org has sufficient credits to cover the estimated cost.
     """
     _assert_transition(campaign.status, "active")
     _assert_has_contacts(db, campaign)
+
+    # Check credit balance before launching
+    from app.services.credits import check_sufficient_credits
+    check_sufficient_credits(db, campaign.org_id, campaign)
 
     campaign.status = "active"
     campaign.scheduled_at = None
@@ -919,10 +924,17 @@ def _dispatch_interaction(
 ) -> None:
     """Dispatch a single interaction (voice, text, or form).
 
-    Voice: marks interaction as 'in_progress' — Twilio webhook updates final status.
+    Voice/Form: marks interaction as 'in_progress' — Twilio webhook updates final status.
     SMS: marks interaction as 'completed' immediately on successful send.
-    On error, exceptions propagate to the batch executor for retry handling.
+    On success, deducts credits for voice/form calls. On error, exceptions
+    propagate to the batch executor for retry handling.
     """
+    from app.services.credits import COST_PER_INTERACTION as CREDIT_COSTS
+    from app.services.credits import consume_credits
+
+    interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE.get(campaign.type)
+    cost = CREDIT_COSTS.get(interaction_type, 1.0)
+
     if campaign.type == "voice":
         if template is None and not campaign.audio_file:
             raise CampaignError("Voice campaign requires a template")
@@ -945,6 +957,15 @@ def _dispatch_interaction(
             meta["audio_source"] = "uploaded"
         interaction.metadata_ = meta
         # Voice calls stay 'in_progress' — the webhook updates final status
+        # Deduct credits for dispatched call
+        interaction.credit_consumed = cost
+        consume_credits(
+            db,
+            campaign.org_id,
+            cost,
+            reference_id=str(interaction.id),
+            description=f"Voice call to {contact.phone}",
+        )
         db.commit()
 
     elif campaign.type == "form":
@@ -972,6 +993,16 @@ def _dispatch_interaction(
             "twilio_call_sid": call_sid,
             "form_id": str(form.id),
         }
+        # Form calls stay 'in_progress' — the webhook updates final status
+        # Deduct credits for dispatched call
+        interaction.credit_consumed = cost
+        consume_credits(
+            db,
+            campaign.org_id,
+            cost,
+            reference_id=str(interaction.id),
+            description=f"Form call to {contact.phone}",
+        )
         db.commit()
 
     elif campaign.type == "text":

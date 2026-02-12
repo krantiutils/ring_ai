@@ -418,8 +418,8 @@ class TestRemoveContact:
 
 
 class TestCampaignLifecycle:
-    def _campaign_with_contacts(self, client, org_id):
-        """Helper: create a draft campaign with 2 contacts."""
+    def _campaign_with_contacts(self, client, org_id, db=None):
+        """Helper: create a draft campaign with 2 contacts and sufficient credits."""
         created = _create_campaign(client, org_id)
         csv_bytes = _make_csv(
             [
@@ -428,10 +428,13 @@ class TestCampaignLifecycle:
             ]
         )
         _upload_csv(client, created["id"], csv_bytes)
+        if db is not None:
+            from app.services.credits import purchase_credits
+            purchase_credits(db, org_id, 1000.0)
         return created
 
-    def test_start_campaign(self, client, org_id):
-        created = self._campaign_with_contacts(client, org_id)
+    def test_start_campaign(self, client, org_id, db):
+        created = self._campaign_with_contacts(client, org_id, db)
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
         assert resp.status_code == 200
         assert resp.json()["status"] == "active"
@@ -441,14 +444,14 @@ class TestCampaignLifecycle:
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
         assert resp.status_code == 422
 
-    def test_start_already_active_rejected(self, client, org_id):
-        created = self._campaign_with_contacts(client, org_id)
+    def test_start_already_active_rejected(self, client, org_id, db):
+        created = self._campaign_with_contacts(client, org_id, db)
         client.post(f"/api/v1/campaigns/{created['id']}/start")
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
         assert resp.status_code == 409
 
-    def test_pause_active_campaign(self, client, org_id):
-        created = self._campaign_with_contacts(client, org_id)
+    def test_pause_active_campaign(self, client, org_id, db):
+        created = self._campaign_with_contacts(client, org_id, db)
         client.post(f"/api/v1/campaigns/{created['id']}/start")
 
         resp = client.post(f"/api/v1/campaigns/{created['id']}/pause")
@@ -460,8 +463,8 @@ class TestCampaignLifecycle:
         resp = client.post(f"/api/v1/campaigns/{created['id']}/pause")
         assert resp.status_code == 409
 
-    def test_resume_paused_campaign(self, client, org_id):
-        created = self._campaign_with_contacts(client, org_id)
+    def test_resume_paused_campaign(self, client, org_id, db):
+        created = self._campaign_with_contacts(client, org_id, db)
         client.post(f"/api/v1/campaigns/{created['id']}/start")
         client.post(f"/api/v1/campaigns/{created['id']}/pause")
 
@@ -474,9 +477,9 @@ class TestCampaignLifecycle:
         resp = client.post(f"/api/v1/campaigns/{created['id']}/resume")
         assert resp.status_code == 409
 
-    def test_full_lifecycle(self, client, org_id):
+    def test_full_lifecycle(self, client, org_id, db):
         """draft → start → pause → resume → verify active."""
-        created = self._campaign_with_contacts(client, org_id)
+        created = self._campaign_with_contacts(client, org_id, db)
 
         # Start
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
@@ -590,6 +593,8 @@ class TestCampaignStats:
 
 class TestStateTransitions:
     def test_draft_to_active(self, db, org):
+        from app.services.credits import purchase_credits
+
         campaign = Campaign(name="T", type="voice", org_id=org.id, status="draft")
         db.add(campaign)
         db.flush()
@@ -607,6 +612,7 @@ class TestStateTransitions:
         db.add(interaction)
         db.commit()
 
+        purchase_credits(db, org.id, 100.0)
         result = start_campaign(db, campaign)
         assert result.status == "active"
 
@@ -708,7 +714,7 @@ class TestScheduleCampaign:
 class TestScheduleCampaignAPI:
     """HTTP-level tests for scheduling via the start endpoint."""
 
-    def _campaign_with_contacts(self, client, org_id):
+    def _campaign_with_contacts(self, client, org_id, db=None):
         created = _create_campaign(client, org_id)
         csv_bytes = _make_csv(
             [
@@ -717,6 +723,9 @@ class TestScheduleCampaignAPI:
             ]
         )
         _upload_csv(client, created["id"], csv_bytes)
+        if db is not None:
+            from app.services.credits import purchase_credits
+            purchase_credits(db, org_id, 1000.0)
         return created
 
     def test_start_with_schedule(self, client, org_id):
@@ -732,8 +741,8 @@ class TestScheduleCampaignAPI:
         assert data["status"] == "scheduled"
         assert data["scheduled_at"] is not None
 
-    def test_start_without_schedule_immediate(self, client, org_id):
-        created = self._campaign_with_contacts(client, org_id)
+    def test_start_without_schedule_immediate(self, client, org_id, db):
+        created = self._campaign_with_contacts(client, org_id, db)
 
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
         assert resp.status_code == 200
