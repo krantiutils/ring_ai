@@ -18,6 +18,9 @@ from app.services.telephony.models import (
     CallStatus,
     CallStatusResponse,
     DTMFRoute,
+    SmsResult,
+    SmsStatus,
+    SmsStatusResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,6 +45,15 @@ DEFAULT_STATUS_EVENTS = [
     "answered",
     "completed",
 ]
+
+# Twilio SMS status string → our SmsStatus enum
+_SMS_STATUS_MAP: dict[str, SmsStatus] = {
+    "queued": SmsStatus.QUEUED,
+    "sent": SmsStatus.SENT,
+    "delivered": SmsStatus.DELIVERED,
+    "undelivered": SmsStatus.UNDELIVERED,
+    "failed": SmsStatus.FAILED,
+}
 
 
 class TwilioProvider(BaseTelephonyProvider):
@@ -155,6 +167,84 @@ class TwilioProvider(BaseTelephonyProvider):
 
         status = _STATUS_MAP.get(call.status, CallStatus.CANCELED)
         return CallResult(call_id=call.sid, status=status)
+
+    async def send_sms(
+        self,
+        to: str,
+        body: str,
+        from_number: str | None = None,
+        status_callback_url: str | None = None,
+    ) -> SmsResult:
+        """Send an SMS message via Twilio.
+
+        Args:
+            to: Destination phone number (E.164).
+            body: SMS message body.
+            from_number: Sender number (E.164). Falls back to default.
+            status_callback_url: URL for delivery status webhooks.
+
+        Returns:
+            SmsResult with message SID and initial status.
+        """
+        sender = from_number or self._default_from_number
+        if not sender:
+            raise TelephonyConfigurationError(
+                "No from_number provided and no default Twilio number configured"
+            )
+
+        loop = asyncio.get_running_loop()
+        kwargs: dict = {
+            "to": to,
+            "from_": sender,
+            "body": body,
+        }
+        if status_callback_url:
+            kwargs["status_callback"] = status_callback_url
+
+        try:
+            message = await loop.run_in_executor(
+                None,
+                partial(self._client.messages.create, **kwargs),
+            )
+        except Exception as exc:
+            raise TelephonyProviderError(
+                "twilio", f"Failed to send SMS to {to}: {exc}"
+            ) from exc
+
+        status = _SMS_STATUS_MAP.get(message.status, SmsStatus.QUEUED)
+        logger.info(
+            "Twilio SMS sent: sid=%s to=%s status=%s",
+            message.sid,
+            to,
+            status.value,
+        )
+        return SmsResult(message_sid=message.sid, status=status)
+
+    async def get_sms_status(self, message_sid: str) -> SmsStatusResponse:
+        """Fetch SMS message details from Twilio."""
+        loop = asyncio.get_running_loop()
+        try:
+            message = await loop.run_in_executor(
+                None,
+                partial(self._client.messages(message_sid).fetch),
+            )
+        except Exception as exc:
+            raise TelephonyProviderError(
+                "twilio", f"Failed to fetch SMS {message_sid}: {exc}"
+            ) from exc
+
+        status = _SMS_STATUS_MAP.get(message.status, SmsStatus.FAILED)
+        return SmsStatusResponse(
+            message_sid=message.sid,
+            status=status,
+            to=message.to,
+            from_number=message.from_,
+            body=message.body,
+            date_sent=message.date_sent,
+            price=message.price,
+            error_code=message.error_code,
+            error_message=message.error_message,
+        )
 
 
 def generate_call_twiml(

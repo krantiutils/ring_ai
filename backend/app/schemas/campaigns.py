@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 CampaignType = Literal["voice", "text", "form"]
 CampaignStatus = Literal["draft", "active", "paused", "completed"]
+CampaignServices = Literal["PHONE", "SMS", "SMS & PHONE"]
 
 
 # ---------------------------------------------------------------------------
@@ -27,12 +28,16 @@ class CampaignCreate(BaseModel):
     type: CampaignType
     org_id: uuid.UUID
     template_id: uuid.UUID | None = None
+    sms_message: str | None = None
+    services: CampaignServices | None = None
     schedule_config: dict | None = None
 
 
 class CampaignUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     template_id: uuid.UUID | None = None
+    sms_message: str | None = None
+    services: CampaignServices | None = None
     schedule_config: dict | None = None
 
 
@@ -45,6 +50,8 @@ class CampaignResponse(BaseModel):
     type: CampaignType
     status: CampaignStatus
     template_id: uuid.UUID | None
+    sms_message: str | None = None
+    services: CampaignServices | None = None
     schedule_config: dict | None
     created_at: datetime
     updated_at: datetime

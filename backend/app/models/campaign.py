@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Index, String, func
+from sqlalchemy import Enum, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,10 @@ class Campaign(Base):
     )
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("templates.id")
+    )
+    sms_message: Mapped[str | None] = mapped_column(Text)
+    services: Mapped[str | None] = mapped_column(
+        Enum("PHONE", "SMS", "SMS & PHONE", name="campaign_services"),
     )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

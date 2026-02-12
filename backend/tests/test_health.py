@@ -11,8 +11,9 @@ def test_api_v1_voice(client):
 
 
 def test_api_v1_text(client):
-    response = client.get("/api/v1/text/")
-    assert response.status_code == 200
+    """Text/SMS router is mounted — message status endpoint returns 503 when unconfigured."""
+    response = client.get("/api/v1/text/messages/SM-nonexistent")
+    assert response.status_code == 503
 
 
 def test_api_v1_forms(client):

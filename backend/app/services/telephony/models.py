@@ -106,3 +106,47 @@ class CallContext(BaseModel):
     record: bool = False
     record_consent_text: str | None = None
     interaction_id: uuid.UUID | None = None
+
+
+# ---------------------------------------------------------------------------
+# SMS models
+# ---------------------------------------------------------------------------
+
+
+class SmsStatus(str, Enum):
+    QUEUED = "queued"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    UNDELIVERED = "undelivered"
+    FAILED = "failed"
+
+
+class SmsResult(BaseModel):
+    message_sid: str
+    status: SmsStatus
+
+
+class SmsStatusResponse(BaseModel):
+    message_sid: str
+    status: SmsStatus
+    to: str | None = None
+    from_number: str | None = None
+    body: str | None = None
+    date_sent: datetime | None = None
+    price: str | None = None
+    error_code: int | None = None
+    error_message: str | None = None
+
+
+class SmsWebhookPayload(BaseModel):
+    """Twilio SMS status callback payload.
+
+    Field names match Twilio's POST parameter names exactly.
+    """
+
+    MessageSid: str
+    MessageStatus: str
+    To: str | None = None
+    From: str | None = None
+    ErrorCode: str | None = None
+    ErrorMessage: str | None = None

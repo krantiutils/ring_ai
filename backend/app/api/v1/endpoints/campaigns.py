@@ -57,6 +57,8 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)):
         type=payload.type,
         org_id=payload.org_id,
         template_id=payload.template_id,
+        sms_message=payload.sms_message,
+        services=payload.services,
         schedule_config=payload.schedule_config,
         status="draft",
     )

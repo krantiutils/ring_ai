@@ -1,5 +1,6 @@
 """Campaign service — business logic for campaign lifecycle, contacts, and execution."""
 
+import asyncio
 import csv
 import io
 import logging
@@ -142,8 +143,12 @@ def upload_contacts_to_campaign(
 ) -> tuple[int, int, list[str]]:
     """Parse CSV and create Contact + Interaction records for a campaign.
 
+    For dual-service (SMS & PHONE) campaigns, delegates to upload_contacts_for_dual_service.
     Returns (created_count, skipped_count, errors).
     """
+    if campaign.services == "SMS & PHONE":
+        return upload_contacts_for_dual_service(db, campaign, csv_bytes)
+
     if campaign.status != "draft":
         raise InvalidStateTransition(campaign.status, "draft")
 
@@ -151,7 +156,13 @@ def upload_contacts_to_campaign(
     if parse_errors and not parsed:
         return 0, 0, parse_errors
 
-    interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE[campaign.type]
+    # For campaigns with explicit services field, use that to determine interaction type
+    if campaign.services == "SMS":
+        interaction_type = "sms"
+    elif campaign.services == "PHONE":
+        interaction_type = "outbound_call"
+    else:
+        interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE[campaign.type]
     created = 0
     skipped = 0
 
@@ -402,13 +413,15 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
             db.commit()
 
             try:
-                # TODO: Actual TTS/SMS/form dispatch goes here
-                # For now, mark as completed immediately (MVP stub)
-                interaction.status = "completed"
-                interaction.ended_at = datetime.now(timezone.utc)
-                if interaction.started_at:
-                    delta = interaction.ended_at - interaction.started_at
-                    interaction.duration_seconds = int(delta.total_seconds())
+                if interaction.type == "sms":
+                    _dispatch_sms(db, campaign, interaction)
+                else:
+                    # Voice and form dispatch — mark completed as stub for now
+                    interaction.status = "completed"
+                    interaction.ended_at = datetime.now(timezone.utc)
+                    if interaction.started_at:
+                        delta = interaction.ended_at - interaction.started_at
+                        interaction.duration_seconds = int(delta.total_seconds())
                 db.commit()
             except Exception:
                 logger.exception(
@@ -444,3 +457,174 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
         logger.exception("Error in campaign batch executor for %s", campaign_id)
     finally:
         db.close()
+
+
+def _dispatch_sms(db: Session, campaign: Campaign, interaction: Interaction) -> None:
+    """Dispatch a single SMS for a campaign interaction.
+
+    Resolves the message body from either campaign.sms_message or the campaign's
+    template, renders variables from contact metadata, then sends via Twilio.
+    """
+    from app.models.template import Template
+    from app.services.telephony import get_twilio_provider
+    from app.services.templates import render
+
+    contact = db.get(Contact, interaction.contact_id)
+    if contact is None:
+        raise CampaignError(f"Contact {interaction.contact_id} not found")
+
+    # Resolve SMS body
+    body: str | None = None
+
+    # Priority 1: campaign.sms_message (direct text)
+    if campaign.sms_message:
+        variables = _build_contact_variables(contact)
+        body = render(campaign.sms_message, variables)
+
+    # Priority 2: campaign template (if type is text)
+    if body is None and campaign.template_id:
+        template = db.get(Template, campaign.template_id)
+        if template and template.type == "text":
+            variables = _build_contact_variables(contact)
+            body = render(template.content, variables)
+
+    if not body:
+        raise CampaignError(
+            f"Campaign {campaign.id} has no SMS message body or text template"
+        )
+
+    if not contact.phone or not contact.phone.startswith("+"):
+        raise CampaignError(
+            f"Contact {contact.id} has invalid phone number: {contact.phone!r}"
+        )
+
+    provider = get_twilio_provider()
+    base_url = settings.TWILIO_BASE_URL
+    webhook_url = f"{base_url}/api/v1/text/webhook" if base_url else None
+
+    # Run the async send_sms in a sync context (batch executor runs in a thread).
+    # get_running_loop() inside send_sms will find the loop from run_until_complete.
+    loop = asyncio.new_event_loop()
+    try:
+        result = loop.run_until_complete(
+            provider.send_sms(
+                to=contact.phone,
+                body=body,
+                status_callback_url=webhook_url,
+            )
+        )
+    finally:
+        loop.close()
+
+    # Update interaction metadata with message SID
+    existing_meta = dict(interaction.metadata_ or {})
+    existing_meta["twilio_message_sid"] = result.message_sid
+    existing_meta["sms_body"] = body
+    interaction.metadata_ = existing_meta
+
+    # SMS is async — stays in_progress until webhook confirms delivery
+    # Don't mark as completed here; the webhook handler will do that
+    logger.info(
+        "SMS dispatched for interaction %s: sid=%s to=%s",
+        interaction.id,
+        result.message_sid,
+        contact.phone,
+    )
+
+
+def _build_contact_variables(contact: "Contact") -> dict[str, str]:
+    """Build template variable dict from a contact's fields and metadata."""
+    variables: dict[str, str] = {}
+    if contact.name:
+        variables["name"] = contact.name
+    variables["phone"] = contact.phone
+    # Merge metadata into variables
+    if contact.metadata_:
+        for key, value in contact.metadata_.items():
+            variables[key] = str(value)
+    return variables
+
+
+def upload_contacts_for_dual_service(
+    db: Session,
+    campaign: Campaign,
+    csv_bytes: bytes,
+) -> tuple[int, int, list[str]]:
+    """Upload contacts and create interactions for dual-service (SMS & PHONE) campaigns.
+
+    Creates TWO interactions per contact: one 'sms' and one 'outbound_call'.
+    """
+    if campaign.status != "draft":
+        raise InvalidStateTransition(campaign.status, "draft")
+    if campaign.services != "SMS & PHONE":
+        raise CampaignError("upload_contacts_for_dual_service requires services='SMS & PHONE'")
+
+    parsed, parse_errors = parse_contacts_csv(csv_bytes, campaign.org_id)
+    if parse_errors and not parsed:
+        return 0, 0, parse_errors
+
+    created = 0
+    skipped = 0
+
+    existing_phones = set(
+        db.execute(
+            select(Contact.phone).where(Contact.org_id == campaign.org_id)
+        ).scalars().all()
+    )
+
+    existing_campaign_contacts = set(
+        db.execute(
+            select(Contact.phone)
+            .join(Interaction, Interaction.contact_id == Contact.id)
+            .where(Interaction.campaign_id == campaign.id)
+        ).scalars().all()
+    )
+
+    for row in parsed:
+        phone = row["phone"]
+
+        if phone in existing_campaign_contacts:
+            skipped += 1
+            continue
+
+        if phone in existing_phones:
+            contact = db.execute(
+                select(Contact).where(
+                    Contact.org_id == campaign.org_id,
+                    Contact.phone == phone,
+                )
+            ).scalar_one()
+        else:
+            contact = Contact(
+                phone=phone,
+                name=row["name"],
+                metadata_=row["metadata_"],
+                org_id=campaign.org_id,
+            )
+            db.add(contact)
+            db.flush()
+            existing_phones.add(phone)
+
+        # Create SMS interaction
+        sms_interaction = Interaction(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            type="sms",
+            status="pending",
+        )
+        db.add(sms_interaction)
+
+        # Create voice call interaction
+        call_interaction = Interaction(
+            campaign_id=campaign.id,
+            contact_id=contact.id,
+            type="outbound_call",
+            status="pending",
+        )
+        db.add(call_interaction)
+
+        existing_campaign_contacts.add(phone)
+        created += 1
+
+    db.commit()
+    return created, skipped, parse_errors

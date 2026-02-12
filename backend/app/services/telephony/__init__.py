@@ -18,6 +18,10 @@ from app.services.telephony.models import (
     CallStatusResponse,
     DTMFAction,
     DTMFRoute,
+    SmsResult,
+    SmsStatus,
+    SmsStatusResponse,
+    SmsWebhookPayload,
     WebhookPayload,
 )
 from app.services.telephony.twilio import (
@@ -39,6 +43,10 @@ __all__ = [
     "CallStatusResponse",
     "DTMFAction",
     "DTMFRoute",
+    "SmsResult",
+    "SmsStatus",
+    "SmsStatusResponse",
+    "SmsWebhookPayload",
     "TelephonyConfigurationError",
     "TelephonyError",
     "TelephonyProviderError",
