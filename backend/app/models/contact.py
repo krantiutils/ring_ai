@@ -31,6 +31,9 @@ class Contact(Base):
     interactions: Mapped[list["Interaction"]] = relationship(
         back_populates="contact"
     )
+    form_responses: Mapped[list["FormResponse"]] = relationship(
+        back_populates="contact"
+    )
 
     def __repr__(self) -> str:
         return f"<Contact {self.phone}>"

@@ -15,13 +15,17 @@ from app.services.telephony import (
     AudioEntry,
     CallContext,
     CallStatus,
+    FormCallContext,
     WebhookPayload,
     audio_store,
     call_context_store,
+    form_call_context_store,
     generate_call_twiml,
     generate_dtmf_response_twiml,
+    generate_form_question_twiml,
     get_twilio_provider,
 )
+from app.services.telephony.twilio import generate_form_completion_twiml
 from app.services.telephony.exceptions import (
     TelephonyConfigurationError,
     TelephonyProviderError,
@@ -383,3 +387,159 @@ async def get_call_status(call_id: str):
         started_at=status.started_at,
         ended_at=status.ended_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Form/survey voice endpoints — multi-step question TwiML flow
+# ---------------------------------------------------------------------------
+
+
+@router.post("/form-twiml/{call_id}/{question_index}")
+async def serve_form_question_twiml(call_id: str, question_index: int):
+    """Serve TwiML for a specific form question.
+
+    Twilio calls this when the call connects or after an answer is submitted.
+    Returns TwiML that plays the question audio and gathers DTMF input.
+    """
+    ctx = form_call_context_store.get(call_id)
+    if ctx is None:
+        logger.warning("Form TwiML requested for unknown call_id: %s", call_id)
+        raise HTTPException(status_code=404, detail="Form call context not found")
+
+    if question_index >= len(ctx.questions):
+        # All questions answered — completion
+        twiml = generate_form_completion_twiml()
+        return PlainTextResponse(content=twiml, media_type="text/xml")
+
+    question = ctx.questions[question_index]
+    base_url = settings.TWILIO_BASE_URL
+    audio_id = ctx.audio_ids.get(str(question_index))
+    audio_url = f"{base_url}/api/v1/voice/audio/{audio_id}" if audio_id else None
+    answer_action_url = (
+        f"{base_url}/api/v1/voice/form-answer/{call_id}/{question_index}"
+    )
+
+    twiml = generate_form_question_twiml(
+        question=question,
+        question_index=question_index,
+        total_questions=len(ctx.questions),
+        audio_url=audio_url,
+        answer_action_url=answer_action_url,
+    )
+    return PlainTextResponse(content=twiml, media_type="text/xml")
+
+
+@router.post("/form-answer/{call_id}/{question_index}")
+async def handle_form_answer(
+    call_id: str,
+    question_index: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Handle DTMF answer for a form question.
+
+    Records the answer, advances to the next question, and returns
+    redirect TwiML to the next question (or completion).
+    """
+    form_data = await request.form()
+    digits = form_data.get("Digits", "")
+
+    logger.info(
+        "Form answer received: call_id=%s q=%d digits=%s",
+        call_id,
+        question_index,
+        digits,
+    )
+
+    ctx = form_call_context_store.get(call_id)
+    if ctx is None:
+        logger.warning("Form answer for unknown call_id: %s", call_id)
+        raise HTTPException(status_code=404, detail="Form call context not found")
+
+    if question_index < len(ctx.questions):
+        question = ctx.questions[question_index]
+        answer = _map_dtmf_to_answer(question, str(digits))
+        ctx.answers[str(question_index)] = answer
+        form_call_context_store.put(call_id, ctx)
+
+    next_index = question_index + 1
+
+    if next_index >= len(ctx.questions):
+        # All questions answered — save response and complete
+        _save_form_response(ctx, db)
+
+        # Clean up audio entries for this form call
+        for audio_id in ctx.audio_ids.values():
+            audio_store.delete(audio_id)
+
+        twiml = generate_form_completion_twiml()
+        return PlainTextResponse(content=twiml, media_type="text/xml")
+
+    # Redirect to next question
+    base_url = settings.TWILIO_BASE_URL
+    next_url = f"{base_url}/api/v1/voice/form-twiml/{call_id}/{next_index}"
+
+    from twilio.twiml.voice_response import VoiceResponse
+
+    response = VoiceResponse()
+    response.redirect(next_url)
+    return PlainTextResponse(content=str(response), media_type="text/xml")
+
+
+def _map_dtmf_to_answer(question: dict, digits: str) -> str:
+    """Map DTMF digit(s) to an answer value based on question type."""
+    q_type = question.get("type", "text_input")
+
+    if q_type == "multiple_choice":
+        options = question.get("options", [])
+        try:
+            idx = int(digits) - 1
+            if 0 <= idx < len(options):
+                return options[idx]
+        except (ValueError, IndexError):
+            pass
+        return digits
+
+    elif q_type == "rating":
+        return digits
+
+    elif q_type == "yes_no":
+        if digits == "1":
+            return "yes"
+        elif digits == "2":
+            return "no"
+        return digits
+
+    elif q_type == "numeric":
+        return digits
+
+    return digits
+
+
+def _save_form_response(ctx: FormCallContext, db: Session) -> None:
+    """Save accumulated form answers as a FormResponse record."""
+    from datetime import datetime, timezone
+
+    from app.models.form_response import FormResponse
+
+    try:
+        form_response = FormResponse(
+            form_id=ctx.form_id,
+            contact_id=ctx.contact_id,
+            answers=ctx.answers,
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.add(form_response)
+        db.commit()
+        logger.info(
+            "Saved form response for form=%s contact=%s",
+            ctx.form_id,
+            ctx.contact_id,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to save form response for form=%s contact=%s",
+            ctx.form_id,
+            ctx.contact_id,
+        )
+        db.rollback()

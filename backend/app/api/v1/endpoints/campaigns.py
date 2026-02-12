@@ -60,6 +60,7 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)):
         type=payload.type,
         org_id=payload.org_id,
         template_id=payload.template_id,
+        form_id=payload.form_id,
         schedule_config=payload.schedule_config,
         status="draft",
     )
@@ -118,6 +119,7 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db)):
         type=campaign.type,
         status=campaign.status,
         template_id=campaign.template_id,
+        form_id=campaign.form_id,
         schedule_config=campaign.schedule_config,
         scheduled_at=campaign.scheduled_at,
         created_at=campaign.created_at,

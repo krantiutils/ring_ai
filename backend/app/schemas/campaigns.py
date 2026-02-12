@@ -27,12 +27,14 @@ class CampaignCreate(BaseModel):
     type: CampaignType
     org_id: uuid.UUID
     template_id: uuid.UUID | None = None
+    form_id: uuid.UUID | None = None
     schedule_config: dict | None = None
 
 
 class CampaignUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     template_id: uuid.UUID | None = None
+    form_id: uuid.UUID | None = None
     schedule_config: dict | None = None
 
 
@@ -51,6 +53,7 @@ class CampaignResponse(BaseModel):
     type: CampaignType
     status: CampaignStatus
     template_id: uuid.UUID | None
+    form_id: uuid.UUID | None
     schedule_config: dict | None
     scheduled_at: datetime | None
     created_at: datetime

@@ -106,3 +106,26 @@ class CallContext(BaseModel):
     record: bool = False
     record_consent_text: str | None = None
     interaction_id: uuid.UUID | None = None
+
+
+class FormCallContext(BaseModel):
+    """Stored context for an active form/survey voice call.
+
+    Tracks multi-step question flow: which question we're on,
+    accumulated answers, and pre-synthesized audio IDs.
+    """
+
+    call_id: str
+    form_id: uuid.UUID
+    contact_id: uuid.UUID
+    interaction_id: uuid.UUID | None = None
+    questions: list[dict] = Field(default_factory=list)
+    audio_ids: dict[str, str] = Field(
+        default_factory=dict,
+        description="Map of question index (str) to audio_id",
+    )
+    answers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Accumulated answers: question index (str) -> answer value",
+    )
+    current_question: int = 0

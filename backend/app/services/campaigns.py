@@ -17,11 +17,14 @@ from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.template import Template
 from app.schemas.campaigns import CampaignStats
+from app.models.form import Form
 from app.services.telephony import (
     AudioEntry,
     CallContext,
+    FormCallContext,
     audio_store,
     call_context_store,
+    form_call_context_store,
     get_twilio_provider,
 )
 from app.services.telephony.exceptions import (
@@ -502,20 +505,110 @@ async def _dispatch_voice_call(
     return result.call_id
 
 
+async def _dispatch_form_call(
+    interaction: Interaction,
+    contact: Contact,
+    form: Form,
+    campaign: Campaign,
+) -> str:
+    """Synthesize form questions as TTS, initiate Twilio call for form survey.
+
+    Returns the Twilio CallSid on success.
+
+    Raises:
+        TTSError: If TTS synthesis fails for any question.
+        TelephonyConfigurationError: If Twilio is not configured.
+        TelephonyProviderError: If the Twilio call initiation fails.
+    """
+    questions = form.questions or []
+
+    # 1. Synthesize TTS audio for each question text + DTMF prompt
+    tts_config = TTSConfig(
+        provider=_DEFAULT_TTS_PROVIDER,
+        voice=_DEFAULT_TTS_VOICE,
+    )
+    audio_ids: dict[str, str] = {}
+
+    for i, question in enumerate(questions):
+        q_text = question.get("text", "")
+        tts_result = await tts_router.synthesize(q_text, tts_config)
+
+        audio_id = str(uuid.uuid4())
+        audio_store.put(
+            audio_id,
+            AudioEntry(
+                audio_bytes=tts_result.audio_bytes,
+                content_type="audio/mpeg",
+            ),
+        )
+        audio_ids[str(i)] = audio_id
+
+    # 2. Get Twilio provider and base URL
+    provider = get_twilio_provider()
+    from_number = provider.default_from_number
+    base_url = settings.TWILIO_BASE_URL
+
+    if not base_url:
+        # Clean up audio on failure
+        for aid in audio_ids.values():
+            audio_store.delete(aid)
+        raise TelephonyConfigurationError(
+            "TWILIO_BASE_URL not configured — cannot generate callback URLs"
+        )
+
+    # 3. Set up form call context
+    temp_call_id = str(uuid.uuid4())
+    form_ctx = FormCallContext(
+        call_id=temp_call_id,
+        form_id=form.id,
+        contact_id=contact.id,
+        interaction_id=interaction.id,
+        questions=questions,
+        audio_ids=audio_ids,
+    )
+    form_call_context_store.put(temp_call_id, form_ctx)
+
+    # First question TwiML URL
+    twiml_url = f"{base_url}/api/v1/voice/form-twiml/{temp_call_id}/0"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    # 4. Initiate call
+    try:
+        result = await provider.initiate_call(
+            to=contact.phone,
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError:
+        for aid in audio_ids.values():
+            audio_store.delete(aid)
+        form_call_context_store.delete(temp_call_id)
+        raise
+
+    # 5. Update context with real Twilio CallSid
+    form_ctx.call_id = result.call_id
+    form_call_context_store.put(result.call_id, form_ctx)
+
+    return result.call_id
+
+
 def _dispatch_interaction(
     interaction: Interaction,
     contact: Contact,
-    template: Template,
+    template: Template | None,
     campaign: Campaign,
     db: Session,
 ) -> None:
-    """Dispatch a single interaction (voice or text).
+    """Dispatch a single interaction (voice, text, or form).
 
     On success, marks the interaction as 'in_progress' (Twilio webhook will
     update to completed/failed). On error, marks it as 'failed' and records
     the error in metadata.
     """
     if campaign.type == "voice":
+        if template is None:
+            raise CampaignError("Voice campaign requires a template")
         call_sid = asyncio.run(
             _dispatch_voice_call(interaction, contact, template, campaign)
         )
@@ -525,6 +618,33 @@ def _dispatch_interaction(
             "template_id": str(template.id),
         }
         # Voice calls stay 'in_progress' — the webhook updates final status
+        db.commit()
+
+    elif campaign.type == "form":
+        form = db.get(Form, campaign.form_id) if campaign.form_id else None
+        if form is None:
+            logger.error(
+                "Form campaign %s has no form (form_id=%s), failing interaction",
+                campaign.id,
+                campaign.form_id,
+            )
+            interaction.status = "failed"
+            interaction.ended_at = datetime.now(timezone.utc)
+            interaction.metadata_ = {
+                **(interaction.metadata_ or {}),
+                "error": "Form not found for campaign",
+            }
+            db.commit()
+            return
+
+        call_sid = asyncio.run(
+            _dispatch_form_call(interaction, contact, form, campaign)
+        )
+        interaction.metadata_ = {
+            **(interaction.metadata_ or {}),
+            "twilio_call_sid": call_sid,
+            "form_id": str(form.id),
+        }
         db.commit()
 
     elif campaign.type == "text":
@@ -581,9 +701,9 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
             )
             return
 
-        # Load template — required for voice/text campaigns
+        # Load template — required for voice/text campaigns (not for form campaigns)
         template = db.get(Template, campaign.template_id) if campaign.template_id else None
-        if template is None:
+        if template is None and campaign.type != "form":
             logger.error(
                 "Campaign %s has no template (template_id=%s), cannot execute",
                 campaign_id,

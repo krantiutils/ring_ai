@@ -18,6 +18,8 @@ EXPECTED_TABLES = {
     "templates",
     "tts_provider_configs",
     "analytics_events",
+    "forms",
+    "form_responses",
 }
 
 
@@ -38,7 +40,7 @@ def test_organization_columns():
 def test_campaign_columns():
     cols = {c.name for c in Campaign.__table__.columns}
     assert cols == {
-        "id", "org_id", "name", "type", "status", "template_id",
+        "id", "org_id", "name", "type", "status", "template_id", "form_id",
         "schedule_config", "scheduled_at", "created_at", "updated_at",
     }
 
@@ -85,6 +87,7 @@ def test_campaign_foreign_keys():
     }
     assert "organizations.id" in fks
     assert "templates.id" in fks
+    assert "forms.id" in fks
 
 
 def test_interaction_foreign_keys():

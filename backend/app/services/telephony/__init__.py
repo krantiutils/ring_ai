@@ -18,12 +18,14 @@ from app.services.telephony.models import (
     CallStatusResponse,
     DTMFAction,
     DTMFRoute,
+    FormCallContext,
     WebhookPayload,
 )
 from app.services.telephony.twilio import (
     TwilioProvider,
     generate_call_twiml,
     generate_dtmf_response_twiml,
+    generate_form_question_twiml,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,13 +41,17 @@ __all__ = [
     "CallStatusResponse",
     "DTMFAction",
     "DTMFRoute",
+    "FormCallContext",
+    "FormCallContextStore",
     "TelephonyConfigurationError",
     "TelephonyError",
     "TelephonyProviderError",
     "TwilioProvider",
     "WebhookPayload",
+    "form_call_context_store",
     "generate_call_twiml",
     "generate_dtmf_response_twiml",
+    "generate_form_question_twiml",
     "get_twilio_provider",
 ]
 
@@ -98,9 +104,30 @@ class CallContextStore:
             self._store.pop(call_id, None)
 
 
+class FormCallContextStore:
+    """Thread-safe in-memory store for active form call contexts."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, FormCallContext] = {}
+        self._lock = threading.Lock()
+
+    def put(self, call_id: str, context: FormCallContext) -> None:
+        with self._lock:
+            self._store[call_id] = context
+
+    def get(self, call_id: str) -> FormCallContext | None:
+        with self._lock:
+            return self._store.get(call_id)
+
+    def delete(self, call_id: str) -> None:
+        with self._lock:
+            self._store.pop(call_id, None)
+
+
 # Singletons
 audio_store = AudioStore()
 call_context_store = CallContextStore()
+form_call_context_store = FormCallContextStore()
 
 # Lazy-initialized Twilio provider (avoids import-time errors when creds missing)
 _twilio_provider: TwilioProvider | None = None

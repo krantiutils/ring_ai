@@ -37,6 +37,9 @@ class Campaign(Base):
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("templates.id")
     )
+    form_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("forms.id")
+    )
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -46,6 +49,9 @@ class Campaign(Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="campaigns")
     template: Mapped["Template | None"] = relationship(back_populates="campaigns")
+    form: Mapped["Form | None"] = relationship(
+        back_populates="campaigns", foreign_keys=[form_id]
+    )
     interactions: Mapped[list["Interaction"]] = relationship(
         back_populates="campaign"
     )

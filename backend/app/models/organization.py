@@ -31,6 +31,7 @@ class Organization(Base):
     campaigns: Mapped[list["Campaign"]] = relationship(back_populates="organization")
     contacts: Mapped[list["Contact"]] = relationship(back_populates="organization")
     templates: Mapped[list["Template"]] = relationship(back_populates="organization")
+    forms: Mapped[list["Form"]] = relationship(back_populates="organization")
     tts_configs: Mapped[list["TTSProviderConfig"]] = relationship(
         back_populates="organization"
     )
