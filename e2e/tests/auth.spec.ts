@@ -8,7 +8,7 @@ test.describe("Auth — registration, login & token management", () => {
   test("login page renders on frontend", async ({ page }) => {
     // Navigate to root — the frontend is currently a landing page
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/auth/login-page.png",
       fullPage: true,
@@ -19,7 +19,7 @@ test.describe("Auth — registration, login & token management", () => {
 
   test("register page renders on frontend", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/auth/register-page.png",
       fullPage: true,
@@ -105,7 +105,7 @@ test.describe("Auth — registration, login & token management", () => {
 
     // Screenshot
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/auth/token-generation.png",
       fullPage: true,

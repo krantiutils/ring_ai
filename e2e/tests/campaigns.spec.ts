@@ -28,7 +28,7 @@ test.describe("Campaigns — CRUD, contacts & lifecycle", () => {
     expect(body.total).toBeGreaterThanOrEqual(4);
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/campaigns/list-page.png",
       fullPage: true,
@@ -54,7 +54,7 @@ test.describe("Campaigns — CRUD, contacts & lifecycle", () => {
     expect(body.id).toBeTruthy();
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/campaigns/create-form.png",
       fullPage: true,
@@ -83,7 +83,7 @@ test.describe("Campaigns — CRUD, contacts & lifecycle", () => {
     expect(body.stats).toHaveProperty("pending");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/campaigns/detail-page.png",
       fullPage: true,

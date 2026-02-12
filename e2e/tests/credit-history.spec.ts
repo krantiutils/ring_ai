@@ -41,7 +41,7 @@ test.describe("Credit history — purchase & usage tracking", () => {
     }
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/credits/purchase-history.png",
       fullPage: true,
@@ -64,7 +64,7 @@ test.describe("Credit history — purchase & usage tracking", () => {
     expect(body.total_purchased).toBeGreaterThan(0);
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/credits/usage-history.png",
       fullPage: true,

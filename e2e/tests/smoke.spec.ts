@@ -20,7 +20,7 @@ test.describe("Smoke tests", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
 
     // Take a feature parity screenshot
     await page.screenshot({
