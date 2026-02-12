@@ -1,5 +1,6 @@
 """Campaign service — business logic for campaign lifecycle, contacts, and execution."""
 
+import asyncio
 import csv
 import io
 import logging
@@ -14,7 +15,23 @@ from app.core.config import settings
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
+from app.models.template import Template
 from app.schemas.campaigns import CampaignStats
+from app.services.telephony import (
+    AudioEntry,
+    CallContext,
+    audio_store,
+    call_context_store,
+    get_twilio_provider,
+)
+from app.services.telephony.exceptions import (
+    TelephonyConfigurationError,
+    TelephonyProviderError,
+)
+from app.services.templates import UndefinedVariableError, render
+from app.tts import tts_router
+from app.tts.exceptions import TTSError
+from app.tts.models import TTSConfig, TTSProvider
 
 logger = logging.getLogger(__name__)
 
@@ -333,15 +350,181 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
 # Background executor
 # ---------------------------------------------------------------------------
 
+# Default TTS configuration for campaigns without explicit voice_config
+_DEFAULT_TTS_PROVIDER = TTSProvider.EDGE_TTS
+_DEFAULT_TTS_VOICE = "ne-NP-HemkalaNeural"
+
+
+def _build_contact_variables(contact: Contact) -> dict[str, str]:
+    """Build template variable dict from a contact record.
+
+    Merges contact.name (as 'name') with any key/value pairs from
+    contact.metadata_, converting all values to strings.
+    """
+    variables: dict[str, str] = {}
+    if contact.name:
+        variables["name"] = contact.name
+    if contact.metadata_:
+        for key, value in contact.metadata_.items():
+            variables[key] = str(value)
+    return variables
+
+
+def _build_tts_config(template: Template) -> TTSConfig:
+    """Build a TTSConfig from a template's voice_config, with defaults."""
+    vc = template.voice_config or {}
+    return TTSConfig(
+        provider=TTSProvider(vc.get("provider", _DEFAULT_TTS_PROVIDER.value)),
+        voice=vc.get("voice", _DEFAULT_TTS_VOICE),
+        rate=vc.get("rate", "+0%"),
+        pitch=vc.get("pitch", "+0Hz"),
+        fallback_provider=(
+            TTSProvider(vc["fallback_provider"])
+            if vc.get("fallback_provider")
+            else None
+        ),
+    )
+
+
+async def _dispatch_voice_call(
+    interaction: Interaction,
+    contact: Contact,
+    template: Template,
+    campaign: Campaign,
+) -> str:
+    """Render template, synthesize TTS, initiate Twilio call.
+
+    Returns the Twilio CallSid on success.
+
+    Raises:
+        UndefinedVariableError: If a required template variable is missing.
+        TTSError: If TTS synthesis fails.
+        TelephonyConfigurationError: If Twilio is not configured.
+        TelephonyProviderError: If the Twilio call initiation fails.
+    """
+    # 1. Render template with contact variables
+    variables = _build_contact_variables(contact)
+    rendered_text = render(template.content, variables)
+
+    # 2. Synthesize TTS audio
+    tts_config = _build_tts_config(template)
+    tts_result = await tts_router.synthesize(rendered_text, tts_config)
+
+    # 3. Store audio for Twilio to fetch
+    audio_id = str(uuid.uuid4())
+    audio_store.put(
+        audio_id,
+        AudioEntry(
+            audio_bytes=tts_result.audio_bytes,
+            content_type="audio/mpeg",
+        ),
+    )
+
+    # 4. Get Twilio provider and base URL
+    provider = get_twilio_provider()
+    from_number = provider.default_from_number
+    base_url = settings.TWILIO_BASE_URL
+
+    if not base_url:
+        audio_store.delete(audio_id)
+        raise TelephonyConfigurationError(
+            "TWILIO_BASE_URL not configured — cannot generate callback URLs"
+        )
+
+    # 5. Set up call context
+    temp_call_id = str(uuid.uuid4())
+    call_context = CallContext(
+        call_id=temp_call_id,
+        audio_id=audio_id,
+        interaction_id=interaction.id,
+    )
+    call_context_store.put(temp_call_id, call_context)
+
+    twiml_url = f"{base_url}/api/v1/voice/twiml/{temp_call_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    # 6. Initiate call
+    try:
+        result = await provider.initiate_call(
+            to=contact.phone,
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError:
+        audio_store.delete(audio_id)
+        call_context_store.delete(temp_call_id)
+        raise
+
+    # 7. Update context with real Twilio CallSid
+    call_context.call_id = result.call_id
+    call_context_store.put(result.call_id, call_context)
+
+    return result.call_id
+
+
+def _dispatch_interaction(
+    interaction: Interaction,
+    contact: Contact,
+    template: Template,
+    campaign: Campaign,
+    db: Session,
+) -> None:
+    """Dispatch a single interaction (voice or text).
+
+    On success, marks the interaction as 'in_progress' (Twilio webhook will
+    update to completed/failed). On error, marks it as 'failed' and records
+    the error in metadata.
+    """
+    if campaign.type == "voice":
+        call_sid = asyncio.run(
+            _dispatch_voice_call(interaction, contact, template, campaign)
+        )
+        interaction.metadata_ = {
+            **(interaction.metadata_ or {}),
+            "twilio_call_sid": call_sid,
+            "template_id": str(template.id),
+        }
+        # Voice calls stay 'in_progress' — the webhook updates final status
+        db.commit()
+
+    elif campaign.type == "text":
+        # SMS dispatch not yet implemented — fail gracefully
+        logger.warning(
+            "SMS dispatch not yet implemented, failing interaction %s",
+            interaction.id,
+        )
+        interaction.status = "failed"
+        interaction.ended_at = datetime.now(timezone.utc)
+        interaction.metadata_ = {
+            **(interaction.metadata_ or {}),
+            "error": "SMS dispatch not yet implemented",
+        }
+        db.commit()
+
+    else:
+        logger.warning(
+            "Unsupported campaign type '%s' for interaction %s",
+            campaign.type,
+            interaction.id,
+        )
+        interaction.status = "failed"
+        interaction.ended_at = datetime.now(timezone.utc)
+        interaction.metadata_ = {
+            **(interaction.metadata_ or {}),
+            "error": f"Unsupported campaign type: {campaign.type}",
+        }
+        db.commit()
+
 
 def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
     """Process a batch of pending interactions for a campaign.
 
     This is designed to run as a background task. It:
     1. Fetches a batch of pending interactions
-    2. Marks them as in_progress
-    3. Simulates processing (actual TTS/SMS integration is a separate concern)
-    4. Marks them as completed or failed
+    2. Loads the campaign template
+    3. For each interaction: renders template, synthesizes TTS, initiates call
+    4. Handles retries for failed interactions (up to CAMPAIGN_MAX_RETRIES)
     5. If all interactions are done, marks campaign as completed
 
     Args:
@@ -359,7 +542,18 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
             )
             return
 
+        # Load template — required for voice/text campaigns
+        template = db.get(Template, campaign.template_id) if campaign.template_id else None
+        if template is None:
+            logger.error(
+                "Campaign %s has no template (template_id=%s), cannot execute",
+                campaign_id,
+                campaign.template_id,
+            )
+            return
+
         batch_size = settings.CAMPAIGN_BATCH_SIZE
+        max_retries = settings.CAMPAIGN_MAX_RETRIES
         rate_limit = settings.CAMPAIGN_RATE_LIMIT_PER_SECOND
         interval = 1.0 / rate_limit if rate_limit > 0 else 0
 
@@ -401,21 +595,66 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
             interaction.started_at = datetime.now(timezone.utc)
             db.commit()
 
-            try:
-                # TODO: Actual TTS/SMS/form dispatch goes here
-                # For now, mark as completed immediately (MVP stub)
-                interaction.status = "completed"
-                interaction.ended_at = datetime.now(timezone.utc)
-                if interaction.started_at:
-                    delta = interaction.ended_at - interaction.started_at
-                    interaction.duration_seconds = int(delta.total_seconds())
-                db.commit()
-            except Exception:
-                logger.exception(
-                    "Failed to process interaction %s", interaction.id
+            # Load contact for this interaction
+            contact = db.get(Contact, interaction.contact_id)
+            if contact is None:
+                logger.error(
+                    "Contact %s not found for interaction %s, marking failed",
+                    interaction.contact_id,
+                    interaction.id,
                 )
                 interaction.status = "failed"
                 interaction.ended_at = datetime.now(timezone.utc)
+                interaction.metadata_ = {
+                    **(interaction.metadata_ or {}),
+                    "error": "Contact not found",
+                }
+                db.commit()
+                continue
+
+            try:
+                _dispatch_interaction(interaction, contact, template, campaign, db)
+            except (UndefinedVariableError, TTSError, TelephonyConfigurationError, TelephonyProviderError) as exc:
+                retry_count = (interaction.metadata_ or {}).get("retry_count", 0)
+                logger.warning(
+                    "Dispatch failed for interaction %s (attempt %d/%d): %s",
+                    interaction.id,
+                    retry_count + 1,
+                    max_retries,
+                    exc,
+                )
+
+                if retry_count + 1 < max_retries:
+                    # Re-queue for retry
+                    interaction.status = "pending"
+                    interaction.started_at = None
+                    interaction.metadata_ = {
+                        **(interaction.metadata_ or {}),
+                        "retry_count": retry_count + 1,
+                        "last_error": str(exc),
+                    }
+                    db.commit()
+                else:
+                    # Exhausted retries — mark as failed
+                    interaction.status = "failed"
+                    interaction.ended_at = datetime.now(timezone.utc)
+                    interaction.metadata_ = {
+                        **(interaction.metadata_ or {}),
+                        "retry_count": retry_count + 1,
+                        "last_error": str(exc),
+                        "error": f"Failed after {max_retries} attempts: {exc}",
+                    }
+                    db.commit()
+            except Exception:
+                logger.exception(
+                    "Unexpected error processing interaction %s", interaction.id
+                )
+                interaction.status = "failed"
+                interaction.ended_at = datetime.now(timezone.utc)
+                interaction.metadata_ = {
+                    **(interaction.metadata_ or {}),
+                    "error": "Unexpected error during dispatch",
+                }
                 db.commit()
 
             # Rate limiting
