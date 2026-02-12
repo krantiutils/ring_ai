@@ -54,6 +54,10 @@ jobs:
         working-directory: backend
         run: PYTHONPATH=. uv run alembic upgrade head
 
+      - name: Seed database with test data
+        working-directory: backend
+        run: PYTHONPATH=. uv run python -m app.seed
+
       # --- Node / Frontend setup ---
       - name: Set up Node 22
         uses: actions/setup-node@v4

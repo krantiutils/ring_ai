@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "path";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
@@ -15,10 +16,15 @@ export default defineConfig({
     ? [["html", { open: "never" }], ["github"]]
     : [["html", { open: "on-failure" }]],
 
+  globalSetup: path.resolve(__dirname, "global-setup.ts"),
+
   use: {
     baseURL: FRONTEND_URL,
     trace: "on-first-retry",
-    screenshot: "only-on-failure",
+    screenshot: "on",
+    extraHTTPHeaders: {
+      Accept: "application/json",
+    },
   },
 
   projects: [
@@ -28,7 +34,6 @@ export default defineConfig({
     },
   ],
 
-  // Wait for both services to be ready before running tests
   webServer: process.env.CI
     ? undefined
     : [

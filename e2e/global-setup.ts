@@ -1,0 +1,192 @@
+import { request } from "@playwright/test";
+import fs from "fs";
+import path from "path";
+
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const API = `${BACKEND_URL}/api/v1`;
+
+const TEST_USER = {
+  first_name: "E2E",
+  last_name: "Tester",
+  username: "e2e_tester",
+  email: "e2e@ringai.test",
+  phone: "+9779800000001",
+  password: "TestPassword123!",
+};
+
+export interface TestState {
+  accessToken: string;
+  orgId: string;
+  userId: string;
+  campaignIds: string[];
+  templateIds: string[];
+}
+
+async function globalSetup() {
+  const stateDir = path.join(__dirname, ".auth");
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.mkdirSync(path.join(__dirname, "feature_parity_validation"), {
+    recursive: true,
+  });
+
+  const api = await request.newContext({ baseURL: BACKEND_URL });
+
+  // --- Register test user (idempotent — 409 if already exists) ---
+  const registerRes = await api.post(`${API}/auth/register`, {
+    data: TEST_USER,
+  });
+  let userId = "";
+  if (registerRes.ok()) {
+    userId = (await registerRes.json()).id;
+  }
+
+  // --- Login ---
+  const loginRes = await api.post(`${API}/auth/login`, {
+    data: { email: TEST_USER.email, password: TEST_USER.password },
+  });
+  if (!loginRes.ok()) {
+    throw new Error(
+      `Global setup: login failed (${loginRes.status()}): ${await loginRes.text()}`
+    );
+  }
+  const accessToken: string = (await loginRes.json()).access_token;
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
+  // --- Resolve userId from profile if registration returned 409 ---
+  if (!userId) {
+    const profileRes = await api.get(`${API}/auth/user-profile`, {
+      headers: authHeaders,
+    });
+    if (profileRes.ok()) {
+      userId = (await profileRes.json()).id;
+    }
+  }
+
+  // --- Discover org_id from seeded templates (make db-seed) ---
+  let orgId = "";
+  const templatesRes = await api.get(`${API}/templates?page=1&page_size=1`);
+  if (templatesRes.ok()) {
+    const body = await templatesRes.json();
+    if (body.items.length > 0) {
+      orgId = body.items[0].org_id;
+    }
+  }
+
+  if (!orgId) {
+    console.warn(
+      "⚠  No seeded organization found. Run `make db-seed` first. " +
+        "Tests requiring org_id will be skipped."
+    );
+  }
+
+  // --- Seed additional test data via API ---
+  const campaignIds: string[] = [];
+  const templateIds: string[] = [];
+
+  if (orgId) {
+    // Purchase credits so cost-estimation tests work
+    await api.post(`${API}/credits/purchase`, {
+      data: {
+        org_id: orgId,
+        amount: 10000,
+        description: "E2E test credit purchase",
+      },
+    });
+
+    // Create sample campaigns
+    const campaignDefs = [
+      { name: "Voice Campaign E2E", type: "voice", category: "voice" },
+      { name: "SMS Campaign E2E", type: "text", category: "text" },
+      { name: "Survey Campaign E2E", type: "form", category: "survey" },
+      { name: "Combined Campaign E2E", type: "voice", category: "combined" },
+    ] as const;
+
+    for (const def of campaignDefs) {
+      const res = await api.post(`${API}/campaigns/`, {
+        data: { ...def, org_id: orgId },
+      });
+      if (res.ok()) {
+        campaignIds.push((await res.json()).id);
+      }
+    }
+
+    // Create a Nepali voice template
+    const voiceTemplateRes = await api.post(`${API}/templates/`, {
+      data: {
+        name: "E2E नेपाली भ्वाइस टेम्प्लेट",
+        content:
+          "नमस्ते {customer_name} जी। तपाईंको अर्डर #{order_id} को स्थिति: {status}।",
+        type: "voice",
+        org_id: orgId,
+        language: "ne",
+        voice_config: {
+          language: "ne-NP",
+          speed: 0.9,
+          voice_name: "ne-NP-SagarNeural",
+        },
+      },
+    });
+    if (voiceTemplateRes.ok()) {
+      templateIds.push((await voiceTemplateRes.json()).id);
+    }
+
+    // Create a text template
+    const textTemplateRes = await api.post(`${API}/templates/`, {
+      data: {
+        name: "E2E OTP Text Template",
+        content:
+          "तपाईंको कोड {otp_code} हो। {expiry_minutes|५} मिनेटमा समाप्त हुनेछ।",
+        type: "text",
+        org_id: orgId,
+        language: "ne",
+      },
+    });
+    if (textTemplateRes.ok()) {
+      templateIds.push((await textTemplateRes.json()).id);
+    }
+
+    // Upload contacts CSV to the first campaign
+    if (campaignIds.length > 0) {
+      const csvContent = [
+        "phone,name,carrier",
+        "+9779841000001,Ram Bahadur,NTC",
+        "+9779801000002,Sita Sharma,Ncell",
+        "+9779861000003,Hari Prasad,NTC",
+        "+9779821000004,Gita Devi,Ncell",
+        "+9779881000005,Krishna KC,Smart Cell",
+      ].join("\n");
+
+      await api.post(`${API}/campaigns/${campaignIds[0]}/contacts`, {
+        multipart: {
+          file: {
+            name: "contacts.csv",
+            mimeType: "text/csv",
+            buffer: Buffer.from(csvContent),
+          },
+        },
+      });
+    }
+  }
+
+  // --- Persist state ---
+  const state: TestState = {
+    accessToken,
+    orgId,
+    userId,
+    campaignIds,
+    templateIds,
+  };
+
+  fs.writeFileSync(
+    path.join(stateDir, "state.json"),
+    JSON.stringify(state, null, 2)
+  );
+
+  await api.dispose();
+  console.log(
+    `✓ Global setup complete — user=${userId}, org=${orgId}, ` +
+      `campaigns=${campaignIds.length}, templates=${templateIds.length}`
+  );
+}
+
+export default globalSetup;
