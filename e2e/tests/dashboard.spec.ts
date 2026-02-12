@@ -15,7 +15,7 @@ test.describe("Dashboard — overview analytics & widgets", () => {
 
   test("dashboard overview loads on frontend", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/dashboard/overview.png",
       fullPage: true,
@@ -59,7 +59,7 @@ test.describe("Dashboard — overview analytics & widgets", () => {
     }
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/dashboard/campaign-types-chart.png",
       fullPage: true,
@@ -83,7 +83,7 @@ test.describe("Dashboard — overview analytics & widgets", () => {
     }
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/dashboard/credit-usage-chart.png",
       fullPage: true,
@@ -110,7 +110,7 @@ test.describe("Dashboard — overview analytics & widgets", () => {
     expect(bucketLabels).toContain("76-100%");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/dashboard/playback-distribution.png",
       fullPage: true,
@@ -157,7 +157,7 @@ test.describe("Dashboard — overview analytics & widgets", () => {
     expect(body).toHaveProperty("avg_call_duration_seconds");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/dashboard/call-outcomes-chart.png",
       fullPage: true,

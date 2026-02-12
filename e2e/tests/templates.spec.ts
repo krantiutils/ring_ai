@@ -26,7 +26,7 @@ test.describe("Templates — CRUD & Nepali variable rendering", () => {
     expect(body.total).toBeGreaterThanOrEqual(1);
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/templates/list-page.png",
       fullPage: true,
@@ -62,7 +62,7 @@ test.describe("Templates — CRUD & Nepali variable rendering", () => {
     expect(body.voice_config).toBeTruthy();
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/templates/create-form.png",
       fullPage: true,

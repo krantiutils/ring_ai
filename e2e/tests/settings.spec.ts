@@ -23,7 +23,7 @@ test.describe("Settings — profile, KYC, tokens & notifications", () => {
     expect(body).toHaveProperty("is_kyc_verified");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/profile-page.png",
       fullPage: true,
@@ -47,7 +47,7 @@ test.describe("Settings — profile, KYC, tokens & notifications", () => {
     }
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/kyc-section.png",
       fullPage: true,
@@ -76,7 +76,7 @@ test.describe("Settings — profile, KYC, tokens & notifications", () => {
     expect(listBody).toHaveProperty("created_at");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/token-section.png",
       fullPage: true,
@@ -106,7 +106,7 @@ test.describe("Settings — profile, KYC, tokens & notifications", () => {
     expect(typeof countBody.unread_count).toBe("number");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/notifications.png",
       fullPage: true,

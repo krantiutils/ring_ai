@@ -32,7 +32,7 @@ test.describe("OTP — sending form & list", () => {
     expect([201, 502, 503]).toContain(res.status());
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/otp/send-form.png",
       fullPage: true,
@@ -83,7 +83,7 @@ test.describe("OTP — sending form & list", () => {
     expect(Array.isArray(body.items)).toBeTruthy();
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/otp/list-page.png",
       fullPage: true,

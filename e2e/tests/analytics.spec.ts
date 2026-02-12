@@ -28,7 +28,7 @@ test.describe("Analytics — campaign analytics, carriers & events", () => {
     expect(body).toHaveProperty("credits_consumed");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/analytics/overview.png",
       fullPage: true,
@@ -54,7 +54,7 @@ test.describe("Analytics — campaign analytics, carriers & events", () => {
     expect(body).toHaveProperty("credit_consumption");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/analytics/call-status-chart.png",
       fullPage: true,
@@ -76,7 +76,7 @@ test.describe("Analytics — campaign analytics, carriers & events", () => {
     }
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/analytics/carrier-summary.png",
       fullPage: true,
