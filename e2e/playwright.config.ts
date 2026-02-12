@@ -4,13 +4,11 @@ import path from "path";
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
 
-const AUTH_STATE_PATH = path.resolve(__dirname, ".auth/storageState.json");
-
 export default defineConfig({
   testDir: "./tests",
   outputDir: "./test-results",
-  timeout: 60_000,
-  expect: { timeout: 15_000 },
+  timeout: 30_000,
+  expect: { timeout: 10_000 },
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
@@ -24,25 +22,15 @@ export default defineConfig({
     baseURL: FRONTEND_URL,
     trace: "on-first-retry",
     screenshot: "on",
-    video: "retain-on-failure",
+    extraHTTPHeaders: {
+      Accept: "application/json",
+    },
   },
 
   projects: [
     {
-      name: "auth-setup",
-      testDir: "./tests",
-      testMatch: "auth.spec.ts",
+      name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "authenticated",
-      testDir: "./tests",
-      testIgnore: "auth.spec.ts",
-      dependencies: ["auth-setup"],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: AUTH_STATE_PATH,
-      },
     },
   ],
 

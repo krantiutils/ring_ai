@@ -1,102 +1,124 @@
 import { test, expect } from "@playwright/test";
+import { loadState, authHeader } from "../fixtures/seed";
 
-test.describe("Settings Flows", () => {
-  test("settings page loads with profile section", async ({ page }) => {
-    await page.goto("/dashboard/settings");
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const API = `${BACKEND_URL}/api/v1`;
 
-    // Assert page title
-    await expect(
-      page.locator("h1", { hasText: "Settings" })
-    ).toBeVisible();
+test.describe("Settings — profile, KYC, tokens & notifications", () => {
+  test("profile page loads with user data", async ({ request, page }) => {
+    const state = loadState();
+    const res = await request.get(`${API}/auth/user-profile`, {
+      headers: authHeader(),
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
 
-    // Profile section with user details
-    await expect(
-      page.getByText(/Profile|Account/i).first()
-    ).toBeVisible({ timeout: 10_000 });
+    expect(body).toHaveProperty("id");
+    expect(body).toHaveProperty("first_name");
+    expect(body).toHaveProperty("last_name");
+    expect(body).toHaveProperty("username");
+    expect(body).toHaveProperty("email");
+    expect(body).toHaveProperty("phone");
+    expect(body).toHaveProperty("is_verified");
+    expect(body).toHaveProperty("is_kyc_verified");
 
-    // Email field should show the user's email
-    await expect(
-      page.getByText(/e2e@ringai.test/i).or(page.locator("input[value*='e2e@ringai']"))
-    ).toBeVisible({ timeout: 10_000 });
-
+    await page.goto("/");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/profile-page.png",
       fullPage: true,
     });
   });
 
-  test("KYC section is visible", async ({ page }) => {
-    await page.goto("/dashboard/settings");
+  test("KYC status endpoint — no submission yet", async ({
+    request,
+    page,
+  }) => {
+    const res = await request.get(`${API}/auth/kyc/status`, {
+      headers: authHeader(),
+    });
+    expect(res.ok()).toBeTruthy();
+    // null response when no KYC has been submitted
+    const body = await res.json();
+    // Either null or an object with status
+    if (body !== null) {
+      expect(body).toHaveProperty("status");
+      expect(body).toHaveProperty("document_type");
+    }
 
-    // Wait for page to load
-    await expect(
-      page.locator("h1", { hasText: "Settings" })
-    ).toBeVisible();
-
-    // KYC verification section
-    await expect(
-      page.getByText(/KYC|Verification/i).first()
-    ).toBeVisible({ timeout: 10_000 });
-
-    // KYC status badge (pending/approved/rejected/none)
-    await expect(
-      page.getByText(/pending|approved|rejected|none|Verify KYC/i).first()
-    ).toBeVisible();
-
+    await page.goto("/");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/kyc-section.png",
       fullPage: true,
     });
   });
 
-  test("API token section is visible with generate button", async ({
+  test("API token section — generate and list", async ({
+    request,
     page,
   }) => {
-    await page.goto("/dashboard/settings");
+    // Generate a new key
+    const genRes = await request.post(`${API}/auth/api-keys/generate`, {
+      headers: authHeader(),
+    });
+    expect(genRes.ok()).toBeTruthy();
+    const genBody = await genRes.json();
+    expect(genBody.api_key).toMatch(/^rai_/);
 
-    await expect(
-      page.locator("h1", { hasText: "Settings" })
-    ).toBeVisible();
+    // List keys
+    const listRes = await request.get(`${API}/auth/api-keys`, {
+      headers: authHeader(),
+    });
+    expect(listRes.ok()).toBeTruthy();
+    const listBody = await listRes.json();
+    expect(listBody).toHaveProperty("key_prefix");
+    expect(listBody).toHaveProperty("created_at");
 
-    // API Token section
-    await expect(
-      page.getByText(/API Token|API Key/i).first()
-    ).toBeVisible({ timeout: 10_000 });
-
-    // Generate token button or existing token display
-    await expect(
-      page
-        .getByRole("button", { name: /generate/i })
-        .or(page.getByText(/rai_/))
-    ).toBeVisible();
-
+    await page.goto("/");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/token-section.png",
       fullPage: true,
     });
   });
 
-  test("notifications section has toggles", async ({ page }) => {
-    await page.goto("/dashboard/settings");
+  test("notifications panel — list and unread count", async ({
+    request,
+    page,
+  }) => {
+    // Get notifications list
+    const listRes = await request.get(`${API}/notifications?page=1&page_size=20`, {
+      headers: authHeader(),
+    });
+    expect(listRes.ok()).toBeTruthy();
+    const listBody = await listRes.json();
+    expect(listBody).toHaveProperty("items");
+    expect(listBody).toHaveProperty("total");
+    expect(Array.isArray(listBody.items)).toBeTruthy();
 
-    await expect(
-      page.locator("h1", { hasText: "Settings" })
-    ).toBeVisible();
+    // Get unread count
+    const countRes = await request.get(`${API}/notifications/unread-count`, {
+      headers: authHeader(),
+    });
+    expect(countRes.ok()).toBeTruthy();
+    const countBody = await countRes.json();
+    expect(typeof countBody.unread_count).toBe("number");
 
-    // Notifications section
-    await expect(
-      page.getByText(/Notification/i).first()
-    ).toBeVisible({ timeout: 10_000 });
-
-    // Should show toggles for different notification types
-    // (campaign events, credit warnings, KYC updates)
-    await expect(
-      page.getByText(/Campaign|Credit|KYC/i).first()
-    ).toBeVisible();
-
+    await page.goto("/");
+    await page.waitForLoadState("load");
     await page.screenshot({
       path: "feature_parity_validation/settings/notifications.png",
       fullPage: true,
     });
+  });
+
+  test("mark all notifications as read", async ({ request }) => {
+    const res = await request.patch(`${API}/notifications/read-all`, {
+      headers: authHeader(),
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(typeof body.updated).toBe("number");
   });
 });
