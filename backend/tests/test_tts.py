@@ -1,6 +1,5 @@
 """Tests for the TTS provider router, providers, and API endpoints."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,6 +31,7 @@ def client():
 # ---------------------------------------------------------------------------
 # TTSRouter unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestTTSRouter:
     def test_register_and_list_providers(self):
@@ -178,6 +178,7 @@ class TestTTSRouter:
 # EdgeTTSProvider unit tests (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestEdgeTTSProvider:
     def test_name(self):
         provider = EdgeTTSProvider()
@@ -217,7 +218,12 @@ class TestEdgeTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_empty_audio_raises(self):
         async def mock_stream():
-            yield {"type": "WordBoundary", "text": "hello", "offset": 0.0, "duration": 0.5}
+            yield {
+                "type": "WordBoundary",
+                "text": "hello",
+                "offset": 0.0,
+                "duration": 0.5,
+            }
 
         with patch("app.tts.providers.edge.edge_tts.Communicate") as MockComm:
             instance = MockComm.return_value
@@ -253,7 +259,7 @@ class TestEdgeTTSProvider:
     async def test_synthesize_stream_exception(self):
         async def mock_stream():
             raise ConnectionError("network failed")
-            yield  # noqa: unreachable — makes this an async generator
+            yield  # noqa: F811 — unreachable yield makes this an async generator
 
         with patch("app.tts.providers.edge.edge_tts.Communicate") as MockComm:
             instance = MockComm.return_value
@@ -330,6 +336,7 @@ class TestEdgeTTSProvider:
 # AzureTTSProvider unit tests (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestAzureTTSProvider:
     @pytest.mark.asyncio
     async def test_synthesize_missing_api_key(self):
@@ -372,8 +379,10 @@ class TestAzureTTSProvider:
         mock_future = MagicMock()
         mock_future.get.return_value = mock_result
 
-        with patch("app.tts.providers.azure.speechsdk.SpeechConfig"), \
-             patch("app.tts.providers.azure.speechsdk.SpeechSynthesizer") as MockSynth:
+        with (
+            patch("app.tts.providers.azure.speechsdk.SpeechConfig"),
+            patch("app.tts.providers.azure.speechsdk.SpeechSynthesizer") as MockSynth,
+        ):
             MockSynth.return_value.speak_ssml_async.return_value = mock_future
 
             provider = AzureTTSProvider()
@@ -407,8 +416,10 @@ class TestAzureTTSProvider:
         mock_future = MagicMock()
         mock_future.get.return_value = mock_result
 
-        with patch("app.tts.providers.azure.speechsdk.SpeechConfig"), \
-             patch("app.tts.providers.azure.speechsdk.SpeechSynthesizer") as MockSynth:
+        with (
+            patch("app.tts.providers.azure.speechsdk.SpeechConfig"),
+            patch("app.tts.providers.azure.speechsdk.SpeechSynthesizer") as MockSynth,
+        ):
             MockSynth.return_value.speak_ssml_async.return_value = mock_future
 
             provider = AzureTTSProvider()
@@ -425,6 +436,7 @@ class TestAzureTTSProvider:
 # ---------------------------------------------------------------------------
 # Duration estimation utility
 # ---------------------------------------------------------------------------
+
 
 class TestDurationEstimation:
     def test_empty_data(self):
@@ -443,6 +455,7 @@ class TestDurationEstimation:
 # API endpoint tests
 # ---------------------------------------------------------------------------
 
+
 class TestTTSEndpoints:
     def test_list_providers(self, client):
         resp = client.get("/api/v1/tts/providers")
@@ -454,11 +467,14 @@ class TestTTSEndpoints:
 
     def test_synthesize_validation_error(self, client):
         # Empty text should fail validation
-        resp = client.post("/api/v1/tts/synthesize", json={
-            "text": "",
-            "provider": "edge_tts",
-            "voice": "ne-NP-SagarNeural",
-        })
+        resp = client.post(
+            "/api/v1/tts/synthesize",
+            json={
+                "text": "",
+                "provider": "edge_tts",
+                "voice": "ne-NP-SagarNeural",
+            },
+        )
         assert resp.status_code == 422
 
     def test_synthesize_missing_fields(self, client):
@@ -466,15 +482,19 @@ class TestTTSEndpoints:
         assert resp.status_code == 422
 
     def test_voices_endpoint_validation(self, client):
-        resp = client.post("/api/v1/tts/voices", json={
-            "provider": "invalid_provider",
-        })
+        resp = client.post(
+            "/api/v1/tts/voices",
+            json={
+                "provider": "invalid_provider",
+            },
+        )
         assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
 # Integration test — Edge TTS (real network call, free, no key)
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeTTSIntegration:
     """Integration tests using real Edge TTS service.

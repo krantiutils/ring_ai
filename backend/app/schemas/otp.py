@@ -27,9 +27,7 @@ class OTPSendRequest(BaseModel):
         None,
         description="Custom OTP value (required when otp_options='personnel')",
     )
-    otp_length: int = Field(
-        6, ge=4, le=10, description="Length of auto-generated OTP (default 6)"
-    )
+    otp_length: int = Field(6, ge=4, le=10, description="Length of auto-generated OTP (default 6)")
     voice_input: int | None = Field(
         None,
         description="Voice model ID (required when sms_send_options='voice')",

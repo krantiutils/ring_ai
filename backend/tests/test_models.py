@@ -9,7 +9,6 @@ from app.models import (
     TTSProviderConfig,
 )
 
-
 EXPECTED_TABLES = {
     "organizations",
     "campaigns",
@@ -23,23 +22,27 @@ EXPECTED_TABLES = {
 
 def test_all_tables_registered():
     registered = set(Base.metadata.tables.keys())
-    assert EXPECTED_TABLES.issubset(registered), (
-        f"Missing tables: {EXPECTED_TABLES - registered}"
-    )
+    assert EXPECTED_TABLES.issubset(registered), f"Missing tables: {EXPECTED_TABLES - registered}"
 
 
 def test_organization_columns():
     cols = {c.name for c in Organization.__table__.columns}
-    assert cols == {
-        "id", "name", "api_key_hash", "plan", "created_at", "updated_at"
-    }
+    assert cols == {"id", "name", "api_key_hash", "plan", "created_at", "updated_at"}
 
 
 def test_campaign_columns():
     cols = {c.name for c in Campaign.__table__.columns}
     assert cols == {
-        "id", "org_id", "name", "type", "status", "template_id",
-        "schedule_config", "scheduled_at", "created_at", "updated_at",
+        "id",
+        "org_id",
+        "name",
+        "type",
+        "status",
+        "template_id",
+        "schedule_config",
+        "scheduled_at",
+        "created_at",
+        "updated_at",
     }
 
 
@@ -51,25 +54,52 @@ def test_contact_columns():
 def test_interaction_columns():
     cols = {c.name for c in Interaction.__table__.columns}
     assert cols == {
-        "id", "campaign_id", "contact_id", "type", "status", "started_at",
-        "ended_at", "duration_seconds", "credit_consumed", "transcript",
-        "audio_url", "sentiment_score", "metadata", "created_at", "updated_at",
+        "id",
+        "campaign_id",
+        "contact_id",
+        "type",
+        "status",
+        "started_at",
+        "ended_at",
+        "duration_seconds",
+        "credit_consumed",
+        "transcript",
+        "audio_url",
+        "sentiment_score",
+        "metadata",
+        "created_at",
+        "updated_at",
     }
 
 
 def test_template_columns():
     cols = {c.name for c in Template.__table__.columns}
     assert cols == {
-        "id", "org_id", "name", "type", "language", "content",
-        "variables", "voice_config", "created_at",
+        "id",
+        "org_id",
+        "name",
+        "type",
+        "language",
+        "content",
+        "variables",
+        "voice_config",
+        "created_at",
     }
 
 
 def test_tts_provider_config_columns():
     cols = {c.name for c in TTSProviderConfig.__table__.columns}
     assert cols == {
-        "id", "org_id", "provider", "is_default", "voice", "rate",
-        "pitch", "credentials_encrypted", "created_at", "updated_at",
+        "id",
+        "org_id",
+        "provider",
+        "is_default",
+        "voice",
+        "rate",
+        "pitch",
+        "credentials_encrypted",
+        "created_at",
+        "updated_at",
     }
 
 
@@ -79,26 +109,18 @@ def test_analytics_event_columns():
 
 
 def test_campaign_foreign_keys():
-    fks = {
-        f"{fk.column.table.name}.{fk.column.name}"
-        for fk in Campaign.__table__.foreign_keys
-    }
+    fks = {f"{fk.column.table.name}.{fk.column.name}" for fk in Campaign.__table__.foreign_keys}
     assert "organizations.id" in fks
     assert "templates.id" in fks
 
 
 def test_interaction_foreign_keys():
-    fks = {
-        f"{fk.column.table.name}.{fk.column.name}"
-        for fk in Interaction.__table__.foreign_keys
-    }
+    fks = {f"{fk.column.table.name}.{fk.column.name}" for fk in Interaction.__table__.foreign_keys}
     assert "campaigns.id" in fks
     assert "contacts.id" in fks
 
 
 def test_tts_provider_config_unique_constraint():
     constraints = TTSProviderConfig.__table__.constraints
-    unique_names = {
-        c.name for c in constraints if c.__class__.__name__ == "UniqueConstraint"
-    }
+    unique_names = {c.name for c in constraints if c.__class__.__name__ == "UniqueConstraint"}
     assert "uq_tts_org_provider" in unique_names

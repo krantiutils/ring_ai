@@ -125,8 +125,7 @@ def get_twilio_provider() -> TwilioProvider:
 
         if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
             raise TelephonyConfigurationError(
-                "Twilio credentials not configured. "
-                "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables."
+                "Twilio credentials not configured. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables."
             )
 
         _twilio_provider = TwilioProvider(

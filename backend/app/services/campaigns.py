@@ -54,9 +54,7 @@ class InvalidStateTransition(CampaignError):
     def __init__(self, current_status: str, target_status: str) -> None:
         self.current_status = current_status
         self.target_status = target_status
-        super().__init__(
-            f"Cannot transition from '{current_status}' to '{target_status}'"
-        )
+        super().__init__(f"Cannot transition from '{current_status}' to '{target_status}'")
 
 
 class CampaignNotFound(CampaignError):
@@ -94,9 +92,7 @@ REQUIRED_CSV_COLUMNS = {"phone"}
 KNOWN_CSV_COLUMNS = {"phone", "name"}
 
 
-def parse_contacts_csv(
-    csv_bytes: bytes, org_id: uuid.UUID
-) -> tuple[list[dict], list[str]]:
+def parse_contacts_csv(csv_bytes: bytes, org_id: uuid.UUID) -> tuple[list[dict], list[str]]:
     """Parse a CSV file into contact dicts.
 
     Expected columns: phone (required), name (optional), anything else → metadata.
@@ -144,12 +140,14 @@ def parse_contacts_csv(
             if val:
                 metadata[col] = val
 
-        rows.append({
-            "phone": phone,
-            "name": name,
-            "metadata_": metadata if metadata else None,
-            "org_id": org_id,
-        })
+        rows.append(
+            {
+                "phone": phone,
+                "name": name,
+                "metadata_": metadata if metadata else None,
+                "org_id": org_id,
+            }
+        )
 
     return rows, errors
 
@@ -175,11 +173,7 @@ def upload_contacts_to_campaign(
     skipped = 0
 
     # Batch: collect existing contacts in this org to avoid duplicates
-    existing_phones = set(
-        db.execute(
-            select(Contact.phone).where(Contact.org_id == campaign.org_id)
-        ).scalars().all()
-    )
+    existing_phones = set(db.execute(select(Contact.phone).where(Contact.org_id == campaign.org_id)).scalars().all())
 
     # Also get contacts already in this campaign to skip duplicates
     existing_campaign_contacts = set(
@@ -187,7 +181,9 @@ def upload_contacts_to_campaign(
             select(Contact.phone)
             .join(Interaction, Interaction.contact_id == Contact.id)
             .where(Interaction.campaign_id == campaign.id)
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
 
     for row in parsed:
@@ -239,9 +235,7 @@ def upload_contacts_to_campaign(
 def _assert_has_contacts(db: Session, campaign: Campaign) -> None:
     """Raise CampaignError if campaign has no contacts."""
     contact_count = db.execute(
-        select(func.count())
-        .select_from(Interaction)
-        .where(Interaction.campaign_id == campaign.id)
+        select(func.count()).select_from(Interaction).where(Interaction.campaign_id == campaign.id)
     ).scalar_one()
     if contact_count == 0:
         raise CampaignError("Cannot start campaign with no contacts")
@@ -262,9 +256,7 @@ def start_campaign(db: Session, campaign: Campaign) -> Campaign:
     return campaign
 
 
-def schedule_campaign(
-    db: Session, campaign: Campaign, scheduled_at: datetime
-) -> Campaign:
+def schedule_campaign(db: Session, campaign: Campaign, scheduled_at: datetime) -> Campaign:
     """Transition campaign from draft → scheduled.
 
     Validates contacts exist and that scheduled_at is in the future.
@@ -274,9 +266,7 @@ def schedule_campaign(
 
     now = datetime.now(timezone.utc)
     # Normalise to UTC for comparison
-    compare_dt = scheduled_at if scheduled_at.tzinfo else scheduled_at.replace(
-        tzinfo=timezone.utc
-    )
+    compare_dt = scheduled_at if scheduled_at.tzinfo else scheduled_at.replace(tzinfo=timezone.utc)
     if compare_dt <= now:
         raise CampaignError("Scheduled time must be in the future")
 
@@ -330,26 +320,16 @@ COST_PER_INTERACTION = {
 
 def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
     """Calculate campaign statistics from interaction records."""
-    base = select(func.count()).select_from(Interaction).where(
-        Interaction.campaign_id == campaign_id
-    )
+    base = select(func.count()).select_from(Interaction).where(Interaction.campaign_id == campaign_id)
 
     total = db.execute(base).scalar_one()
     if total == 0:
         return CampaignStats()
 
-    completed = db.execute(
-        base.where(Interaction.status == "completed")
-    ).scalar_one()
-    failed = db.execute(
-        base.where(Interaction.status == "failed")
-    ).scalar_one()
-    pending = db.execute(
-        base.where(Interaction.status == "pending")
-    ).scalar_one()
-    in_progress = db.execute(
-        base.where(Interaction.status == "in_progress")
-    ).scalar_one()
+    completed = db.execute(base.where(Interaction.status == "completed")).scalar_one()
+    failed = db.execute(base.where(Interaction.status == "failed")).scalar_one()
+    pending = db.execute(base.where(Interaction.status == "pending")).scalar_one()
+    in_progress = db.execute(base.where(Interaction.status == "in_progress")).scalar_one()
 
     # Average duration for completed interactions with duration
     avg_dur_result = db.execute(
@@ -475,16 +455,18 @@ def generate_report_csv(db: Session, campaign_id: uuid.UUID) -> Generator[str, N
     for interaction, contact in results:
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow([
-            contact.phone,
-            contact.name or "",
-            interaction.status,
-            interaction.duration_seconds if interaction.duration_seconds is not None else "",
-            interaction.credit_consumed if interaction.credit_consumed is not None else "",
-            detect_carrier(contact.phone) or "",
-            interaction.audio_url or "",
-            interaction.updated_at.isoformat() if interaction.updated_at else "",
-        ])
+        writer.writerow(
+            [
+                contact.phone,
+                contact.name or "",
+                interaction.status,
+                interaction.duration_seconds if interaction.duration_seconds is not None else "",
+                interaction.credit_consumed if interaction.credit_consumed is not None else "",
+                detect_carrier(contact.phone) or "",
+                interaction.audio_url or "",
+                interaction.updated_at.isoformat() if interaction.updated_at else "",
+            ]
+        )
         yield buf.getvalue()
 
 
@@ -520,11 +502,7 @@ def _build_tts_config(template: Template) -> TTSConfig:
         voice=vc.get("voice", _DEFAULT_TTS_VOICE),
         rate=vc.get("rate", "+0%"),
         pitch=vc.get("pitch", "+0Hz"),
-        fallback_provider=(
-            TTSProvider(vc["fallback_provider"])
-            if vc.get("fallback_provider")
-            else None
-        ),
+        fallback_provider=(TTSProvider(vc["fallback_provider"]) if vc.get("fallback_provider") else None),
     )
 
 
@@ -569,9 +547,7 @@ async def _dispatch_voice_call(
 
     if not base_url:
         audio_store.delete(audio_id)
-        raise TelephonyConfigurationError(
-            "TWILIO_BASE_URL not configured — cannot generate callback URLs"
-        )
+        raise TelephonyConfigurationError("TWILIO_BASE_URL not configured — cannot generate callback URLs")
 
     # 5. Set up call context
     temp_call_id = str(uuid.uuid4())
@@ -619,9 +595,7 @@ def _dispatch_interaction(
     the error in metadata.
     """
     if campaign.type == "voice":
-        call_sid = asyncio.run(
-            _dispatch_voice_call(interaction, contact, template, campaign)
-        )
+        call_sid = asyncio.run(_dispatch_voice_call(interaction, contact, template, campaign))
         interaction.metadata_ = {
             **(interaction.metadata_ or {}),
             "twilio_call_sid": call_sid,
@@ -700,14 +674,18 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
         interval = 1.0 / rate_limit if rate_limit > 0 else 0
 
         # Fetch pending interactions
-        pending_interactions = db.execute(
-            select(Interaction)
-            .where(
-                Interaction.campaign_id == campaign_id,
-                Interaction.status == "pending",
+        pending_interactions = (
+            db.execute(
+                select(Interaction)
+                .where(
+                    Interaction.campaign_id == campaign_id,
+                    Interaction.status == "pending",
+                )
+                .limit(batch_size)
             )
-            .limit(batch_size)
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         if not pending_interactions:
             # Check if campaign is done
@@ -756,7 +734,12 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
 
             try:
                 _dispatch_interaction(interaction, contact, template, campaign, db)
-            except (UndefinedVariableError, TTSError, TelephonyConfigurationError, TelephonyProviderError) as exc:
+            except (
+                UndefinedVariableError,
+                TTSError,
+                TelephonyConfigurationError,
+                TelephonyProviderError,
+            ) as exc:
                 retry_count = (interaction.metadata_ or {}).get("retry_count", 0)
                 logger.warning(
                     "Dispatch failed for interaction %s (attempt %d/%d): %s",
@@ -788,9 +771,7 @@ def execute_campaign_batch(campaign_id: uuid.UUID, db_factory) -> None:
                     }
                     db.commit()
             except Exception:
-                logger.exception(
-                    "Unexpected error processing interaction %s", interaction.id
-                )
+                logger.exception("Unexpected error processing interaction %s", interaction.id)
                 interaction.status = "failed"
                 interaction.ended_at = datetime.now(timezone.utc)
                 interaction.metadata_ = {

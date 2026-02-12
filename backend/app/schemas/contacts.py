@@ -37,10 +37,7 @@ class ContactAttributesUpdate(BaseModel):
 
     attributes: dict[str, str] = Field(
         ...,
-        description=(
-            "Key-value pairs to upsert. "
-            "Set a key's value to empty string to remove it."
-        ),
+        description=("Key-value pairs to upsert. Set a key's value to empty string to remove it."),
     )
 
 

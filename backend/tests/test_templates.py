@@ -14,7 +14,6 @@ from app.services.templates import (
     validate_template,
 )
 
-
 # ---------------------------------------------------------------------------
 # Template engine unit tests
 # ---------------------------------------------------------------------------
@@ -297,9 +296,7 @@ class TestListTemplates:
 
 class TestGetTemplate:
     def test_get_existing(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.get(f"/api/v1/templates/{tid}")
@@ -313,9 +310,7 @@ class TestGetTemplate:
 
 class TestUpdateTemplate:
     def test_update_name(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.put(f"/api/v1/templates/{tid}", json={"name": "Updated"})
@@ -323,9 +318,7 @@ class TestUpdateTemplate:
         assert resp.json()["name"] == "Updated"
 
     def test_update_content_recomputes_variables(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.put(
@@ -336,15 +329,11 @@ class TestUpdateTemplate:
         assert resp.json()["variables"] == ["new_var"]
 
     def test_update_not_found(self, client):
-        resp = client.put(
-            f"/api/v1/templates/{NONEXISTENT_UUID}", json={"name": "X"}
-        )
+        resp = client.put(f"/api/v1/templates/{NONEXISTENT_UUID}", json={"name": "X"})
         assert resp.status_code == 404
 
     def test_update_invalid_content(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.put(
@@ -356,9 +345,7 @@ class TestUpdateTemplate:
 
 class TestDeleteTemplate:
     def test_delete_success(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.delete(f"/api/v1/templates/{tid}")
@@ -374,9 +361,7 @@ class TestDeleteTemplate:
 
 class TestRenderEndpoint:
     def test_render_success(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.post(
@@ -390,9 +375,7 @@ class TestRenderEndpoint:
         assert data["type"] == "voice"
 
     def test_render_missing_variable(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.post(
@@ -412,9 +395,7 @@ class TestRenderEndpoint:
 
 class TestValidateEndpoint:
     def test_validate_success(self, client, org_id):
-        create_resp = client.post(
-            "/api/v1/templates/", json=_sample_template(org_id)
-        )
+        create_resp = client.post("/api/v1/templates/", json=_sample_template(org_id))
         tid = create_resp.json()["id"]
 
         resp = client.post(f"/api/v1/templates/{tid}/validate")

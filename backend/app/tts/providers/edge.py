@@ -66,7 +66,23 @@ def _estimate_duration_from_mp3(data: bytes) -> int:
 
         # Layer III bitrate table
         if version == 1:
-            bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+            bitrates = [
+                0,
+                32,
+                40,
+                48,
+                56,
+                64,
+                80,
+                96,
+                112,
+                128,
+                160,
+                192,
+                224,
+                256,
+                320,
+            ]
         else:
             bitrates = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
 

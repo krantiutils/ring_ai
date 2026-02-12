@@ -2,7 +2,6 @@
 
 import uuid
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Organization, PhoneNumber
@@ -17,16 +16,10 @@ class TestListActivePhones:
         assert resp.json() == []
 
     def test_returns_active_phones(self, client: TestClient, db, org: Organization):
-        phone1 = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True, is_broker=False
-        )
-        phone2 = PhoneNumber(
-            phone_number="+9779876543", org_id=org.id, is_active=True, is_broker=True
-        )
+        phone1 = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True, is_broker=False)
+        phone2 = PhoneNumber(phone_number="+9779876543", org_id=org.id, is_active=True, is_broker=True)
         # Inactive phone should NOT appear
-        phone3 = PhoneNumber(
-            phone_number="+9770000000", org_id=org.id, is_active=False, is_broker=False
-        )
+        phone3 = PhoneNumber(phone_number="+9770000000", org_id=org.id, is_active=False, is_broker=False)
         db.add_all([phone1, phone2, phone3])
         db.commit()
 
@@ -43,12 +36,8 @@ class TestListActivePhones:
         db.commit()
         db.refresh(other_org)
 
-        phone_mine = PhoneNumber(
-            phone_number="+9771111111", org_id=org.id, is_active=True
-        )
-        phone_other = PhoneNumber(
-            phone_number="+9772222222", org_id=other_org.id, is_active=True
-        )
+        phone_mine = PhoneNumber(phone_number="+9771111111", org_id=org.id, is_active=True)
+        phone_other = PhoneNumber(phone_number="+9772222222", org_id=other_org.id, is_active=True)
         db.add_all([phone_mine, phone_other])
         db.commit()
 
@@ -71,15 +60,9 @@ class TestListBrokerPhones:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_returns_only_broker_phones(
-        self, client: TestClient, db, org: Organization
-    ):
-        broker = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True, is_broker=True
-        )
-        non_broker = PhoneNumber(
-            phone_number="+9779876543", org_id=org.id, is_active=True, is_broker=False
-        )
+    def test_returns_only_broker_phones(self, client: TestClient, db, org: Organization):
+        broker = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True, is_broker=True)
+        non_broker = PhoneNumber(phone_number="+9779876543", org_id=org.id, is_active=True, is_broker=False)
         db.add_all([broker, non_broker])
         db.commit()
 
@@ -89,9 +72,7 @@ class TestListBrokerPhones:
         assert len(data) == 1
         assert data[0]["phone_number"] == "+9771234567"
 
-    def test_excludes_inactive_brokers(
-        self, client: TestClient, db, org: Organization
-    ):
+    def test_excludes_inactive_brokers(self, client: TestClient, db, org: Organization):
         inactive_broker = PhoneNumber(
             phone_number="+9771234567",
             org_id=org.id,
@@ -137,12 +118,8 @@ class TestCreatePhoneNumber:
         assert data["is_broker"] is True
         assert data["is_active"] is True
 
-    def test_duplicate_active_phone_rejected(
-        self, client: TestClient, db, org: Organization
-    ):
-        existing = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True
-        )
+    def test_duplicate_active_phone_rejected(self, client: TestClient, db, org: Organization):
+        existing = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True)
         db.add(existing)
         db.commit()
 
@@ -153,13 +130,9 @@ class TestCreatePhoneNumber:
         assert resp.status_code == 409
         assert "already registered" in resp.json()["detail"]
 
-    def test_duplicate_inactive_phone_allowed(
-        self, client: TestClient, db, org: Organization
-    ):
+    def test_duplicate_inactive_phone_allowed(self, client: TestClient, db, org: Organization):
         """Re-registering a deactivated number should work."""
-        existing = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=False
-        )
+        existing = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=False)
         db.add(existing)
         db.commit()
 
@@ -169,17 +142,13 @@ class TestCreatePhoneNumber:
         )
         assert resp.status_code == 201
 
-    def test_same_number_different_org_allowed(
-        self, client: TestClient, db, org: Organization
-    ):
+    def test_same_number_different_org_allowed(self, client: TestClient, db, org: Organization):
         other_org = Organization(name="Other Org")
         db.add(other_org)
         db.commit()
         db.refresh(other_org)
 
-        existing = PhoneNumber(
-            phone_number="+9771234567", org_id=other_org.id, is_active=True
-        )
+        existing = PhoneNumber(phone_number="+9771234567", org_id=other_org.id, is_active=True)
         db.add(existing)
         db.commit()
 
@@ -189,9 +158,7 @@ class TestCreatePhoneNumber:
         )
         assert resp.status_code == 201
 
-    def test_empty_phone_number_rejected(
-        self, client: TestClient, org_id: uuid.UUID
-    ):
+    def test_empty_phone_number_rejected(self, client: TestClient, org_id: uuid.UUID):
         resp = client.post(
             "/api/v1/phone-numbers/",
             json={"phone_number": "", "org_id": str(org_id)},
@@ -203,9 +170,7 @@ class TestDeactivatePhoneNumber:
     """DELETE /api/v1/phone-numbers/{phone_id}"""
 
     def test_deactivate_phone(self, client: TestClient, db, org: Organization):
-        phone = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True
-        )
+        phone = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True)
         db.add(phone)
         db.commit()
         db.refresh(phone)
@@ -222,12 +187,8 @@ class TestDeactivatePhoneNumber:
         resp = client.delete(f"/api/v1/phone-numbers/{fake_id}")
         assert resp.status_code == 404
 
-    def test_deactivate_already_inactive(
-        self, client: TestClient, db, org: Organization
-    ):
-        phone = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=False
-        )
+    def test_deactivate_already_inactive(self, client: TestClient, db, org: Organization):
+        phone = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=False)
         db.add(phone)
         db.commit()
         db.refresh(phone)
@@ -236,12 +197,8 @@ class TestDeactivatePhoneNumber:
         assert resp.status_code == 409
         assert "already deactivated" in resp.json()["detail"]
 
-    def test_deactivated_phone_not_in_active_list(
-        self, client: TestClient, db, org: Organization
-    ):
-        phone = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True
-        )
+    def test_deactivated_phone_not_in_active_list(self, client: TestClient, db, org: Organization):
+        phone = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True)
         db.add(phone)
         db.commit()
         db.refresh(phone)
@@ -291,9 +248,7 @@ class TestPhoneNumberModel:
         assert "broker" in repr(phone)
 
     def test_organization_relationship(self, db, org: Organization):
-        phone = PhoneNumber(
-            phone_number="+9771234567", org_id=org.id, is_active=True
-        )
+        phone = PhoneNumber(phone_number="+9771234567", org_id=org.id, is_active=True)
         db.add(phone)
         db.commit()
         db.refresh(org)
@@ -305,9 +260,7 @@ class TestPhoneNumberModel:
 class TestBrokerPhoneResolution:
     """Test that the voice endpoint resolves broker phones correctly."""
 
-    def test_voice_call_uses_broker_phone_when_no_from_number(
-        self, client: TestClient, db, org: Organization
-    ):
+    def test_voice_call_uses_broker_phone_when_no_from_number(self, client: TestClient, db, org: Organization):
         """When no from_number is provided, the voice endpoint should
         use the org's broker phone number."""
         from unittest.mock import AsyncMock, MagicMock, patch
@@ -338,9 +291,7 @@ class TestBrokerPhoneResolution:
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = ""
-        mock_provider.initiate_call = AsyncMock(
-            return_value=CallResult(call_id="CA_test", status=CallStatus.INITIATED)
-        )
+        mock_provider.initiate_call = AsyncMock(return_value=CallResult(call_id="CA_test", status=CallStatus.INITIATED))
 
         mock_tts_result = MagicMock()
         mock_tts_result.audio_bytes = b"fake-audio"

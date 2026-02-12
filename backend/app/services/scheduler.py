@@ -22,12 +22,16 @@ def activate_due_campaigns(db: Session) -> int:
     """
     now = datetime.now(timezone.utc)
 
-    due_campaigns = db.execute(
-        select(Campaign).where(
-            Campaign.status == "scheduled",
-            Campaign.scheduled_at <= now,
+    due_campaigns = (
+        db.execute(
+            select(Campaign).where(
+                Campaign.status == "scheduled",
+                Campaign.scheduled_at <= now,
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     activated = 0
     for campaign in due_campaigns:
@@ -36,9 +40,7 @@ def activate_due_campaigns(db: Session) -> int:
         db.commit()
         db.refresh(campaign)
         activated += 1
-        logger.info(
-            "Scheduler activated campaign %s (%s)", campaign.id, campaign.name
-        )
+        logger.info("Scheduler activated campaign %s (%s)", campaign.id, campaign.name)
 
         # Trigger batch executor in a separate session
         execute_campaign_batch(campaign.id, SessionLocal)

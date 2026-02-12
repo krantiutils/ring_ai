@@ -80,9 +80,7 @@ class TTSRouter:
         )
         return await fallback.synthesize(text, fallback_config)
 
-    async def list_voices(
-        self, provider: TTSProvider, locale: str | None = None
-    ) -> list[VoiceInfo]:
+    async def list_voices(self, provider: TTSProvider, locale: str | None = None) -> list[VoiceInfo]:
         """List voices for a specific provider."""
         impl = self.get_provider(provider)
         return await impl.list_voices(locale=locale)

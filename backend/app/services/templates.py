@@ -55,20 +55,12 @@ def extract_variables(template_content: str) -> list[str]:
 
 def get_variables_with_defaults(template_content: str) -> list[str]:
     """Return variable names that have default values specified."""
-    return sorted(
-        {
-            match.group(1)
-            for match in _VAR_PATTERN.finditer(template_content)
-            if match.group(2) is not None
-        }
-    )
+    return sorted({match.group(1) for match in _VAR_PATTERN.finditer(template_content) if match.group(2) is not None})
 
 
 def get_conditional_variables(template_content: str) -> list[str]:
     """Return variable names used in conditional blocks."""
-    return sorted(
-        {match.group(1) for match in _CONDITIONAL_PATTERN.finditer(template_content)}
-    )
+    return sorted({match.group(1) for match in _CONDITIONAL_PATTERN.finditer(template_content)})
 
 
 def get_required_variables(template_content: str) -> list[str]:

@@ -49,9 +49,7 @@ def _build_ssml(text: str, config: TTSConfig) -> str:
     )
 
 
-def _synthesize_blocking(
-    text: str, config: TTSConfig
-) -> tuple[bytes, speechsdk.ResultReason, str | None]:
+def _synthesize_blocking(text: str, config: TTSConfig) -> tuple[bytes, speechsdk.ResultReason, str | None]:
     """Run Azure synthesis in a blocking context (meant for thread pool).
 
     Returns (audio_bytes, reason, error_detail).
@@ -77,10 +75,7 @@ def _synthesize_blocking(
     error_detail = None
     if result.reason == speechsdk.ResultReason.Canceled:
         cancellation = result.cancellation_details
-        error_detail = (
-            f"Canceled: {cancellation.reason}. "
-            f"Error: {cancellation.error_details}"
-        )
+        error_detail = f"Canceled: {cancellation.reason}. Error: {cancellation.error_details}"
 
     return result.audio_data, result.reason, error_detail
 
@@ -99,13 +94,9 @@ class AzureTTSProvider(BaseTTSProvider):
 
     async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
         if not config.api_key:
-            raise TTSConfigurationError(
-                "Azure TTS requires 'api_key' in TTSConfig"
-            )
+            raise TTSConfigurationError("Azure TTS requires 'api_key' in TTSConfig")
         if not config.region:
-            raise TTSConfigurationError(
-                "Azure TTS requires 'region' in TTSConfig"
-            )
+            raise TTSConfigurationError("Azure TTS requires 'region' in TTSConfig")
 
         loop = asyncio.get_running_loop()
 
@@ -121,9 +112,7 @@ class AzureTTSProvider(BaseTTSProvider):
             raise TTSProviderError("azure", error_detail or "Synthesis was canceled")
 
         if reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            raise TTSProviderError(
-                "azure", f"Unexpected result reason: {reason}"
-            )
+            raise TTSProviderError("azure", f"Unexpected result reason: {reason}")
 
         if not audio_data:
             raise TTSProviderError("azure", "Synthesis returned empty audio")
@@ -151,19 +140,13 @@ class AzureTTSProvider(BaseTTSProvider):
         region = settings.AZURE_TTS_REGION
 
         if not api_key or not region:
-            raise TTSConfigurationError(
-                "AZURE_TTS_KEY and AZURE_TTS_REGION must be set to list Azure voices"
-            )
+            raise TTSConfigurationError("AZURE_TTS_KEY and AZURE_TTS_REGION must be set to list Azure voices")
 
         loop = asyncio.get_running_loop()
 
         def _list_blocking() -> list[speechsdk.VoiceInfo]:
-            speech_config = speechsdk.SpeechConfig(
-                subscription=api_key, region=region
-            )
-            synthesizer = speechsdk.SpeechSynthesizer(
-                speech_config=speech_config, audio_config=None
-            )
+            speech_config = speechsdk.SpeechConfig(subscription=api_key, region=region)
+            synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
             result = synthesizer.get_voices_async().get()
             if result.reason == speechsdk.ResultReason.VoicesListRetrieved:
                 return result.voices
@@ -177,9 +160,7 @@ class AzureTTSProvider(BaseTTSProvider):
         except TTSProviderError:
             raise
         except Exception as exc:
-            raise TTSProviderError(
-                "azure", f"Failed to list voices: {exc}"
-            ) from exc
+            raise TTSProviderError("azure", f"Failed to list voices: {exc}") from exc
 
         result: list[VoiceInfo] = []
         for v in raw_voices:

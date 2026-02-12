@@ -23,7 +23,6 @@ from app.services.telephony.models import CallResult, CallStatus
 from app.tts.exceptions import TTSProviderError
 from app.tts.models import TTSProvider
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -276,12 +275,14 @@ class TestExecuteBatchVoiceSuccess:
     ):
         """Two contacts should both get calls dispatched."""
         for contact in [contact_ram, contact_sita]:
-            db.add(Interaction(
-                campaign_id=voice_campaign.id,
-                contact_id=contact.id,
-                type="outbound_call",
-                status="pending",
-            ))
+            db.add(
+                Interaction(
+                    campaign_id=voice_campaign.id,
+                    contact_id=contact.id,
+                    type="outbound_call",
+                    status="pending",
+                )
+            )
         db.commit()
 
         mock_tts_router, mock_provider = _mock_tts_and_twilio()
@@ -335,12 +336,14 @@ class TestExecuteBatchCampaignGuards:
         )
         db.add(campaign)
         db.flush()
-        db.add(Interaction(
-            campaign_id=campaign.id,
-            contact_id=org.id,  # dummy
-            type="outbound_call",
-            status="pending",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign.id,
+                contact_id=org.id,  # dummy
+                type="outbound_call",
+                status="pending",
+            )
+        )
         db.commit()
 
         execute_campaign_batch(campaign.id, _make_db_factory(db))
@@ -396,12 +399,14 @@ class TestExecuteBatchCampaignGuards:
         db.flush()
 
         # All interactions already completed
-        db.add(Interaction(
-            campaign_id=campaign.id,
-            contact_id=contact.id,
-            type="outbound_call",
-            status="completed",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign.id,
+                contact_id=contact.id,
+                type="outbound_call",
+                status="completed",
+            )
+        )
         db.commit()
 
         execute_campaign_batch(campaign.id, _make_db_factory(db))
@@ -425,9 +430,7 @@ class TestExecuteBatchRetryLogic:
         voice_campaign,
         pending_interaction,
     ):
-        mock_tts.synthesize = AsyncMock(
-            side_effect=TTSProviderError("edge_tts", "synthesis failed")
-        )
+        mock_tts.synthesize = AsyncMock(side_effect=TTSProviderError("edge_tts", "synthesis failed"))
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
         mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
@@ -455,9 +458,7 @@ class TestExecuteBatchRetryLogic:
     ):
         mock_tts_router, mock_provider = _mock_tts_and_twilio()
         mock_tts.synthesize = mock_tts_router.synthesize
-        mock_provider.initiate_call = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "network error")
-        )
+        mock_provider.initiate_call = AsyncMock(side_effect=TelephonyProviderError("twilio", "network error"))
         mock_get_provider.return_value = mock_provider
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
@@ -489,9 +490,7 @@ class TestExecuteBatchRetryLogic:
         pending_interaction.metadata_ = {"retry_count": 2}
         db.commit()
 
-        mock_tts.synthesize = AsyncMock(
-            side_effect=TTSProviderError("edge_tts", "persistent failure")
-        )
+        mock_tts.synthesize = AsyncMock(side_effect=TTSProviderError("edge_tts", "persistent failure"))
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
         mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
@@ -519,9 +518,7 @@ class TestExecuteBatchRetryLogic:
     ):
         mock_tts_router, _ = _mock_tts_and_twilio()
         mock_tts.synthesize = mock_tts_router.synthesize
-        mock_get_provider.side_effect = TelephonyConfigurationError(
-            "Twilio not configured"
-        )
+        mock_get_provider.side_effect = TelephonyConfigurationError("Twilio not configured")
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
         mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0

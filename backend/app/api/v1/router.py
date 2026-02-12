@@ -1,6 +1,19 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analytics, auth, campaigns, contacts, forms, otp, phone_numbers, templates, text, tts, voice, voice_models
+from app.api.v1.endpoints import (
+    analytics,
+    auth,
+    campaigns,
+    contacts,
+    forms,
+    otp,
+    phone_numbers,
+    templates,
+    text,
+    tts,
+    voice,
+    voice_models,
+)
 
 api_v1_router = APIRouter()
 

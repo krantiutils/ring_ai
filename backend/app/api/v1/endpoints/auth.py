@@ -1,7 +1,7 @@
 import uuid
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -18,15 +18,15 @@ from app.schemas.auth import (
     UserProfileResponse,
 )
 from app.services.auth import (
+    create_access_token,
     create_api_key,
+    create_refresh_token,
     create_user,
     decode_token,
     get_active_api_key,
     get_user_by_email,
     get_user_by_id,
     get_user_by_username,
-    create_access_token,
-    create_refresh_token,
     verify_password,
 )
 

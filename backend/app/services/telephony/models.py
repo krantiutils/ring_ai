@@ -34,18 +34,14 @@ class DTMFRoute(BaseModel):
 
 class CallRequest(BaseModel):
     to: str = Field(..., min_length=1, description="E.164 phone number to call")
-    from_number: str | None = Field(
-        None, description="Caller ID (E.164). Falls back to default Twilio number."
-    )
+    from_number: str | None = Field(None, description="Caller ID (E.164). Falls back to default Twilio number.")
     template_id: uuid.UUID
     variables: dict[str, str] = Field(default_factory=dict)
     tts_provider: str = "edge_tts"
     tts_voice: str = "ne-NP-HemkalaNeural"
     tts_rate: str = "+0%"
     tts_pitch: str = "+0Hz"
-    callback_url: str | None = Field(
-        None, description="Override status callback URL"
-    )
+    callback_url: str | None = Field(None, description="Override status callback URL")
     dtmf_routes: list[DTMFRoute] = Field(default_factory=list)
     record: bool = False
     record_consent_text: str | None = Field(

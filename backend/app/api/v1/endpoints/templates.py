@@ -67,9 +67,7 @@ def list_templates(
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
-    templates = db.execute(
-        query.order_by(Template.created_at.desc()).offset(offset).limit(page_size)
-    ).scalars().all()
+    templates = db.execute(query.order_by(Template.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
 
     return TemplateListResponse(
         items=templates,
@@ -147,9 +145,7 @@ def render_template(
 
 
 @router.post("/{template_id}/validate", response_model=ValidateResponse)
-def validate_template_endpoint(
-    template_id: uuid.UUID, db: Session = Depends(get_db)
-):
+def validate_template_endpoint(template_id: uuid.UUID, db: Session = Depends(get_db)):
     template = db.get(Template, template_id)
     if template is None:
         raise HTTPException(status_code=404, detail="Template not found")

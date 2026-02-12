@@ -100,9 +100,7 @@ def deactivate_phone_number(
         raise HTTPException(status_code=404, detail="Phone number not found")
 
     if not phone.is_active:
-        raise HTTPException(
-            status_code=409, detail="Phone number is already deactivated"
-        )
+        raise HTTPException(status_code=409, detail="Phone number is already deactivated")
 
     phone.is_active = False
     db.commit()

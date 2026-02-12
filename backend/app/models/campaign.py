@@ -16,39 +16,31 @@ class Campaign(Base):
         Index("ix_campaigns_org_status", "org_id", "status"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    type: Mapped[str] = mapped_column(
-        Enum("voice", "text", "form", name="campaign_type"), nullable=False
-    )
+    type: Mapped[str] = mapped_column(Enum("voice", "text", "form", name="campaign_type"), nullable=False)
     status: Mapped[str] = mapped_column(
         Enum(
-            "draft", "scheduled", "active", "paused", "completed",
+            "draft",
+            "scheduled",
+            "active",
+            "paused",
+            "completed",
             name="campaign_status",
         ),
         nullable=False,
         server_default="draft",
     )
-    template_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("templates.id")
-    )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("templates.id"))
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     organization: Mapped["Organization"] = relationship(back_populates="campaigns")
     template: Mapped["Template | None"] = relationship(back_populates="campaigns")
-    interactions: Mapped[list["Interaction"]] = relationship(
-        back_populates="campaign"
-    )
+    interactions: Mapped[list["Interaction"]] = relationship(back_populates="campaign")
 
     def __repr__(self) -> str:
         return f"<Campaign {self.name} ({self.type}/{self.status})>"

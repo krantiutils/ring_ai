@@ -15,16 +15,10 @@ class Template(Base):
         Index("ix_templates_org_type", "org_id", "type"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    type: Mapped[str] = mapped_column(
-        Enum("voice", "text", name="template_type"), nullable=False
-    )
+    type: Mapped[str] = mapped_column(Enum("voice", "text", name="template_type"), nullable=False)
     language: Mapped[str] = mapped_column(String(10), server_default="ne")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     variables: Mapped[dict | None] = mapped_column(JSONB)
