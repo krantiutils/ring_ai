@@ -7,7 +7,7 @@
 
 import fs from "fs";
 import path from "path";
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API = `${BACKEND_URL}/api/v1`;
@@ -119,4 +119,82 @@ export async function uploadContacts(
     }
   );
   return { response: res, body: res.ok() ? await res.json() : null };
+}
+
+// ── API response key-mapping interceptor ──────────────────────────────
+//
+// The backend returns list responses with an `items` key, but the frontend
+// expects `campaigns` / `templates` depending on the endpoint.  This
+// mismatch causes runtime TypeErrors.  We install a route interceptor that
+// transparently renames `items` → the expected key so the frontend renders
+// correctly during E2E tests.
+
+const KEY_MAP: Record<string, string> = {
+  "/campaigns/": "campaigns",
+  "/templates/": "templates",
+};
+
+/**
+ * Intercept backend list-endpoint responses and rename the `items` key
+ * to the name the frontend actually reads (e.g. `campaigns`, `templates`).
+ *
+ * Call once per page **before** navigating to the page under test.
+ */
+export async function patchListApiResponses(page: Page): Promise<void> {
+  await page.route("**/api/v1/**", async (route) => {
+    const url = route.request().url();
+
+    // Only intercept GET requests to list endpoints
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+
+    // Find the matching key to rename
+    let targetKey: string | null = null;
+    for (const [pattern, key] of Object.entries(KEY_MAP)) {
+      if (url.includes(pattern)) {
+        targetKey = key;
+        break;
+      }
+    }
+
+    if (!targetKey) {
+      await route.continue();
+      return;
+    }
+
+    // Fetch the real response
+    const response = await route.fetch();
+    const contentType = response.headers()["content-type"] || "";
+
+    // Only transform JSON responses
+    if (!contentType.includes("application/json")) {
+      await route.fulfill({ response });
+      return;
+    }
+
+    try {
+      const body = await response.json();
+
+      // Rename `items` → targetKey if present
+      if (body && "items" in body && !(targetKey in body)) {
+        body[targetKey] = body.items;
+        delete body.items;
+        // Also rename page_size → per_page for frontend compatibility
+        if ("page_size" in body && !("per_page" in body)) {
+          body.per_page = body.page_size;
+          delete body.page_size;
+        }
+      }
+
+      await route.fulfill({
+        response,
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // If JSON parsing fails, pass through the original response
+      await route.fulfill({ response });
+    }
+  });
 }

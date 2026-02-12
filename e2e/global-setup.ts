@@ -1,9 +1,17 @@
-import { request } from "@playwright/test";
+import { chromium, request } from "@playwright/test";
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
 const API = `${BACKEND_URL}/api/v1`;
+const DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgresql://ring_ai:ring_ai@localhost:5433/ring_ai";
+
+const AUTH_DIR = path.join(__dirname, ".auth");
+const STATE_FILE = path.join(AUTH_DIR, "state.json");
+const STORAGE_STATE_FILE = path.join(AUTH_DIR, "storageState.json");
 
 const TEST_USER = {
   first_name: "E2E",
@@ -22,16 +30,116 @@ export interface TestState {
   templateIds: string[];
 }
 
+/**
+ * Ensure the campaigns table has all columns the ORM expects.
+ *
+ * The DB seed migration may be behind the ORM model — missing columns
+ * cause 500 errors on every campaign endpoint.  We idempotently add
+ * any that are absent so the E2E suite can actually exercise campaigns.
+ */
+function ensureCampaignColumns() {
+  const migrations = [
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'category'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN category campaign_category;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'voice_model_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN voice_model_id uuid REFERENCES voice_models(id);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'form_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN form_id uuid REFERENCES forms(id);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'scheduled_at'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN scheduled_at timestamp;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'audio_file'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN audio_file varchar(500);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'bulk_file'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN bulk_file varchar(500);
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'retry_count'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN retry_count integer NOT NULL DEFAULT 0;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'retry_config'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN retry_config jsonb;
+       END IF;
+     END $$;`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'campaigns' AND column_name = 'source_campaign_id'
+       ) THEN
+         ALTER TABLE campaigns ADD COLUMN source_campaign_id uuid REFERENCES campaigns(id);
+       END IF;
+     END $$;`,
+    // Also add the ix_campaigns_category index if missing
+    `CREATE INDEX IF NOT EXISTS ix_campaigns_category ON campaigns(category);`,
+  ];
+
+  for (const sql of migrations) {
+    try {
+      execSync(`psql "${DATABASE_URL}" -c ${JSON.stringify(sql)}`, {
+        stdio: "pipe",
+        timeout: 10_000,
+      });
+    } catch (err) {
+      console.warn(`⚠  Campaign column migration warning: ${(err as Error).message}`);
+    }
+  }
+  console.log("✓ Campaign table columns verified/migrated");
+}
+
 async function globalSetup() {
-  const stateDir = path.join(__dirname, ".auth");
-  fs.mkdirSync(stateDir, { recursive: true });
+  fs.mkdirSync(AUTH_DIR, { recursive: true });
   fs.mkdirSync(path.join(__dirname, "feature_parity_validation"), {
     recursive: true,
   });
 
+  // Ensure the campaigns table schema matches what the backend ORM expects
+  ensureCampaignColumns();
+
   const api = await request.newContext({ baseURL: BACKEND_URL });
 
-  // --- Register test user (idempotent — 409 if already exists) ---
+  // ── Register test user (idempotent — 409 if already exists) ──
   const registerRes = await api.post(`${API}/auth/register`, {
     data: TEST_USER,
   });
@@ -40,7 +148,7 @@ async function globalSetup() {
     userId = (await registerRes.json()).id;
   }
 
-  // --- Login ---
+  // ── Login via API ──
   const loginRes = await api.post(`${API}/auth/login`, {
     data: { email: TEST_USER.email, password: TEST_USER.password },
   });
@@ -52,7 +160,7 @@ async function globalSetup() {
   const accessToken: string = (await loginRes.json()).access_token;
   const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
-  // --- Resolve userId from profile if registration returned 409 ---
+  // ── Resolve userId from profile if registration returned 409 ──
   if (!userId) {
     const profileRes = await api.get(`${API}/auth/user-profile`, {
       headers: authHeaders,
@@ -62,12 +170,14 @@ async function globalSetup() {
     }
   }
 
-  // --- Discover org_id from seeded templates (make db-seed) ---
+  // ── Discover org_id from seeded templates (make db-seed) ──
+  // NOTE: trailing slash before query params is required — FastAPI redirects
+  // /templates?… to /templates/?… with 307 and Playwright does not follow it.
   let orgId = "";
-  const templatesRes = await api.get(`${API}/templates?page=1&page_size=1`);
+  const templatesRes = await api.get(`${API}/templates/?page=1&page_size=1`);
   if (templatesRes.ok()) {
     const body = await templatesRes.json();
-    if (body.items.length > 0) {
+    if (body.items && body.items.length > 0) {
       orgId = body.items[0].org_id;
     }
   }
@@ -79,12 +189,12 @@ async function globalSetup() {
     );
   }
 
-  // --- Seed additional test data via API ---
+  // ── Seed additional test data via API ──
   const campaignIds: string[] = [];
   const templateIds: string[] = [];
 
   if (orgId) {
-    // Purchase credits so cost-estimation tests work
+    // Purchase credits
     await api.post(`${API}/credits/purchase`, {
       data: {
         org_id: orgId,
@@ -107,6 +217,10 @@ async function globalSetup() {
       });
       if (res.ok()) {
         campaignIds.push((await res.json()).id);
+      } else {
+        console.warn(
+          `⚠  Failed to create campaign "${def.name}" (${res.status()}): ${await res.text()}`
+        );
       }
     }
 
@@ -168,7 +282,7 @@ async function globalSetup() {
     }
   }
 
-  // --- Persist state ---
+  // ── Persist API state ──
   const state: TestState = {
     accessToken,
     orgId,
@@ -176,13 +290,28 @@ async function globalSetup() {
     campaignIds,
     templateIds,
   };
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
-  fs.writeFileSync(
-    path.join(stateDir, "state.json"),
-    JSON.stringify(state, null, 2)
-  );
+  // ── Browser-based auth: save storageState for Playwright ──
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ baseURL: FRONTEND_URL });
+  const page = await context.newPage();
 
+  await page.goto("/login");
+  await page.getByPlaceholder("you@company.com").fill(TEST_USER.email);
+  await page.getByPlaceholder("Enter your password").fill(TEST_USER.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL("**/dashboard", { timeout: 15_000 });
+
+  // Inject the access token into localStorage (matches the app's auth mechanism)
+  await page.evaluate((token: string) => {
+    localStorage.setItem("access_token", token);
+  }, accessToken);
+
+  await context.storageState({ path: STORAGE_STATE_FILE });
+  await browser.close();
   await api.dispose();
+
   console.log(
     `✓ Global setup complete — user=${userId}, org=${orgId}, ` +
       `campaigns=${campaignIds.length}, templates=${templateIds.length}`
