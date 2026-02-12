@@ -32,12 +32,21 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    is_kyc_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
     )
 
     api_keys: Mapped[list["UserAPIKey"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    kyc_verifications: Mapped[list["KYCVerification"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 

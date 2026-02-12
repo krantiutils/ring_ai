@@ -194,4 +194,5 @@ def user_profile(current_user: User = Depends(get_current_user)):
         address=current_user.address,
         profile_picture=current_user.profile_picture,
         is_verified=current_user.is_verified,
+        is_kyc_verified=current_user.is_kyc_verified,
     )

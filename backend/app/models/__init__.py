@@ -2,6 +2,7 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
+from app.models.kyc_verification import KYCVerification
 from app.models.organization import Organization
 from app.models.otp import OTPRecord
 from app.models.template import Template
@@ -15,6 +16,7 @@ __all__ = [
     "Campaign",
     "Contact",
     "Interaction",
+    "KYCVerification",
     "Organization",
     "OTPRecord",
     "Template",

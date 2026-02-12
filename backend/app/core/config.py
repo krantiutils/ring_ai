@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Scheduler
     SCHEDULER_POLL_INTERVAL_SECONDS: int = 30
 
+    # KYC file uploads
+    KYC_UPLOAD_DIR: str = "uploads/kyc"
+    KYC_MAX_FILE_SIZE_MB: int = 10
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
