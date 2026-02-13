@@ -9,6 +9,7 @@ from app.api.v1.router import api_v1_router
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.services.gateway_bridge.call_manager import CallManager
+from app.services.inbound_router import InboundCallRouter
 from app.services.interactive_agent.pool import SessionPool
 from app.services.interactive_agent.tools import ToolExecutor
 from app.services.scheduler import scheduler_loop
@@ -33,9 +34,12 @@ async def lifespan(app: FastAPI):
     # Initialize tool executor for function calling in agent sessions
     tool_executor = ToolExecutor(db_session_factory=SessionLocal)
 
+    inbound_router = InboundCallRouter(session_factory=SessionLocal)
+
     app.state.session_pool = session_pool
     app.state.call_manager = call_manager
     app.state.tool_executor = tool_executor
+    app.state.inbound_router = inbound_router
 
     logger.info(
         "Gateway bridge initialized (max_sessions=%d, model=%s, voice=%s, tools=enabled)",

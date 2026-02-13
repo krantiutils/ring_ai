@@ -11,6 +11,7 @@ from app.core.database import Base
 class Interaction(Base):
     __tablename__ = "interactions"
     __table_args__ = (
+        Index("ix_interactions_org_id", "org_id"),
         Index("ix_interactions_campaign_id", "campaign_id"),
         Index("ix_interactions_contact_id", "contact_id"),
         Index("ix_interactions_status", "status"),
@@ -19,8 +20,9 @@ class Interaction(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    campaign_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=False)
-    contact_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=False)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=True)
     type: Mapped[str] = mapped_column(
         Enum(
             "outbound_call",

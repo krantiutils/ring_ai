@@ -357,6 +357,7 @@ class TestGatewayBridge:
             call_id="call-1",
             gateway_id="gw-1",
             caller_number="+977123",
+            session_config=None,
         )
         # Should have sent SESSION_READY
         ws.send_text.assert_called()

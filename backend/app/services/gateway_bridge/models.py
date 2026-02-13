@@ -31,8 +31,25 @@ from pydantic import BaseModel, Field
 class GatewayMessageType(str, Enum):
     """Message types sent FROM the gateway TO the backend."""
 
+    INCOMING_CALL = "INCOMING_CALL"
     CALL_CONNECTED = "CALL_CONNECTED"
     CALL_ENDED = "CALL_ENDED"
+
+
+class IncomingCallMessage(BaseModel):
+    """Sent when a gateway phone receives an incoming call (not yet answered).
+
+    The backend evaluates routing rules and responds with ANSWER_CALL,
+    REJECT_CALL, or FORWARD_CALL.
+    """
+
+    type: GatewayMessageType = GatewayMessageType.INCOMING_CALL
+    call_id: str = Field(..., description="Unique call identifier from the gateway")
+    from_number: str = Field(..., description="Caller's phone number (E.164)")
+    to_number: str = Field(..., description="Called number — the gateway phone's number (E.164)")
+    carrier: str = Field(default="", description="Carrier name (e.g. NTC, Ncell)")
+    sim_slot: int = Field(default=0, description="SIM slot index on the gateway device (0 or 1)")
+    gateway_id: str = Field(..., description="Identifier of the Android gateway device")
 
 
 class CallConnectedMessage(BaseModel):
@@ -57,14 +74,48 @@ class CallEndedMessage(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class RoutingAction(str, Enum):
+    """Routing decision for an incoming call."""
+
+    ANSWER = "answer"
+    REJECT = "reject"
+    FORWARD = "forward"
+
+
 class BackendMessageType(str, Enum):
     """Message types sent FROM the backend TO the gateway."""
 
+    ANSWER_CALL = "ANSWER_CALL"
+    REJECT_CALL = "REJECT_CALL"
+    FORWARD_CALL = "FORWARD_CALL"
     SESSION_READY = "SESSION_READY"
     SESSION_ERROR = "SESSION_ERROR"
     TURN_COMPLETE = "TURN_COMPLETE"
     CALL_TRANSCRIPT = "CALL_TRANSCRIPT"
     TOOL_EXECUTION = "TOOL_EXECUTION"
+
+
+class AnswerCallMessage(BaseModel):
+    """Sent to instruct the gateway to answer an incoming call."""
+
+    type: BackendMessageType = BackendMessageType.ANSWER_CALL
+    call_id: str
+
+
+class RejectCallMessage(BaseModel):
+    """Sent to instruct the gateway to reject an incoming call."""
+
+    type: BackendMessageType = BackendMessageType.REJECT_CALL
+    call_id: str
+    reason: str = Field(default="rejected", description="Rejection reason for logging")
+
+
+class ForwardCallMessage(BaseModel):
+    """Sent to instruct the gateway to forward an incoming call."""
+
+    type: BackendMessageType = BackendMessageType.FORWARD_CALL
+    call_id: str
+    forward_to: str = Field(..., description="Phone number to forward the call to (E.164)")
 
 
 class SessionReadyMessage(BaseModel):

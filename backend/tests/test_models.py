@@ -52,6 +52,7 @@ def test_interaction_columns():
     cols = {c.name for c in Interaction.__table__.columns}
     assert cols == {
         "id",
+        "org_id",
         "campaign_id",
         "contact_id",
         "type",
