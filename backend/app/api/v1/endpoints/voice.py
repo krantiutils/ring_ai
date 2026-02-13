@@ -3,7 +3,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -56,6 +56,20 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
     CallStatus.CANCELED: "failed",
     CallStatus.FAILED: "failed",
 }
+
+
+async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
+    """Background task: analyze sentiment for a completed interaction."""
+    from app.core.database import SessionLocal
+    from app.services.sentiment import analyze_interaction_sentiment
+
+    db = SessionLocal()
+    try:
+        await analyze_interaction_sentiment(db, interaction_id)
+    except Exception:
+        logger.exception("Background sentiment analysis failed for %s", interaction_id)
+    finally:
+        db.close()
 
 
 @router.post("/campaign-call", response_model=CampaignCallResponse, status_code=201)
@@ -265,7 +279,11 @@ async def serve_audio(audio_id: str):
 
 
 @router.post("/webhook")
-async def handle_webhook(request: Request, db: Session = Depends(get_db)):
+async def handle_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Twilio status callback webhook handler.
 
     Updates the Interaction record with call status, duration, recording URL, etc.
@@ -369,6 +387,12 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
                             "Failed to refund credits for interaction %s",
                             context.interaction_id,
                         )
+
+                # Trigger sentiment analysis for completed calls with transcripts
+                if interaction_status == "completed" and interaction.transcript:
+                    background_tasks.add_task(
+                        _run_sentiment_analysis, interaction.id
+                    )
 
                 logger.info(
                     "Updated interaction %s: status=%s duration=%s",

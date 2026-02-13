@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     KYC_UPLOAD_DIR: str = "uploads/kyc"
     KYC_MAX_FILE_SIZE_MB: int = 10
 
+    # Sentiment analysis (OpenAI)
+    OPENAI_API_KEY: str = ""
+    SENTIMENT_ANALYSIS_ENABLED: bool = True
+    SENTIMENT_MODEL: str = "gpt-4o-mini"
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 

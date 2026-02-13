@@ -5,7 +5,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ---------------------------------------------------------------------------
 # Supporting models
 # ---------------------------------------------------------------------------
@@ -52,6 +51,9 @@ class OverviewAnalytics(BaseModel):
     avg_call_duration_seconds: float | None
     overall_delivery_rate: float | None  # completed / total interactions
 
+    # Sentiment
+    avg_sentiment_score: float | None
+
     # Credits
     credits_consumed: float
     credits_by_period: list[PeriodCredits]
@@ -79,6 +81,9 @@ class CampaignAnalytics(BaseModel):
     completion_rate: float | None
     avg_duration_seconds: float | None
     credit_consumption: float
+
+    # Sentiment
+    avg_sentiment_score: float | None
 
     # Distribution data for charts
     hourly_distribution: list[HourlyBucket]
@@ -179,3 +184,28 @@ class DashboardPlaybackWidget(BaseModel):
     avg_playback_percentage: float | None
     total_completed_calls: int
     distribution: list[PlaybackBucket]
+
+
+# ---------------------------------------------------------------------------
+# Sentiment analysis schemas
+# ---------------------------------------------------------------------------
+
+
+class SentimentBackfillResponse(BaseModel):
+    """Response from sentiment backfill operation."""
+
+    total: int
+    analyzed: int
+    skipped: int
+    failed: int
+
+
+class CampaignSentimentSummary(BaseModel):
+    """Sentiment summary for a campaign."""
+
+    campaign_id: uuid.UUID
+    avg_sentiment_score: float | None
+    positive_count: int  # score > 0.3
+    neutral_count: int  # -0.3 <= score <= 0.3
+    negative_count: int  # score < -0.3
+    analyzed_count: int  # total with sentiment_score set
