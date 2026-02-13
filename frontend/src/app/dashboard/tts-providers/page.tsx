@@ -19,6 +19,7 @@ import {
   Zap,
   Shield,
   AlertCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { VoiceInfo, ProviderInfo } from "@/types/dashboard";
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 type TabId = "voices" | "playback" | "calculator" | "config";
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "voices", label: "Voice Browser", icon: Mic },
   { id: "playback", label: "Sample Playback", icon: Play },
   { id: "calculator", label: "Cost Calculator", icon: Calculator },
