@@ -1,4 +1,5 @@
 from app.models.analytics_event import AnalyticsEvent
+from app.models.auto_response_rule import AutoResponseRule
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.credit import Credit
@@ -11,6 +12,8 @@ from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.otp import OTPRecord
 from app.models.phone_number import PhoneNumber
+from app.models.sms_conversation import SmsConversation
+from app.models.sms_message import SmsMessage
 from app.models.template import Template
 from app.models.tts_provider_config import TTSProviderConfig
 from app.models.user import User
@@ -19,6 +22,7 @@ from app.models.voice_model import VoiceModel
 
 __all__ = [
     "AnalyticsEvent",
+    "AutoResponseRule",
     "Campaign",
     "Contact",
     "Credit",
@@ -31,6 +35,8 @@ __all__ = [
     "Organization",
     "OTPRecord",
     "PhoneNumber",
+    "SmsConversation",
+    "SmsMessage",
     "Template",
     "TTSProviderConfig",
     "User",

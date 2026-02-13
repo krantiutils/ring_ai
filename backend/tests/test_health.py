@@ -11,8 +11,9 @@ def test_api_v1_voice(client):
 
 
 def test_api_v1_text(client):
-    response = client.get("/api/v1/text/")
-    assert response.status_code == 200
+    """Text router is mounted — conversations endpoint returns 422 without org_id."""
+    response = client.get("/api/v1/text/conversations")
+    assert response.status_code == 422
 
 
 def test_api_v1_forms(client):

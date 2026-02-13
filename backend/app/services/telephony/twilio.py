@@ -156,6 +156,7 @@ class TwilioProvider(BaseTelephonyProvider):
         to: str,
         from_number: str,
         body: str,
+        status_callback: str | None = None,
     ) -> SmsResult:
         """Send an SMS message via Twilio REST API.
 
@@ -163,6 +164,7 @@ class TwilioProvider(BaseTelephonyProvider):
             to: Destination phone number (E.164).
             from_number: Sender phone number (E.164).
             body: The message text.
+            status_callback: Optional URL for delivery status webhooks.
 
         Returns:
             SmsResult with the Twilio message SID and initial status.
@@ -171,15 +173,17 @@ class TwilioProvider(BaseTelephonyProvider):
             TelephonyProviderError: If the Twilio API call fails.
         """
         loop = asyncio.get_running_loop()
+        create_kwargs: dict = {
+            "to": to,
+            "from_": from_number,
+            "body": body,
+        }
+        if status_callback:
+            create_kwargs["status_callback"] = status_callback
         try:
             message = await loop.run_in_executor(
                 None,
-                partial(
-                    self._client.messages.create,
-                    to=to,
-                    from_=from_number,
-                    body=body,
-                ),
+                partial(self._client.messages.create, **create_kwargs),
             )
         except Exception as exc:
             raise TelephonyProviderError(
