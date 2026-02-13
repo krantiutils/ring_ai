@@ -2,12 +2,14 @@
 
 Handles create, extend (reconnect with session resumption), teardown,
 and timeout enforcement. Each AgentSession wraps a GeminiLiveClient
-and adds lifecycle tracking.
+and adds lifecycle tracking. Supports function calling via send_tool_response().
 """
 
 import asyncio
 import logging
 from datetime import UTC, datetime
+
+from google.genai.types import FunctionResponse
 
 from app.services.interactive_agent.client import GeminiLiveClient
 from app.services.interactive_agent.exceptions import (
@@ -200,6 +202,19 @@ class AgentSession:
         """
         self._ensure_active()
         await self._client.send_text(text)
+        self._touch()
+
+    async def send_tool_response(self, function_responses: list[FunctionResponse]) -> None:
+        """Send function call results back to Gemini after executing tools.
+
+        Args:
+            function_responses: List of FunctionResponse objects with execution results.
+
+        Raises:
+            SessionError: If session is not active.
+        """
+        self._ensure_active()
+        await self._client.send_tool_response(function_responses)
         self._touch()
 
     async def receive(self):

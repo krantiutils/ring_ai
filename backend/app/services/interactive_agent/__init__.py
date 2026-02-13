@@ -9,6 +9,9 @@ Public API:
     - OutputMode: NATIVE_AUDIO or HYBRID output mode.
     - AudioChunk: PCM audio data to send to Gemini.
     - AgentResponse: Audio/text response from Gemini.
+    - FunctionCallPart: A single function call from a tool_call response.
+    - ToolExecutor: Dispatches function calls to backend services.
+    - tools: Tool definitions (build_tools, TOOL_DECLARATIONS).
     - voices: Voice catalog (get_voice, list_voices, GEMINI_VOICES).
 """
 
@@ -25,6 +28,7 @@ from app.services.interactive_agent.hybrid import HybridSession
 from app.services.interactive_agent.models import (
     AgentResponse,
     AudioChunk,
+    FunctionCallPart,
     OutputMode,
     SessionConfig,
     SessionInfo,
@@ -32,6 +36,13 @@ from app.services.interactive_agent.models import (
 )
 from app.services.interactive_agent.pool import SessionPool
 from app.services.interactive_agent.session import AgentSession
+from app.services.interactive_agent.tools import (
+    DEFAULT_TOOLS,
+    TOOL_DECLARATIONS,
+    ToolExecutor,
+    ToolResult,
+    build_tools,
+)
 from app.services.interactive_agent.voices import (
     GEMINI_VOICES,
     NEPALI_CANDIDATE_VOICES,
@@ -45,6 +56,8 @@ __all__ = [
     "AgentResponse",
     "AgentSession",
     "AudioChunk",
+    "DEFAULT_TOOLS",
+    "FunctionCallPart",
     "GEMINI_VOICES",
     "GeminiClientError",
     "GeminiConfigurationError",
@@ -60,6 +73,10 @@ __all__ = [
     "SessionPoolExhaustedError",
     "SessionState",
     "SessionTimeoutError",
+    "TOOL_DECLARATIONS",
+    "ToolExecutor",
+    "ToolResult",
+    "build_tools",
     "get_best_nepali_voice",
     "get_voice",
     "list_voices",

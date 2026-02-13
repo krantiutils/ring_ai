@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
+from app.core.database import SessionLocal
 from app.services.gateway_bridge.call_manager import CallManager
 from app.services.interactive_agent.pool import SessionPool
+from app.services.interactive_agent.tools import ToolExecutor
 from app.services.scheduler import scheduler_loop
 
 logger = logging.getLogger(__name__)
@@ -28,11 +30,15 @@ async def lifespan(app: FastAPI):
     )
     call_manager = CallManager(pool=session_pool)
 
+    # Initialize tool executor for function calling in agent sessions
+    tool_executor = ToolExecutor(db_session_factory=SessionLocal)
+
     app.state.session_pool = session_pool
     app.state.call_manager = call_manager
+    app.state.tool_executor = tool_executor
 
     logger.info(
-        "Gateway bridge initialized (max_sessions=%d, model=%s, voice=%s)",
+        "Gateway bridge initialized (max_sessions=%d, model=%s, voice=%s, tools=enabled)",
         settings.GEMINI_MAX_CONCURRENT_SESSIONS,
         settings.GEMINI_MODEL_ID,
         settings.GEMINI_DEFAULT_VOICE,

@@ -2,6 +2,11 @@
 
 Wraps the google-genai SDK to provide a queue-based send/receive architecture
 for real-time audio streaming with the Gemini 2.5 Flash Native Audio model.
+
+Supports function calling: when tools are configured in SessionConfig,
+Gemini may return tool_call responses. The caller must execute the function
+and send back a tool_response via send_tool_response() before the model
+continues its turn.
 """
 
 import logging
@@ -11,6 +16,7 @@ from google import genai
 from google.genai.types import (
     AudioTranscriptionConfig,
     Content,
+    FunctionResponse,
     LiveConnectConfig,
     Part,
     PrebuiltVoiceConfig,
@@ -25,9 +31,11 @@ from app.services.interactive_agent.exceptions import (
 from app.services.interactive_agent.models import (
     AgentResponse,
     AudioChunk,
+    FunctionCallPart,
     OutputMode,
     SessionConfig,
 )
+from app.services.interactive_agent.tools import build_tools
 from app.services.interactive_agent.voices import get_voice
 
 logger = logging.getLogger(__name__)
@@ -74,6 +82,13 @@ def _build_live_config(config: SessionConfig) -> LiveConnectConfig:
 
     if config.enable_output_transcription:
         kwargs["output_audio_transcription"] = AudioTranscriptionConfig()
+
+    # Function calling tools
+    if config.tool_names:
+        try:
+            kwargs["tools"] = build_tools(config.tool_names)
+        except ValueError as exc:
+            raise GeminiConfigurationError(str(exc)) from exc
 
     return LiveConnectConfig(**kwargs)
 
@@ -223,12 +238,45 @@ class GeminiLiveClient:
         except Exception as exc:
             raise GeminiClientError(f"Failed to send text on session {self.session_id}: {exc}") from exc
 
+    async def send_tool_response(self, function_responses: list[FunctionResponse]) -> None:
+        """Send function call results back to the Gemini session.
+
+        After receiving a tool_call in an AgentResponse, execute the functions
+        and send back the results. Gemini will then continue its response turn.
+
+        Args:
+            function_responses: List of FunctionResponse objects with results.
+
+        Raises:
+            GeminiClientError: If not connected or send fails.
+        """
+        self._ensure_connected()
+        try:
+            await self._session.send_tool_response(
+                function_responses=function_responses,
+            )
+            logger.info(
+                "Session %s sent %d tool response(s)",
+                self.session_id,
+                len(function_responses),
+            )
+        except Exception as exc:
+            raise GeminiClientError(
+                f"Failed to send tool response on session {self.session_id}: {exc}"
+            ) from exc
+
     async def receive(self) -> AsyncIterator[AgentResponse]:
         """Async iterator that yields AgentResponse objects from the session.
 
-        Yields audio data, text transcripts, turn completion signals,
+        Yields audio data, text transcripts, tool calls, turn completion signals,
         and interruption events. Also captures session resumption handles
         for reconnection.
+
+        When a tool_call is yielded, the caller must:
+        1. Pause audio forwarding
+        2. Execute the function(s) in tool_calls
+        3. Call send_tool_response() with the results
+        4. Resume receiving — Gemini will continue its turn
 
         Yields:
             AgentResponse objects.
@@ -254,6 +302,27 @@ class GeminiLiveClient:
                         self.session_id,
                         time_left,
                     )
+
+                # Handle tool calls from Gemini
+                tool_call = getattr(message, "tool_call", None)
+                if tool_call is not None:
+                    function_calls = getattr(tool_call, "function_calls", None)
+                    if function_calls:
+                        parts = []
+                        for fc in function_calls:
+                            parts.append(FunctionCallPart(
+                                call_id=fc.id,
+                                name=fc.name,
+                                args=dict(fc.args) if fc.args else {},
+                            ))
+                        logger.info(
+                            "Session %s received %d tool call(s): %s",
+                            self.session_id,
+                            len(parts),
+                            [p.name for p in parts],
+                        )
+                        yield AgentResponse(tool_calls=parts)
+                        continue
 
                 # Extract content from server_content
                 server_content = getattr(message, "server_content", None)

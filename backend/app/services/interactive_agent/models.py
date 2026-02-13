@@ -3,6 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +63,10 @@ class SessionConfig(BaseModel):
     hybrid_tts_provider: str = "edge_tts"
     hybrid_tts_voice: str = "ne-NP-HemkalaNeural"
 
+    # Function calling — list of tool names to enable for this session.
+    # None = no tools. See interactive_agent.tools for available tool names.
+    tool_names: list[str] | None = None
+
 
 class AudioChunk(BaseModel):
     """A chunk of PCM audio data to send to Gemini."""
@@ -74,10 +79,20 @@ class AudioChunk(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
 
+class FunctionCallPart(BaseModel):
+    """A single function call from a Gemini tool_call response."""
+
+    call_id: str
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentResponse(BaseModel):
     """A response from the Gemini Live agent.
 
-    May contain audio data, text transcriptions, or both.
+    May contain audio data, text transcriptions, tool calls, or combinations.
+    When tool_calls is non-empty, the caller must execute the functions and
+    send the results back via send_tool_response() before Gemini continues.
     """
 
     audio_data: bytes | None = None
@@ -86,8 +101,14 @@ class AgentResponse(BaseModel):
     output_transcript: str | None = None
     is_turn_complete: bool = False
     is_interrupted: bool = False
+    tool_calls: list[FunctionCallPart] = Field(default_factory=list)
 
     model_config = {"arbitrary_types_allowed": True}
+
+    @property
+    def has_tool_calls(self) -> bool:
+        """Whether this response contains function calls that need execution."""
+        return len(self.tool_calls) > 0
 
 
 class SessionInfo(BaseModel):
