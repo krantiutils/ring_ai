@@ -13,6 +13,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/credit-usage": "Credit Usage History",
   "/dashboard/templates": "Message Templates",
   "/dashboard/tts-providers": "TTS Providers",
+  "/dashboard/insights": "Conversation Insights",
   "/dashboard/integrations": "Integrations",
   "/dashboard/settings": "Settings",
 };

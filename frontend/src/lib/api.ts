@@ -133,6 +133,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Insights
+  getCampaignInsights: (campaignId: string) =>
+    request<import("@/types/dashboard").InsightsResponse>("/analytics/insights", {
+      method: "POST",
+      body: JSON.stringify({ campaign_id: campaignId }),
+    }),
+
   // TTS
   getTTSProviders: () => request<{ providers: string[] }>("/tts/providers"),
   getTTSProviderDetails: () => request<import("@/types/dashboard").ProviderInfo[]>("/tts/providers/details"),

@@ -293,3 +293,58 @@ export interface ProviderInfo {
   requires_api_key: boolean;
   supported_formats: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Conversation Insights
+// ---------------------------------------------------------------------------
+
+export interface ConversationHighlight {
+  interaction_id: string;
+  contact_phone: string;
+  reason: string;
+  sentiment_score: number | null;
+  duration_seconds: number | null;
+  transcript_preview: string | null;
+}
+
+export interface TopicCluster {
+  topic: string;
+  count: number;
+  avg_sentiment: number | null;
+  sample_transcripts: string[];
+}
+
+export interface SentimentTrendPoint {
+  date: string;
+  avg_sentiment: number;
+  count: number;
+}
+
+export interface IntentTrendPoint {
+  date: string;
+  intents: Record<string, number>;
+}
+
+export interface InteractionExport {
+  interaction_id: string;
+  contact_phone: string;
+  contact_name: string | null;
+  status: string;
+  started_at: string | null;
+  duration_seconds: number | null;
+  sentiment_score: number | null;
+  detected_intent: string | null;
+  transcript: string | null;
+}
+
+export interface InsightsResponse {
+  campaign_id: string;
+  campaign_name: string;
+  summary: string;
+  common_themes: string[];
+  highlights: ConversationHighlight[];
+  topic_clusters: TopicCluster[];
+  sentiment_trend: SentimentTrendPoint[];
+  intent_trend: IntentTrendPoint[];
+  interactions: InteractionExport[];
+}

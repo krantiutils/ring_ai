@@ -1,4 +1,5 @@
-"""Analytics API — org overview, campaign analytics, event log, live progress, category/carrier widgets, and playback tracking."""
+"""Analytics API — org overview, campaign analytics, event log, live progress,
+category/carrier widgets, playback tracking, and conversation insights."""
 
 import asyncio
 import logging
@@ -31,6 +32,7 @@ from app.schemas.analytics import (
     PlaybackDistribution,
     SentimentBackfillResponse,
 )
+from app.schemas.insights import InsightsRequest, InsightsResponse
 from app.services.analytics import (
     get_campaign_analytics,
     get_campaign_intent_summary,
@@ -40,6 +42,7 @@ from app.services.analytics import (
     get_overview_analytics,
     query_events,
 )
+from app.services.insights import InsightsError, generate_campaign_insights
 from app.services.intent import IntentError, backfill_intents
 from app.services.sentiment import SentimentError, backfill_sentiment
 
@@ -510,3 +513,26 @@ async def intent_backfill(
     except IntentError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return IntentBackfillResponse(**summary)
+
+
+# ---------------------------------------------------------------------------
+# POST /analytics/insights
+# ---------------------------------------------------------------------------
+
+
+@router.post("/insights", response_model=InsightsResponse)
+async def campaign_insights(
+    data: InsightsRequest,
+    db: Session = Depends(get_db),
+):
+    """Deep conversation insights for a campaign.
+
+    Generates an LLM summary, flags notable interactions, clusters by topic,
+    computes sentiment/intent trends, and builds an export-ready interaction list.
+    """
+    try:
+        return await generate_campaign_insights(db, data.campaign_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except InsightsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
