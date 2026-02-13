@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { Search, FileDown, Phone, MessageSquare, Headphones, Clock, DollarSign, Target } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import StatWidget from "@/components/dashboard/StatWidget";
+import IntentDistributionChart from "@/components/dashboard/charts/IntentDistributionChart";
 import { api } from "@/lib/api";
 import { formatNumber, formatDuration } from "@/lib/utils";
-import type { OverviewAnalytics, CarrierStat } from "@/types/dashboard";
+import type { OverviewAnalytics, CarrierStat, IntentDistribution } from "@/types/dashboard";
 
 const STATUS_COLORS: Record<string, string> = {
   Answered: "#4ECDC4",
@@ -20,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<OverviewAnalytics | null>(null);
   const [carriers, setCarriers] = useState<CarrierStat[]>([]);
+  const [intents, setIntents] = useState<IntentDistribution | null>(null);
   const [searchCampaign, setSearchCampaign] = useState("");
   const [searchPhone, setSearchPhone] = useState("");
   const [loading, setLoading] = useState(true);
@@ -27,12 +29,14 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [overviewData, carrierData] = await Promise.allSettled([
+        const [overviewData, carrierData, intentData] = await Promise.allSettled([
           api.getOverview(),
           api.getCarrierBreakdown(),
+          api.getIntentDistribution(),
         ]);
         if (overviewData.status === "fulfilled") setOverview(overviewData.value);
         if (carrierData.status === "fulfilled") setCarriers(carrierData.value);
+        if (intentData.status === "fulfilled") setIntents(intentData.value);
       } catch {
         // fallback
       } finally {
@@ -107,6 +111,12 @@ export default function AnalyticsPage() {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Intent Distribution */}
+      <IntentDistributionChart
+        buckets={intents?.buckets || []}
+        totalClassified={intents?.total_classified || 0}
+      />
 
       {/* Carrier Summary */}
       <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
