@@ -2,7 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+import httpx
+import pytest  # noqa: I001
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -19,6 +20,7 @@ from app.tts.models import (
     TTSResult,
     VoiceInfo,
 )
+from app.tts.providers.camb_ai import MOOD_INSTRUCTIONS, CambAITTSProvider
 from app.tts.providers.edge import EdgeTTSProvider, _estimate_duration_from_mp3
 from app.tts.router import TTSRouter
 
@@ -434,6 +436,283 @@ class TestAzureTTSProvider:
 
 
 # ---------------------------------------------------------------------------
+# CambAITTSProvider unit tests (mocked)
+# ---------------------------------------------------------------------------
+
+
+class TestCambAITTSProvider:
+    def test_name(self):
+        provider = CambAITTSProvider()
+        assert provider.name == "camb_ai"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_missing_api_key(self):
+        provider = CambAITTSProvider()
+        config = TTSConfig(
+            provider=TTSProvider.CAMB_AI,
+            voice="147320",
+        )
+        with patch("app.core.config.settings", MagicMock(CAMB_AI_API_KEY="")):
+            with pytest.raises(TTSConfigurationError, match="API key"):
+                await provider.synthesize("नमस्ते", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_success_default_model(self):
+        """Synthesize with mars-pro (default) returning MP3 audio."""
+        fake_audio = b"\xff\xfb\x90\x00" + b"\x00" * 500
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = fake_audio
+
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="test-key",
+            )
+            result = await provider.synthesize("नमस्ते", config)
+
+            assert result.audio_bytes == fake_audio
+            assert result.provider_used == TTSProvider.CAMB_AI
+            assert result.chars_consumed == len("नमस्ते")
+            assert result.output_format == AudioFormat.MP3
+
+            # Verify the request was made with correct params.
+            call_kwargs = mock_client_instance.post.call_args
+            body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+            assert body["voice_id"] == 147320
+            assert body["language"] == "ne-NP"
+            assert body["speech_model"] == "mars-pro"
+            assert "user_instructions" not in body
+
+    @pytest.mark.asyncio
+    async def test_synthesize_with_mood_uses_mars_instruct(self):
+        """Mood instructions force mars-instruct model."""
+        fake_audio = b"\x00" * 200
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = fake_audio
+
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="test-key",
+                output_format=AudioFormat.WAV,
+                mood="calm",
+            )
+            result = await provider.synthesize("नमस्ते", config)
+
+            assert result.audio_bytes == fake_audio
+
+            call_kwargs = mock_client_instance.post.call_args
+            body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+            assert body["speech_model"] == "mars-instruct"
+            assert body["user_instructions"] == MOOD_INSTRUCTIONS["calm"]
+
+    @pytest.mark.asyncio
+    async def test_synthesize_mood_rejects_mp3(self):
+        """mars-instruct doesn't support MP3 — should raise config error."""
+        provider = CambAITTSProvider()
+        config = TTSConfig(
+            provider=TTSProvider.CAMB_AI,
+            voice="147320",
+            api_key="test-key",
+            output_format=AudioFormat.MP3,
+            mood="energetic",
+        )
+        with pytest.raises(TTSConfigurationError, match="does not support mp3"):
+            await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_mood_with_conflicting_model_raises(self):
+        """Mood set but speech_model explicitly set to non-instruct."""
+        provider = CambAITTSProvider()
+        config = TTSConfig(
+            provider=TTSProvider.CAMB_AI,
+            voice="147320",
+            api_key="test-key",
+            output_format=AudioFormat.WAV,
+            mood="calm",
+            speech_model="mars-pro",
+        )
+        with pytest.raises(TTSConfigurationError, match="mars-instruct"):
+            await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_custom_mood_string(self):
+        """Non-keyword mood string is passed through as raw instruction."""
+        fake_audio = b"\x00" * 100
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = fake_audio
+
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="test-key",
+                output_format=AudioFormat.WAV,
+                mood="Speak slowly with a warm maternal tone",
+            )
+            await provider.synthesize("test", config)
+
+            call_kwargs = mock_client_instance.post.call_args
+            body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+            assert body["user_instructions"] == "Speak slowly with a warm maternal tone"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_api_error_status(self):
+        """Non-200 response from CAMB.AI API."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="bad-key",
+            )
+            with pytest.raises(TTSProviderError, match="401"):
+                await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_empty_audio_raises(self):
+        """Empty response body should raise."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b""
+
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="test-key",
+            )
+            with pytest.raises(TTSProviderError, match="empty audio"):
+                await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_timeout(self):
+        """httpx timeout should be wrapped in TTSProviderError."""
+        with patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient:
+            mock_client_instance = AsyncMock()
+            mock_client_instance.post.side_effect = httpx.TimeoutException("timed out")
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.CAMB_AI,
+                voice="147320",
+                api_key="test-key",
+            )
+            with pytest.raises(TTSProviderError, match="timed out"):
+                await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_list_voices_success(self):
+        """List voices with locale filtering."""
+        fake_voices = {
+            "voices": [
+                {"id": 100, "name": "Nepali Female 1", "gender": "Female", "language": "ne-NP"},
+                {"id": 101, "name": "Nepali Male 1", "gender": "Male", "language": "ne-NP"},
+                {"id": 200, "name": "English Male 1", "gender": "Male", "language": "en-US"},
+            ]
+        }
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = fake_voices
+
+        with (
+            patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient,
+            patch("app.core.config.settings", MagicMock(CAMB_AI_API_KEY="test-key")),
+        ):
+            mock_client_instance = AsyncMock()
+            mock_client_instance.get.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            voices = await provider.list_voices(locale="ne-NP")
+
+            assert len(voices) == 2
+            assert voices[0].voice_id == "100"
+            assert voices[0].name == "Nepali Female 1"
+            assert voices[0].provider == TTSProvider.CAMB_AI
+
+    @pytest.mark.asyncio
+    async def test_list_voices_no_api_key(self):
+        """list_voices should raise if no API key is configured."""
+        provider = CambAITTSProvider()
+        with patch("app.core.config.settings", MagicMock(CAMB_AI_API_KEY="")):
+            with pytest.raises(TTSConfigurationError, match="CAMB_AI_API_KEY"):
+                await provider.list_voices()
+
+    @pytest.mark.asyncio
+    async def test_list_voices_api_failure(self):
+        """list_voices should raise on API error."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 500
+
+        with (
+            patch("app.tts.providers.camb_ai.httpx.AsyncClient") as MockClient,
+            patch("app.core.config.settings", MagicMock(CAMB_AI_API_KEY="test-key")),
+        ):
+            mock_client_instance = AsyncMock()
+            mock_client_instance.get.return_value = mock_response
+            mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client_instance
+
+            provider = CambAITTSProvider()
+            with pytest.raises(TTSProviderError, match="500"):
+                await provider.list_voices()
+
+
+# ---------------------------------------------------------------------------
 # Duration estimation utility
 # ---------------------------------------------------------------------------
 
@@ -464,6 +743,7 @@ class TestTTSEndpoints:
         assert "providers" in data
         assert "edge_tts" in data["providers"]
         assert "azure" in data["providers"]
+        assert "camb_ai" in data["providers"]
 
     def test_synthesize_validation_error(self, client):
         # Empty text should fail validation

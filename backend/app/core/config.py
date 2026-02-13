@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # TTS
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = ""
+    CAMB_AI_API_KEY: str = ""
 
     # Twilio
     TWILIO_ACCOUNT_SID: str = ""
