@@ -14,10 +14,13 @@ from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.schemas.analytics import (
     CampaignAnalytics,
+    CampaignIntentSummary,
     CampaignProgress,
     CampaignSentimentSummary,
     DailyBucket,
     HourlyBucket,
+    IntentBucket,
+    IntentDistribution,
     OverviewAnalytics,
     PeriodCredits,
 )

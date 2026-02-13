@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     SENTIMENT_ANALYSIS_ENABLED: bool = True
     SENTIMENT_MODEL: str = "gpt-4o-mini"
 
+    # Intent detection (Gemini)
+    INTENT_ANALYSIS_ENABLED: bool = True
+    INTENT_MODEL: str = "gemini-2.0-flash"
+
     # Gemini Interactive Agent
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL_ID: str = "gemini-2.5-flash-native-audio-preview-12-2025"

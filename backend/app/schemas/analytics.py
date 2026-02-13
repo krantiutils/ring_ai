@@ -209,3 +209,41 @@ class CampaignSentimentSummary(BaseModel):
     neutral_count: int  # -0.3 <= score <= 0.3
     negative_count: int  # score < -0.3
     analyzed_count: int  # total with sentiment_score set
+
+
+# ---------------------------------------------------------------------------
+# Intent detection schemas
+# ---------------------------------------------------------------------------
+
+
+class IntentBucket(BaseModel):
+    """Count of interactions classified with a specific intent."""
+
+    intent: str
+    count: int
+
+
+class IntentDistribution(BaseModel):
+    """Intent distribution across interactions — optionally scoped by campaign."""
+
+    campaign_id: uuid.UUID | None
+    buckets: list[IntentBucket]
+    total_classified: int
+
+
+class CampaignIntentSummary(BaseModel):
+    """Per-campaign intent breakdown with top intent."""
+
+    campaign_id: uuid.UUID
+    top_intent: str | None
+    buckets: list[IntentBucket]
+    total_classified: int
+
+
+class IntentBackfillResponse(BaseModel):
+    """Response from intent backfill operation."""
+
+    total: int
+    classified: int
+    skipped: int
+    failed: int
