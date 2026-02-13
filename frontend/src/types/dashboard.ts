@@ -263,3 +263,29 @@ export interface ROICalculatorResult {
   cost_per_conversion: number | null;
   campaigns_analyzed: number;
 }
+
+// TTS types
+
+export interface VoiceInfo {
+  voice_id: string;
+  name: string;
+  gender: string;
+  locale: string;
+  provider: string;
+}
+
+export interface ProviderPricing {
+  cost_per_million_chars: number;
+  free_tier_chars: number | null;
+  currency: string;
+  notes: string;
+}
+
+export interface ProviderInfo {
+  provider: string;
+  display_name: string;
+  description: string;
+  pricing: ProviderPricing;
+  requires_api_key: boolean;
+  supported_formats: string[];
+}
