@@ -1,0 +1,269 @@
+"""Gateway audio bridge — relays PCM audio between Android gateway and Gemini.
+
+Each active call runs two concurrent async tasks:
+1. gateway_to_gemini: reads binary PCM from the WebSocket, forwards to Gemini
+2. gemini_to_gateway: reads AgentResponses from Gemini, resamples audio
+   from 24 kHz to 16 kHz, sends binary PCM back to the gateway
+
+Barge-in is handled natively by Gemini's send_realtime_input — sending
+caller audio while Gemini is speaking triggers interruption. The bridge
+detects `is_interrupted` on the response and stops forwarding stale audio.
+
+Lifecycle:
+    1. Gateway sends CALL_CONNECTED → bridge creates Gemini session
+    2. Audio flows bidirectionally until CALL_ENDED
+    3. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
+"""
+
+import asyncio
+import json
+import logging
+
+from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
+
+from app.services.gateway_bridge.call_manager import CallManager
+from app.services.gateway_bridge.models import (
+    CallConnectedMessage,
+    CallEndedMessage,
+    GatewayMessageType,
+    SessionErrorMessage,
+    SessionReadyMessage,
+    TurnCompleteMessage,
+)
+from app.services.gateway_bridge.resampler import resample_24k_to_16k
+from app.services.interactive_agent.exceptions import InteractiveAgentError
+from app.services.interactive_agent.models import AudioChunk
+
+logger = logging.getLogger(__name__)
+
+
+class GatewayBridge:
+    """Manages the full audio bridge for one gateway WebSocket connection.
+
+    A single gateway device may handle multiple sequential calls over one
+    WebSocket connection (one call at a time per connection).
+
+    Usage::
+
+        bridge = GatewayBridge(websocket=ws, call_manager=mgr)
+        await bridge.run()  # blocks until WS disconnect
+    """
+
+    def __init__(self, websocket: WebSocket, call_manager: CallManager) -> None:
+        self._ws = websocket
+        self._call_manager = call_manager
+        self._active_call_id: str | None = None
+        self._gemini_relay_task: asyncio.Task | None = None
+        self._running = True
+
+    async def run(self) -> None:
+        """Main loop: read messages from gateway, dispatch by type.
+
+        Blocks until the WebSocket is closed or an unrecoverable error occurs.
+        """
+        try:
+            while self._running:
+                message = await self._ws.receive()
+
+                if message["type"] == "websocket.disconnect":
+                    break
+
+                if message["type"] == "websocket.receive":
+                    if "bytes" in message and message["bytes"]:
+                        await self._handle_audio(message["bytes"])
+                    elif "text" in message and message["text"]:
+                        await self._handle_control(message["text"])
+
+        except WebSocketDisconnect:
+            logger.info("Gateway WebSocket disconnected")
+        except Exception as exc:
+            logger.error("Gateway bridge error: %s", exc, exc_info=True)
+        finally:
+            await self._cleanup()
+
+    async def _handle_control(self, raw: str) -> None:
+        """Parse and dispatch a JSON control message from the gateway."""
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Invalid JSON from gateway: %s", raw[:200])
+            return
+
+        msg_type = data.get("type")
+        if msg_type == GatewayMessageType.CALL_CONNECTED:
+            await self._on_call_connected(CallConnectedMessage(**data))
+        elif msg_type == GatewayMessageType.CALL_ENDED:
+            await self._on_call_ended(CallEndedMessage(**data))
+        else:
+            logger.warning("Unknown gateway message type: %s", msg_type)
+
+    async def _handle_audio(self, pcm_data: bytes) -> None:
+        """Forward raw PCM audio from gateway to the active Gemini session."""
+        if self._active_call_id is None:
+            return  # No active call, discard audio
+
+        session = self._call_manager.get_session(self._active_call_id)
+        if session is None:
+            return
+
+        try:
+            await session.send_audio(AudioChunk(data=pcm_data))
+        except InteractiveAgentError as exc:
+            logger.error(
+                "Failed to send audio to Gemini for call %s: %s",
+                self._active_call_id,
+                exc,
+            )
+
+    async def _on_call_connected(self, msg: CallConnectedMessage) -> None:
+        """Handle a new inbound call from the gateway."""
+        logger.info(
+            "Call connected: call_id=%s, caller=%s, gateway=%s",
+            msg.call_id,
+            msg.caller_number,
+            msg.gateway_id,
+        )
+
+        # Tear down any stale session from a previous call
+        if self._active_call_id is not None:
+            logger.warning(
+                "New call %s while %s still active — tearing down old call",
+                msg.call_id,
+                self._active_call_id,
+            )
+            await self._teardown_call()
+
+        try:
+            record = await self._call_manager.create_session(
+                call_id=msg.call_id,
+                gateway_id=msg.gateway_id,
+                caller_number=msg.caller_number,
+            )
+        except Exception as exc:
+            logger.error("Failed to create Gemini session for call %s: %s", msg.call_id, exc)
+            await self._send_json(
+                SessionErrorMessage(call_id=msg.call_id, error=str(exc))
+            )
+            return
+
+        self._active_call_id = msg.call_id
+
+        # Notify gateway that the audio bridge is ready
+        await self._send_json(
+            SessionReadyMessage(
+                call_id=msg.call_id,
+                session_id=record.session.session_id,
+            )
+        )
+
+        # Start the Gemini → gateway audio relay task
+        self._gemini_relay_task = asyncio.create_task(
+            self._relay_gemini_to_gateway(msg.call_id, record.session)
+        )
+
+    async def _on_call_ended(self, msg: CallEndedMessage) -> None:
+        """Handle call termination from the gateway."""
+        logger.info("Call ended: call_id=%s, reason=%s", msg.call_id, msg.reason)
+
+        if self._active_call_id == msg.call_id:
+            await self._teardown_call()
+        else:
+            # Might be a late/duplicate CALL_ENDED for a call we already cleaned up
+            await self._call_manager.end_session(msg.call_id)
+
+    async def _relay_gemini_to_gateway(self, call_id: str, session) -> None:
+        """Read responses from Gemini and forward audio to the gateway.
+
+        Runs as a background task for the duration of the call.
+        Handles:
+        - Audio resampling (24kHz → 16kHz)
+        - Turn completion notifications
+        - Barge-in / interruption detection
+        - Transcript forwarding
+        """
+        accumulated_input_transcript = ""
+        accumulated_output_transcript = ""
+
+        try:
+            async for response in session.receive():
+                # Forward resampled audio to the gateway
+                if response.audio_data:
+                    try:
+                        resampled = resample_24k_to_16k(response.audio_data)
+                        await self._ws.send_bytes(resampled)
+                    except Exception as exc:
+                        logger.error("Failed to send audio to gateway for call %s: %s", call_id, exc)
+                        break
+
+                # Accumulate transcripts
+                if response.input_transcript:
+                    accumulated_input_transcript += response.input_transcript
+
+                if response.output_transcript:
+                    accumulated_output_transcript += response.output_transcript
+
+                # Turn complete — Gemini finished speaking
+                if response.is_turn_complete:
+                    await self._send_json(
+                        TurnCompleteMessage(
+                            call_id=call_id,
+                            output_transcript=accumulated_output_transcript or None,
+                            input_transcript=accumulated_input_transcript or None,
+                            was_interrupted=False,
+                        )
+                    )
+                    accumulated_input_transcript = ""
+                    accumulated_output_transcript = ""
+
+                # Barge-in — caller interrupted Gemini
+                if response.is_interrupted:
+                    logger.info("Call %s: barge-in detected", call_id)
+                    await self._send_json(
+                        TurnCompleteMessage(
+                            call_id=call_id,
+                            output_transcript=accumulated_output_transcript or None,
+                            input_transcript=accumulated_input_transcript or None,
+                            was_interrupted=True,
+                        )
+                    )
+                    accumulated_input_transcript = ""
+                    accumulated_output_transcript = ""
+
+        except asyncio.CancelledError:
+            logger.info("Gemini relay task cancelled for call %s", call_id)
+        except Exception as exc:
+            logger.error("Gemini relay error for call %s: %s", call_id, exc, exc_info=True)
+
+    async def _teardown_call(self) -> None:
+        """Tear down the active call: cancel relay task, release session."""
+        call_id = self._active_call_id
+        if call_id is None:
+            return
+
+        self._active_call_id = None
+
+        # Cancel the Gemini → gateway relay task
+        if self._gemini_relay_task is not None and not self._gemini_relay_task.done():
+            self._gemini_relay_task.cancel()
+            try:
+                await self._gemini_relay_task
+            except asyncio.CancelledError:
+                pass
+            self._gemini_relay_task = None
+
+        # Release the Gemini session back to the pool
+        await self._call_manager.end_session(call_id)
+
+    async def _cleanup(self) -> None:
+        """Final cleanup when the WebSocket connection closes."""
+        await self._teardown_call()
+        logger.info("Gateway bridge cleaned up")
+
+    async def _send_json(self, message) -> None:
+        """Send a Pydantic model as a JSON text frame to the gateway."""
+        try:
+            if self._ws.client_state == WebSocketState.CONNECTED:
+                await self._ws.send_text(message.model_dump_json())
+        except Exception as exc:
+            logger.warning("Failed to send message to gateway: %s", exc)
