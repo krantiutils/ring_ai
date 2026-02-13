@@ -424,6 +424,86 @@ def get_campaign_progress(db: Session, campaign_id: uuid.UUID) -> CampaignProgre
 # ---------------------------------------------------------------------------
 
 
+def get_intent_distribution(
+    db: Session,
+    campaign_id: uuid.UUID | None = None,
+) -> IntentDistribution:
+    """Compute intent distribution across interactions, optionally scoped to a campaign.
+
+    Because intent is stored in JSONB ``metadata_`` (not a dedicated column),
+    we fetch metadata and bucket in Python — consistent with how this codebase
+    avoids dialect-specific SQL.
+    """
+    filters = [
+        Interaction.status == "completed",
+        Interaction.metadata_.isnot(None),
+    ]
+    if campaign_id is not None:
+        filters.append(Interaction.campaign_id == campaign_id)
+
+    metadata_rows = db.execute(
+        select(Interaction.metadata_).where(*filters)
+    ).scalars().all()
+
+    intent_counts: dict[str, int] = defaultdict(int)
+    for meta in metadata_rows:
+        if meta and "detected_intent" in meta:
+            intent_counts[meta["detected_intent"]] += 1
+
+    total_classified = sum(intent_counts.values())
+    buckets = [
+        IntentBucket(intent=intent, count=count)
+        for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
+    ]
+
+    return IntentDistribution(
+        campaign_id=campaign_id,
+        buckets=buckets,
+        total_classified=total_classified,
+    )
+
+
+def get_campaign_intent_summary(db: Session, campaign_id: uuid.UUID) -> CampaignIntentSummary:
+    """Compute intent distribution for a single campaign."""
+
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    metadata_rows = db.execute(
+        select(Interaction.metadata_).where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.status == "completed",
+            Interaction.metadata_.isnot(None),
+        )
+    ).scalars().all()
+
+    intent_counts: dict[str, int] = defaultdict(int)
+    for meta in metadata_rows:
+        if meta and "detected_intent" in meta:
+            intent_counts[meta["detected_intent"]] += 1
+
+    total_classified = sum(intent_counts.values())
+    buckets = [
+        IntentBucket(intent=intent, count=count)
+        for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
+    ]
+
+    top_intent = buckets[0].intent if buckets else None
+
+    return CampaignIntentSummary(
+        campaign_id=campaign_id,
+        top_intent=top_intent,
+        buckets=buckets,
+        total_classified=total_classified,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /analytics/campaigns/{id}/sentiment
+# ---------------------------------------------------------------------------
+
+
 def get_campaign_sentiment_summary(db: Session, campaign_id: uuid.UUID) -> CampaignSentimentSummary:
     """Compute sentiment summary for a campaign."""
 

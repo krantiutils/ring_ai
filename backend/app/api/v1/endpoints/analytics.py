@@ -17,12 +17,15 @@ from app.models.interaction import Interaction
 from app.schemas.analytics import (
     AnalyticsEventResponse,
     CampaignAnalytics,
+    CampaignIntentSummary,
     CampaignPlaybackDetail,
     CampaignProgress,
     CampaignSentimentSummary,
     ContactPlayback,
     DashboardPlaybackWidget,
     EventListResponse,
+    IntentBackfillResponse,
+    IntentDistribution,
     OverviewAnalytics,
     PlaybackBucket,
     PlaybackDistribution,
@@ -30,11 +33,14 @@ from app.schemas.analytics import (
 )
 from app.services.analytics import (
     get_campaign_analytics,
+    get_campaign_intent_summary,
     get_campaign_progress,
     get_campaign_sentiment_summary,
+    get_intent_distribution,
     get_overview_analytics,
     query_events,
 )
+from app.services.intent import IntentError, backfill_intents
 from app.services.sentiment import SentimentError, backfill_sentiment
 
 logger = logging.getLogger(__name__)
@@ -455,3 +461,52 @@ async def sentiment_backfill(
     except SentimentError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return SentimentBackfillResponse(**summary)
+
+
+# ---------------------------------------------------------------------------
+# Intent detection endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/intents", response_model=IntentDistribution)
+def get_intents(
+    campaign_id: uuid.UUID | None = Query(None, description="Optional campaign ID to scope results"),
+    db: Session = Depends(get_db),
+):
+    """Intent distribution across interactions, optionally scoped to a campaign."""
+    return get_intent_distribution(db, campaign_id)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/intents",
+    response_model=CampaignIntentSummary,
+)
+def get_campaign_intents(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Intent breakdown for a campaign: top intent and per-intent counts."""
+    try:
+        return get_campaign_intent_summary(db, campaign_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+
+@router.post(
+    "/intents/backfill",
+    response_model=IntentBackfillResponse,
+)
+async def intent_backfill(
+    campaign_id: uuid.UUID | None = Query(None, description="Limit backfill to a specific campaign"),
+    force: bool = Query(False, description="Re-classify even if detected_intent already set"),
+    db: Session = Depends(get_db),
+):
+    """Backfill intent classifications for completed interactions with transcripts.
+
+    Calls Gemini to classify each transcript and stores the result in Interaction metadata.
+    """
+    try:
+        summary = await backfill_intents(db, campaign_id=campaign_id, force=force)
+    except IntentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return IntentBackfillResponse(**summary)
