@@ -48,6 +48,20 @@ class Settings(BaseSettings):
     KYC_UPLOAD_DIR: str = "uploads/kyc"
     KYC_MAX_FILE_SIZE_MB: int = 10
 
+    # Gemini Interactive Agent
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_ID: str = "gemini-2.5-flash-native-audio-preview-12-2025"
+    GEMINI_SESSION_TIMEOUT_MINUTES: int = 10
+    GEMINI_MAX_CONCURRENT_SESSIONS: int = 1000
+    GEMINI_DEFAULT_VOICE: str = "Kore"
+    GEMINI_SYSTEM_INSTRUCTION: str = (
+        "तपाईं Ring AI को सहायक हुनुहुन्छ। "
+        "तपाईंले नेपालीमा बोल्नुपर्छ जबसम्म ग्राहकले अर्को भाषामा बोल्दैन। "
+        "तपाईं विनम्र, स्पष्ट र सहयोगी हुनुपर्छ। "
+        "You are a Ring AI assistant. Speak in Nepali by default unless the caller uses another language. "
+        "Be polite, clear, and helpful."
+    )
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
