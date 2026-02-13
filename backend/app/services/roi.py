@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.ab_test import ABTest
 from app.models.campaign import Campaign
 from app.models.interaction import Interaction
+from app.models.voice_model import VoiceModel
 from app.schemas.roi import (
     ABTestCreate,
     ABTestResponse,
@@ -25,24 +26,44 @@ from app.services.campaigns import CAMPAIGN_TYPE_TO_INTERACTION_TYPE, COST_PER_I
 
 logger = logging.getLogger(__name__)
 
+GEMINI_PROVIDER_NAMES = {"gemini", "google", "gemini-live"}
+
+
+def _campaign_uses_gemini(db: Session, campaign: Campaign) -> bool:
+    """Check if a campaign's voice model uses the Gemini provider."""
+    if campaign.voice_model_id is None:
+        return False
+    voice_model = db.get(VoiceModel, campaign.voice_model_id)
+    if voice_model is None:
+        return False
+    return voice_model.provider.lower() in GEMINI_PROVIDER_NAMES
+
+
 # ---------------------------------------------------------------------------
 # Cost constants — granular breakdown
 # ---------------------------------------------------------------------------
 
 # Per-interaction cost breakdown (NPR).
 # The existing COST_PER_INTERACTION (2.0 for outbound_call) is a blended rate.
-# Here we split it into TTS + telephony for more granular reporting.
+# Here we split it into TTS + telephony + Gemini for more granular reporting.
 TTS_COST_PER_CALL = 0.5  # TTS synthesis cost per voice call
 TELEPHONY_COST_PER_CALL = 1.5  # Twilio/SIP cost per voice call
+GEMINI_COST_PER_CALL = 0.8  # Gemini interactive agent cost per call
 SMS_COST = 0.5  # Per SMS
 FORM_TELEPHONY_COST = 1.0  # Form calls (telephony only, TTS included)
 
 
-def _cost_breakdown_for_campaign(campaign_type: str, completed: int) -> CostBreakdown:
+def _cost_breakdown_for_campaign(
+    campaign_type: str, completed: int, uses_gemini: bool = False,
+) -> CostBreakdown:
     """Calculate itemised cost breakdown based on campaign type and completed count."""
+    gemini_cost = 0.0
+
     if campaign_type == "voice":
         tts_cost = completed * TTS_COST_PER_CALL
         telephony_cost = completed * TELEPHONY_COST_PER_CALL
+        if uses_gemini:
+            gemini_cost = completed * GEMINI_COST_PER_CALL
     elif campaign_type == "text":
         tts_cost = 0.0
         telephony_cost = completed * SMS_COST
@@ -53,10 +74,12 @@ def _cost_breakdown_for_campaign(campaign_type: str, completed: int) -> CostBrea
         tts_cost = 0.0
         telephony_cost = 0.0
 
+    total = tts_cost + telephony_cost + gemini_cost
     return CostBreakdown(
         tts_cost=round(tts_cost, 2),
         telephony_cost=round(telephony_cost, 2),
-        total_cost=round(tts_cost + telephony_cost, 2),
+        gemini_cost=round(gemini_cost, 2),
+        total_cost=round(total, 2),
     )
 
 
@@ -126,7 +149,8 @@ def get_campaign_roi(db: Session, campaign_id: uuid.UUID) -> CampaignROI:
         raise ValueError(f"Campaign {campaign_id} not found")
 
     metrics = _query_campaign_metrics(db, campaign_id)
-    cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"])
+    uses_gemini = _campaign_uses_gemini(db, campaign)
+    cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"], uses_gemini)
 
     total = metrics["total"]
     completed = metrics["completed"]
@@ -172,7 +196,8 @@ def get_campaign_comparison(
             continue
 
         metrics = _query_campaign_metrics(db, cid)
-        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"])
+        uses_gemini = _campaign_uses_gemini(db, campaign)
+        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"], uses_gemini)
 
         total = metrics["total"]
         completed = metrics["completed"]
@@ -202,6 +227,27 @@ def get_campaign_comparison(
 # ---------------------------------------------------------------------------
 # A/B testing
 # ---------------------------------------------------------------------------
+
+
+def list_ab_tests(db: Session, org_id: uuid.UUID) -> list[ABTestResponse]:
+    """List all A/B tests for an organization."""
+    tests = db.execute(
+        select(ABTest)
+        .where(ABTest.org_id == org_id)
+        .order_by(ABTest.created_at.desc())
+    ).scalars().all()
+
+    return [
+        ABTestResponse(
+            id=t.id,
+            name=t.name,
+            description=t.description,
+            status=t.status,
+            variants=t.variants or [],
+            created_at=t.created_at.isoformat(),
+        )
+        for t in tests
+    ]
 
 
 def create_ab_test(db: Session, org_id: uuid.UUID, data: ABTestCreate) -> ABTestResponse:
@@ -408,7 +454,8 @@ def get_ab_test_results(db: Session, ab_test_id: uuid.UUID) -> ABTestResult:
             continue
 
         metrics = _query_campaign_metrics(db, campaign_id)
-        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"])
+        uses_gemini = _campaign_uses_gemini(db, campaign)
+        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"], uses_gemini)
 
         total = metrics["total"]
         completed = metrics["completed"]
@@ -416,11 +463,23 @@ def get_ab_test_results(db: Session, ab_test_id: uuid.UUID) -> ABTestResult:
         conversion_rate = completed / total if total > 0 else None
         cost_per_conversion = cost.total_cost / completed if completed > 0 else None
 
+        # Resolve TTS provider/voice for the variant
+        tts_provider = None
+        tts_voice = None
+        if campaign.voice_model_id:
+            vm = db.get(VoiceModel, campaign.voice_model_id)
+            if vm:
+                tts_provider = vm.provider
+                tts_voice = vm.voice_display_name
+
         variant_results.append(
             ABTestVariantResult(
                 variant_name=variant["name"],
                 campaign_id=campaign_id,
                 campaign_name=campaign.name,
+                campaign_type=campaign.type,
+                tts_provider=tts_provider,
+                tts_voice=tts_voice,
                 total_interactions=total,
                 completed=completed,
                 failed=failed,
@@ -482,7 +541,8 @@ def calculate_roi(
             continue
 
         metrics = _query_campaign_metrics(db, cid)
-        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"])
+        uses_gemini = _campaign_uses_gemini(db, campaign)
+        cost = _cost_breakdown_for_campaign(campaign.type, metrics["completed"], uses_gemini)
 
         total_automated_cost += cost.total_cost
         total_interactions += metrics["total"]

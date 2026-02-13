@@ -118,6 +118,8 @@ export const api = {
     request<import("@/types/dashboard").CampaignComparison>(
       `/roi/compare?${ids.map((id) => `campaign_ids=${id}`).join("&")}`,
     ),
+  listABTests: (orgId: string) =>
+    request<import("@/types/dashboard").ABTestResponse[]>(`/roi/ab-tests?org_id=${orgId}`),
   getABTestResults: (id: string) =>
     request<import("@/types/dashboard").ABTestResult>(`/roi/ab-tests/${id}/results`),
   createABTest: (data: { name: string; description?: string; campaign_ids: string[]; variant_names?: string[] }, orgId: string) =>
