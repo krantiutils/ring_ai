@@ -268,6 +268,57 @@ export interface ROICalculatorResult {
   campaigns_analyzed: number;
 }
 
+// ---------------------------------------------------------------------------
+// Knowledge Base
+// ---------------------------------------------------------------------------
+
+export interface KnowledgeBase {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  document_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeBaseListResponse {
+  items: KnowledgeBase[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  kb_id: string;
+  file_name: string;
+  file_type: string;
+  status: "pending" | "processing" | "ready" | "error";
+  chunk_count: number;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeDocumentListResponse {
+  items: KnowledgeDocument[];
+  total: number;
+}
+
+export interface KnowledgeSearchResult {
+  chunk_id: string;
+  document_id: string;
+  file_name: string;
+  content: string;
+  score: number;
+}
+
+export interface KnowledgeSearchResponse {
+  results: KnowledgeSearchResult[];
+  query: string;
+}
+
 // TTS types
 
 export interface VoiceInfo {

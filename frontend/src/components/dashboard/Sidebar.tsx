@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Mic,
+  BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/dashboard/credit-purchase", label: "Credit Purchase History", icon: CreditCard },
   { href: "/dashboard/credit-usage", label: "Credit Usage History", icon: Receipt },
   { href: "/dashboard/templates", label: "Message Templates", icon: MessageSquare },
+  { href: "/dashboard/knowledge-bases", label: "Knowledge Base", icon: BookOpen },
   { href: "/dashboard/tts-providers", label: "TTS Providers", icon: Mic },
   { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

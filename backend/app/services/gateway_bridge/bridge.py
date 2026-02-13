@@ -26,14 +26,20 @@ Lifecycle:
     3. Audio flows bidirectionally until CALL_ENDED
     3a. Tool calls are handled inline during the audio relay
     4. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
+
+Supports optional RAG knowledge base context injection: when the gateway
+CALL_CONNECTED message includes org_id and knowledge_base_id, relevant
+context is retrieved and injected into the Gemini system instruction.
 """
 
 import asyncio
 import json
 import logging
+import uuid
 
 from fastapi import WebSocket, WebSocketDisconnect
 from google.genai.types import FunctionResponse
+from sqlalchemy.orm import Session as DBSession
 from starlette.websockets import WebSocketState
 
 from app.services.gateway_bridge.call_manager import CallManager
@@ -82,11 +88,13 @@ class GatewayBridge:
         call_manager: CallManager,
         tool_executor: ToolExecutor | None = None,
         inbound_router: InboundCallRouter | None = None,
+        db_factory: type[DBSession] | None = None,
     ) -> None:
         self._ws = websocket
         self._call_manager = call_manager
         self._tool_executor = tool_executor
         self._inbound_router = inbound_router
+        self._db_factory = db_factory
         self._active_call_id: str | None = None
         self._gemini_relay_task: asyncio.Task | None = None
         self._running = True
@@ -242,12 +250,27 @@ class GatewayBridge:
             if overrides:
                 session_config = SessionConfig(**overrides)
 
+        # Build optional RAG context parameters
+        kb_kwargs: dict = {}
+        db = None
+        if msg.knowledge_base_id and self._db_factory is not None:
+            try:
+                db = self._db_factory()
+                kb_kwargs["db"] = db
+                kb_kwargs["knowledge_base_id"] = uuid.UUID(msg.knowledge_base_id)
+            except (ValueError, TypeError):
+                logger.warning("Invalid knowledge_base_id in CALL_CONNECTED: %s", msg.knowledge_base_id)
+                if db is not None:
+                    db.close()
+                    db = None
+
         try:
             record = await self._call_manager.create_session(
                 call_id=msg.call_id,
                 gateway_id=msg.gateway_id,
                 caller_number=msg.caller_number,
                 session_config=session_config,
+                **kb_kwargs,
             )
         except Exception as exc:
             logger.error("Failed to create Gemini session for call %s: %s", msg.call_id, exc)
@@ -255,6 +278,9 @@ class GatewayBridge:
                 SessionErrorMessage(call_id=msg.call_id, error=str(exc))
             )
             return
+        finally:
+            if db is not None:
+                db.close()
 
         self._active_call_id = msg.call_id
 

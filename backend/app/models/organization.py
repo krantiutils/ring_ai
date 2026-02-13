@@ -30,6 +30,7 @@ class Organization(Base):
     phone_numbers: Mapped[list["PhoneNumber"]] = relationship(back_populates="organization")
     gateway_phones: Mapped[list["GatewayPhone"]] = relationship(back_populates="organization")
     credit: Mapped["Credit | None"] = relationship(back_populates="organization", uselist=False)
+    knowledge_bases: Mapped[list["KnowledgeBase"]] = relationship(back_populates="organization")
 
     def __repr__(self) -> str:
         return f"<Organization {self.name}>"

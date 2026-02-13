@@ -15,6 +15,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket
 
+from app.core.database import SessionLocal
 from app.services.gateway_bridge.bridge import GatewayBridge
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ async def gateway_websocket(websocket: WebSocket) -> None:
         call_manager=call_manager,
         tool_executor=tool_executor,
         inbound_router=inbound_router,
+        db_factory=SessionLocal,
     )
     await bridge.run()
 
