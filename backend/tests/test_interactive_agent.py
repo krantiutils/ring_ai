@@ -1,6 +1,9 @@
 """Tests for the interactive agent service — Gemini 2.5 Flash Native Audio integration."""
 
-from unittest.mock import AsyncMock, patch
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,6 +14,7 @@ from app.services.interactive_agent.exceptions import (
     SessionPoolExhaustedError,
     SessionTimeoutError,
 )
+from app.services.interactive_agent.hybrid import HybridSession
 from app.services.interactive_agent.models import (
     CHANNELS,
     INPUT_MIME_TYPE,
@@ -20,6 +24,7 @@ from app.services.interactive_agent.models import (
     AgentResponse,
     AudioChunk,
     AudioEncoding,
+    OutputMode,
     SessionConfig,
     SessionInfo,
     SessionState,
@@ -27,8 +32,10 @@ from app.services.interactive_agent.models import (
 from app.services.interactive_agent.voices import (
     GEMINI_VOICES,
     NEPALI_CANDIDATE_VOICES,
+    get_best_nepali_voice,
     get_voice,
     list_voices,
+    load_quality_results,
 )
 
 # ---------------------------------------------------------------------------
@@ -589,3 +596,401 @@ class TestSessionPool:
             # (but will also fail since mock still throws)
             assert pool.active_count == 0
             assert pool.available_slots == 1
+
+
+# ---------------------------------------------------------------------------
+# OutputMode unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestOutputMode:
+    def test_output_mode_values(self):
+        assert OutputMode.NATIVE_AUDIO == "native_audio"
+        assert OutputMode.HYBRID == "hybrid"
+
+    def test_session_config_default_output_mode(self):
+        config = SessionConfig()
+        assert config.output_mode == OutputMode.NATIVE_AUDIO
+
+    def test_session_config_hybrid_mode(self):
+        config = SessionConfig(output_mode=OutputMode.HYBRID)
+        assert config.output_mode == OutputMode.HYBRID
+        assert config.hybrid_tts_provider == "edge_tts"
+        assert config.hybrid_tts_voice == "ne-NP-HemkalaNeural"
+
+    def test_session_config_hybrid_custom_tts(self):
+        config = SessionConfig(
+            output_mode=OutputMode.HYBRID,
+            hybrid_tts_provider="azure",
+            hybrid_tts_voice="ne-NP-SagarNeural",
+        )
+        assert config.hybrid_tts_provider == "azure"
+        assert config.hybrid_tts_voice == "ne-NP-SagarNeural"
+
+
+# ---------------------------------------------------------------------------
+# Client hybrid mode unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestClientHybridMode:
+    def test_build_live_config_native_audio(self):
+        from app.services.interactive_agent.client import _build_live_config
+
+        config = SessionConfig(voice_name="Kore", output_mode=OutputMode.NATIVE_AUDIO)
+        live_config = _build_live_config(config)
+        assert live_config.response_modalities == ["AUDIO"]
+        assert live_config.speech_config is not None
+
+    def test_build_live_config_hybrid_text(self):
+        from app.services.interactive_agent.client import _build_live_config
+
+        config = SessionConfig(output_mode=OutputMode.HYBRID)
+        live_config = _build_live_config(config)
+        assert live_config.response_modalities == ["TEXT"]
+        # Hybrid mode should not set speech_config (no native audio)
+        assert live_config.speech_config is None
+
+    def test_build_live_config_hybrid_with_system_instruction(self):
+        from app.services.interactive_agent.client import _build_live_config
+
+        config = SessionConfig(
+            output_mode=OutputMode.HYBRID,
+            system_instruction="Speak Nepali",
+        )
+        live_config = _build_live_config(config)
+        assert live_config.response_modalities == ["TEXT"]
+        assert live_config.system_instruction is not None
+
+
+# ---------------------------------------------------------------------------
+# HybridSession unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestHybridSession:
+    def test_requires_hybrid_mode(self):
+        tts_router = MagicMock()
+        config = SessionConfig(output_mode=OutputMode.NATIVE_AUDIO)
+        with pytest.raises(ValueError, match="HYBRID"):
+            HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+
+    @pytest.mark.asyncio
+    async def test_start_delegates_to_inner(self):
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.resumption_handle = None
+            MockClient.return_value = mock_instance
+
+            tts_router = MagicMock()
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+
+            assert hybrid.state == SessionState.ACTIVE
+            mock_instance.connect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_teardown_delegates_to_inner(self):
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.close = AsyncMock()
+            mock_instance.resumption_handle = None
+            MockClient.return_value = mock_instance
+
+            tts_router = MagicMock()
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+            await hybrid.teardown()
+
+            assert hybrid.state == SessionState.CLOSED
+
+    @pytest.mark.asyncio
+    async def test_send_audio_delegates_to_inner(self):
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.send_audio = AsyncMock()
+            mock_instance.resumption_handle = None
+            MockClient.return_value = mock_instance
+
+            tts_router = MagicMock()
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+
+            chunk = AudioChunk(data=b"\x00" * 512)
+            await hybrid.send_audio(chunk)
+            mock_instance.send_audio.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_receive_synthesizes_text_to_audio(self):
+        """When Gemini returns text, HybridSession should TTS-synthesize it."""
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.resumption_handle = None
+
+            # Mock receive to yield a text response
+            async def _fake_receive():
+                yield AgentResponse(text="नमस्ते", is_turn_complete=True)
+
+            mock_instance.receive = _fake_receive
+            MockClient.return_value = mock_instance
+
+            # Mock TTS router
+            from app.tts.models import AudioFormat, TTSProvider, TTSResult
+
+            tts_router = AsyncMock()
+            tts_router.synthesize = AsyncMock(
+                return_value=TTSResult(
+                    audio_bytes=b"\xff\xfb\x90" * 100,
+                    duration_ms=500,
+                    provider_used=TTSProvider.EDGE_TTS,
+                    chars_consumed=6,
+                    output_format=AudioFormat.MP3,
+                )
+            )
+
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+
+            responses = []
+            async for resp in hybrid.receive():
+                responses.append(resp)
+
+            assert len(responses) == 1
+            assert responses[0].audio_data is not None
+            assert responses[0].text == "नमस्ते"
+            assert responses[0].is_turn_complete is True
+            tts_router.synthesize.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_receive_passes_through_non_text(self):
+        """Transcript-only responses should pass through without TTS."""
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.resumption_handle = None
+
+            async def _fake_receive():
+                yield AgentResponse(input_transcript="user said hello")
+
+            mock_instance.receive = _fake_receive
+            MockClient.return_value = mock_instance
+
+            tts_router = AsyncMock()
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+
+            responses = []
+            async for resp in hybrid.receive():
+                responses.append(resp)
+
+            assert len(responses) == 1
+            assert responses[0].input_transcript == "user said hello"
+            assert responses[0].audio_data is None
+            tts_router.synthesize.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_receive_handles_tts_failure(self):
+        """If TTS fails, the text response should still be yielded without audio."""
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock()
+            mock_instance.resumption_handle = None
+
+            async def _fake_receive():
+                yield AgentResponse(text="नमस्ते", is_turn_complete=True)
+
+            mock_instance.receive = _fake_receive
+            MockClient.return_value = mock_instance
+
+            tts_router = AsyncMock()
+            tts_router.synthesize = AsyncMock(side_effect=Exception("TTS down"))
+
+            config = SessionConfig(output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            await hybrid.start()
+
+            responses = []
+            async for resp in hybrid.receive():
+                responses.append(resp)
+
+            assert len(responses) == 1
+            assert responses[0].text == "नमस्ते"
+            assert responses[0].audio_data is None  # TTS failed, no audio
+            assert responses[0].is_turn_complete is True
+
+    def test_session_id_from_inner(self):
+        with patch("app.services.interactive_agent.session.GeminiLiveClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.resumption_handle = None
+            MockClient.return_value = mock_instance
+
+            tts_router = MagicMock()
+            config = SessionConfig(session_id="hybrid-test", output_mode=OutputMode.HYBRID)
+            hybrid = HybridSession(api_key="test-key", config=config, tts_router=tts_router)
+            assert hybrid.session_id == "hybrid-test"
+
+
+# ---------------------------------------------------------------------------
+# Voice quality helpers unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestVoiceQualityHelpers:
+    def test_get_best_nepali_voice_untested_returns_kore(self):
+        """When no voices are tested, should return Kore as default."""
+        voice = get_best_nepali_voice()
+        assert voice.name == "Kore"
+
+    def test_nepali_score_field(self):
+        voice = get_voice("Kore")
+        assert voice.nepali_score is None
+
+    def test_load_quality_results(self):
+        """load_quality_results should update the voice catalog from JSON."""
+        results_data = {
+            "results": [
+                {"voice_name": "Kore", "quality": "good", "avg_score": 0.75},
+                {"voice_name": "Charon", "quality": "excellent", "avg_score": 0.90},
+                {"voice_name": "Fenrir", "quality": "poor", "avg_score": 0.30},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(results_data, f)
+            tmp_path = Path(f.name)
+
+        try:
+            updated = load_quality_results(tmp_path)
+            assert updated == 3
+
+            kore = get_voice("Kore")
+            assert kore.nepali_quality == "good"
+            assert kore.nepali_score == 0.75
+
+            charon = get_voice("Charon")
+            assert charon.nepali_quality == "excellent"
+            assert charon.nepali_score == 0.90
+
+            # get_best_nepali_voice should now return Charon (highest good+ score)
+            best = get_best_nepali_voice()
+            assert best.name == "Charon"
+        finally:
+            tmp_path.unlink()
+            # Reset voices to untested state
+            for name in ("Kore", "Charon", "Fenrir"):
+                v = GEMINI_VOICES[name]
+                GEMINI_VOICES[name] = v.model_copy(
+                    update={"nepali_quality": "untested", "nepali_score": None}
+                )
+
+    def test_load_quality_results_ignores_unknown_voices(self):
+        results_data = {
+            "results": [
+                {"voice_name": "NonexistentVoice", "quality": "good", "avg_score": 0.80},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(results_data, f)
+            tmp_path = Path(f.name)
+
+        try:
+            updated = load_quality_results(tmp_path)
+            assert updated == 0
+        finally:
+            tmp_path.unlink()
+
+    def test_load_quality_results_skips_invalid_quality(self):
+        results_data = {
+            "results": [
+                {"voice_name": "Kore", "quality": "invalid_quality", "avg_score": 0.50},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(results_data, f)
+            tmp_path = Path(f.name)
+
+        try:
+            updated = load_quality_results(tmp_path)
+            assert updated == 0
+            # Kore should remain untested
+            assert get_voice("Kore").nepali_quality == "untested"
+        finally:
+            tmp_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# Voice quality test script helpers
+# ---------------------------------------------------------------------------
+
+
+class TestVoiceQualityScoring:
+    """Tests for the scoring functions in the voice quality test script."""
+
+    def test_score_transcription_exact_match(self):
+        from scripts.nepali_voice_quality_test import _score_transcription
+
+        score = _score_transcription("नमस्ते", "नमस्ते")
+        assert score == 1.0
+
+    def test_score_transcription_none_actual(self):
+        from scripts.nepali_voice_quality_test import _score_transcription
+
+        score = _score_transcription("नमस्ते", None)
+        assert score == 0.0
+
+    def test_score_transcription_partial_match(self):
+        from scripts.nepali_voice_quality_test import _score_transcription
+
+        score = _score_transcription("नमस्ते तपाईं", "नमस्ते")
+        assert 0.0 < score < 1.0
+
+    def test_score_transcription_ignores_punctuation(self):
+        from scripts.nepali_voice_quality_test import _score_transcription
+
+        score = _score_transcription("नमस्ते, तपाईं!", "नमस्ते तपाईं")
+        assert score == 1.0
+
+    def test_quality_from_score_excellent(self):
+        from scripts.nepali_voice_quality_test import _quality_from_score
+
+        assert _quality_from_score(0.90) == "excellent"
+        assert _quality_from_score(0.85) == "excellent"
+
+    def test_quality_from_score_good(self):
+        from scripts.nepali_voice_quality_test import _quality_from_score
+
+        assert _quality_from_score(0.75) == "good"
+        assert _quality_from_score(0.70) == "good"
+
+    def test_quality_from_score_fair(self):
+        from scripts.nepali_voice_quality_test import _quality_from_score
+
+        assert _quality_from_score(0.60) == "fair"
+        assert _quality_from_score(0.50) == "fair"
+
+    def test_quality_from_score_poor(self):
+        from scripts.nepali_voice_quality_test import _quality_from_score
+
+        assert _quality_from_score(0.40) == "poor"
+        assert _quality_from_score(0.0) == "poor"
+
+    def test_nepali_test_phrases_exist(self):
+        from scripts.nepali_voice_quality_test import NEPALI_TEST_PHRASES
+
+        assert len(NEPALI_TEST_PHRASES) >= 10
+        for phrase in NEPALI_TEST_PHRASES:
+            assert "id" in phrase
+            assert "text" in phrase
+            assert "category" in phrase
+            assert len(phrase["text"]) > 0

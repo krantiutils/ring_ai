@@ -67,6 +67,15 @@ class Settings(BaseSettings):
         "Be polite, clear, and helpful."
     )
 
+    # Output mode: "native_audio" (Gemini end-to-end) or "hybrid"
+    # (Gemini STT+AI, Edge/Azure TTS output). Switch to hybrid if
+    # Gemini's Nepali pronunciation quality is insufficient.
+    GEMINI_OUTPUT_MODE: str = "native_audio"
+
+    # Hybrid mode TTS settings — only used when GEMINI_OUTPUT_MODE is "hybrid"
+    GEMINI_HYBRID_TTS_PROVIDER: str = "edge_tts"
+    GEMINI_HYBRID_TTS_VOICE: str = "ne-NP-HemkalaNeural"
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 

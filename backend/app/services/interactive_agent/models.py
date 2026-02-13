@@ -7,6 +7,19 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
+class OutputMode(str, Enum):
+    """How the agent produces audio output.
+
+    NATIVE_AUDIO: Gemini generates audio directly (end-to-end, single model).
+    HYBRID: Gemini handles STT + conversation AI (text responses), then the
+        existing TTS Provider Router (Edge/Azure) synthesizes the audio output.
+        Use hybrid when Gemini's native Nepali pronunciation is insufficient.
+    """
+
+    NATIVE_AUDIO = "native_audio"
+    HYBRID = "hybrid"
+
+
 class SessionState(str, Enum):
     """Lifecycle states of a Gemini Live session."""
 
@@ -42,6 +55,12 @@ class SessionConfig(BaseModel):
     enable_input_transcription: bool = True
     enable_output_transcription: bool = True
     temperature: float = 0.7
+    output_mode: OutputMode = OutputMode.NATIVE_AUDIO
+
+    # Hybrid mode TTS settings — only used when output_mode is HYBRID.
+    # Provider/voice for the TTS router to synthesize Gemini's text responses.
+    hybrid_tts_provider: str = "edge_tts"
+    hybrid_tts_voice: str = "ne-NP-HemkalaNeural"
 
 
 class AudioChunk(BaseModel):

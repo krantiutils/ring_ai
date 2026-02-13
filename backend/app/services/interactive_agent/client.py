@@ -25,6 +25,7 @@ from app.services.interactive_agent.exceptions import (
 from app.services.interactive_agent.models import (
     AgentResponse,
     AudioChunk,
+    OutputMode,
     SessionConfig,
 )
 from app.services.interactive_agent.voices import get_voice
@@ -42,17 +43,25 @@ def _build_live_config(config: SessionConfig) -> LiveConnectConfig:
     except ValueError as exc:
         raise GeminiConfigurationError(str(exc)) from exc
 
-    kwargs: dict = {
-        "response_modalities": ["AUDIO"],
-        "speech_config": SpeechConfig(
-            voice_config=VoiceConfig(
-                prebuilt_voice_config=PrebuiltVoiceConfig(
-                    voice_name=config.voice_name,
-                )
+    # In hybrid mode, Gemini produces text responses (not audio).
+    # The caller (HybridSession) routes text through the TTS provider router.
+    if config.output_mode == OutputMode.HYBRID:
+        kwargs: dict = {
+            "response_modalities": ["TEXT"],
+            "temperature": config.temperature,
+        }
+    else:
+        kwargs: dict = {
+            "response_modalities": ["AUDIO"],
+            "speech_config": SpeechConfig(
+                voice_config=VoiceConfig(
+                    prebuilt_voice_config=PrebuiltVoiceConfig(
+                        voice_name=config.voice_name,
+                    )
+                ),
             ),
-        ),
-        "temperature": config.temperature,
-    }
+            "temperature": config.temperature,
+        }
 
     if config.system_instruction:
         kwargs["system_instruction"] = Content(
