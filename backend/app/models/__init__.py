@@ -1,3 +1,4 @@
+from app.models.ab_test import ABTest
 from app.models.analytics_event import AnalyticsEvent
 from app.models.auto_response_rule import AutoResponseRule
 from app.models.campaign import Campaign
@@ -21,6 +22,7 @@ from app.models.user_api_key import UserAPIKey
 from app.models.voice_model import VoiceModel
 
 __all__ = [
+    "ABTest",
     "AnalyticsEvent",
     "AutoResponseRule",
     "Campaign",

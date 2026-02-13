@@ -152,3 +152,96 @@ export interface CreditUsagePoint {
   message_credits: number;
   call_credits: number;
 }
+
+// ---------------------------------------------------------------------------
+// ROI Analytics
+// ---------------------------------------------------------------------------
+
+export interface CostBreakdown {
+  tts_cost: number;
+  telephony_cost: number;
+  total_cost: number;
+}
+
+export interface CampaignROI {
+  campaign_id: string;
+  campaign_name: string;
+  campaign_type: string;
+  campaign_status: string;
+  cost_breakdown: CostBreakdown;
+  total_cost: number;
+  total_interactions: number;
+  completed_interactions: number;
+  failed_interactions: number;
+  conversion_rate: number | null;
+  cost_per_interaction: number | null;
+  cost_per_conversion: number | null;
+  avg_duration_seconds: number | null;
+  total_duration_seconds: number | null;
+  avg_sentiment_score: number | null;
+}
+
+export interface CampaignComparisonEntry {
+  campaign_id: string;
+  campaign_name: string;
+  campaign_type: string;
+  campaign_status: string;
+  total_interactions: number;
+  completed: number;
+  failed: number;
+  conversion_rate: number | null;
+  total_cost: number;
+  cost_per_conversion: number | null;
+  avg_duration_seconds: number | null;
+  avg_sentiment_score: number | null;
+}
+
+export interface CampaignComparison {
+  campaigns: CampaignComparisonEntry[];
+}
+
+export interface ABTestVariantResult {
+  variant_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  total_interactions: number;
+  completed: number;
+  failed: number;
+  conversion_rate: number | null;
+  total_cost: number;
+  cost_per_conversion: number | null;
+  avg_duration_seconds: number | null;
+  avg_sentiment_score: number | null;
+}
+
+export interface ABTestResult {
+  ab_test_id: string;
+  name: string;
+  status: string;
+  variants: ABTestVariantResult[];
+  chi_squared: number | null;
+  p_value: number | null;
+  is_significant: boolean;
+  winner: string | null;
+}
+
+export interface ABTestResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  variants: Array<{ name: string; campaign_id: string; campaign_name: string }>;
+  created_at: string;
+}
+
+export interface ROICalculatorResult {
+  total_automated_cost: number;
+  total_manual_cost_estimate: number;
+  cost_savings: number;
+  cost_savings_percentage: number | null;
+  total_interactions: number;
+  total_completed: number;
+  overall_conversion_rate: number | null;
+  cost_per_conversion: number | null;
+  campaigns_analyzed: number;
+}
