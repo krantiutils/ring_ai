@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     contacts,
     credits,
     forms,
+    gateway,
     kyc,
     notifications,
     otp,
@@ -36,3 +37,4 @@ api_v1_router.include_router(otp.router, prefix="/otp", tags=["otp"])
 api_v1_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_v1_router.include_router(phone_numbers.router, prefix="/phone-numbers", tags=["phone-numbers"])
 api_v1_router.include_router(credits.router, prefix="/credits", tags=["credits"])
+api_v1_router.include_router(gateway.router, prefix="/gateway", tags=["gateway"])
