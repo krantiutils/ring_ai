@@ -58,3 +58,19 @@ class SynthesizeRequest(BaseModel):
 class VoicesRequest(BaseModel):
     provider: TTSProvider
     locale: str | None = None
+
+
+class ProviderPricing(BaseModel):
+    cost_per_million_chars: float
+    free_tier_chars: int | None = None
+    currency: str = "USD"
+    notes: str = ""
+
+
+class ProviderInfo(BaseModel):
+    provider: TTSProvider
+    display_name: str
+    description: str
+    pricing: ProviderPricing
+    requires_api_key: bool
+    supported_formats: list[AudioFormat]

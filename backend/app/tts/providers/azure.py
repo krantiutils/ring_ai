@@ -6,7 +6,7 @@ import azure.cognitiveservices.speech as speechsdk
 
 from app.tts.base import BaseTTSProvider
 from app.tts.exceptions import TTSConfigurationError, TTSProviderError
-from app.tts.models import AudioFormat, TTSConfig, TTSProvider, TTSResult, VoiceInfo
+from app.tts.models import AudioFormat, ProviderInfo, ProviderPricing, TTSConfig, TTSProvider, TTSResult, VoiceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,22 @@ class AzureTTSProvider(BaseTTSProvider):
     @property
     def name(self) -> str:
         return TTSProvider.AZURE.value
+
+    @property
+    def info(self) -> ProviderInfo:
+        return ProviderInfo(
+            provider=TTSProvider.AZURE,
+            display_name="Azure Cognitive Services",
+            description="Production-grade Neural TTS with SLA. Supports SSML for fine prosody control. 400+ neural voices.",
+            pricing=ProviderPricing(
+                cost_per_million_chars=16.0,
+                free_tier_chars=500_000,
+                currency="USD",
+                notes="$16/1M chars, free tier 500K chars/month",
+            ),
+            requires_api_key=True,
+            supported_formats=[AudioFormat.MP3, AudioFormat.WAV, AudioFormat.PCM],
+        )
 
     async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
         if not config.api_key:

@@ -1,18 +1,23 @@
 import abc
 
-from app.tts.models import TTSConfig, TTSResult, VoiceInfo
+from app.tts.models import ProviderInfo, TTSConfig, TTSResult, VoiceInfo
 
 
 class BaseTTSProvider(abc.ABC):
     """Abstract base class for TTS providers.
 
-    All providers must implement synthesize() and list_voices().
+    All providers must implement synthesize(), list_voices(), and info.
     """
 
     @property
     @abc.abstractmethod
     def name(self) -> str:
         """Provider identifier string (must match TTSProvider enum value)."""
+
+    @property
+    @abc.abstractmethod
+    def info(self) -> ProviderInfo:
+        """Return metadata about this provider (pricing, capabilities)."""
 
     @abc.abstractmethod
     async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:

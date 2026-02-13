@@ -6,7 +6,7 @@ import edge_tts
 
 from app.tts.base import BaseTTSProvider
 from app.tts.exceptions import TTSProviderError
-from app.tts.models import AudioFormat, TTSConfig, TTSProvider, TTSResult, VoiceInfo
+from app.tts.models import AudioFormat, ProviderInfo, ProviderPricing, TTSConfig, TTSProvider, TTSResult, VoiceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,22 @@ class EdgeTTSProvider(BaseTTSProvider):
     @property
     def name(self) -> str:
         return TTSProvider.EDGE_TTS.value
+
+    @property
+    def info(self) -> ProviderInfo:
+        return ProviderInfo(
+            provider=TTSProvider.EDGE_TTS,
+            display_name="Edge TTS",
+            description="Microsoft Edge's online TTS service. Free, no API key required. Supports 400+ voices across 100+ languages.",
+            pricing=ProviderPricing(
+                cost_per_million_chars=0.0,
+                free_tier_chars=None,
+                currency="USD",
+                notes="Free but grey area for commercial-scale usage",
+            ),
+            requires_api_key=False,
+            supported_formats=[AudioFormat.MP3],
+        )
 
     async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
         communicate = edge_tts.Communicate(
