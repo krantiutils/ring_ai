@@ -78,6 +78,12 @@ export const api = {
     request<import("@/types/dashboard").CategoryBreakdown[]>("/analytics/campaigns/by-category"),
   getDashboardPlayback: () =>
     request<import("@/types/dashboard").DashboardPlaybackWidget>("/analytics/dashboard/playback"),
+  getIntentDistribution: (campaignId?: string) =>
+    request<import("@/types/dashboard").IntentDistribution>(
+      `/analytics/intents${campaignId ? `?campaign_id=${campaignId}` : ""}`,
+    ),
+  getCampaignIntents: (id: string) =>
+    request<import("@/types/dashboard").CampaignIntentSummary>(`/analytics/campaigns/${id}/intents`),
 
   // Credits
   getCreditBalance: () => request<import("@/types/dashboard").CreditBalance>("/credits/balance"),

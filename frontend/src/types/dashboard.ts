@@ -152,3 +152,21 @@ export interface CreditUsagePoint {
   message_credits: number;
   call_credits: number;
 }
+
+export interface IntentBucket {
+  intent: string;
+  count: number;
+}
+
+export interface IntentDistribution {
+  campaign_id: string | null;
+  buckets: IntentBucket[];
+  total_classified: number;
+}
+
+export interface CampaignIntentSummary {
+  campaign_id: string;
+  top_intent: string | null;
+  buckets: IntentBucket[];
+  total_classified: number;
+}
