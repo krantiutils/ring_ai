@@ -5,7 +5,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.analytics_event import AnalyticsEvent
@@ -15,6 +15,7 @@ from app.models.interaction import Interaction
 from app.schemas.analytics import (
     CampaignAnalytics,
     CampaignProgress,
+    CampaignSentimentSummary,
     DailyBucket,
     HourlyBucket,
     OverviewAnalytics,
@@ -186,6 +187,19 @@ def get_overview_analytics(
         for day, credits in sorted(day_credits.items())
     ]
 
+    # --- Average sentiment score ---
+    avg_sentiment = db.execute(
+        select(func.avg(Interaction.sentiment_score))
+        .select_from(Interaction)
+        .join(Campaign, Interaction.campaign_id == Campaign.id)
+        .where(
+            *interaction_filter,
+            Interaction.status == "completed",
+            Interaction.sentiment_score.isnot(None),
+        )
+    ).scalar_one()
+    avg_sentiment_score = round(float(avg_sentiment), 2) if avg_sentiment is not None else None
+
     return OverviewAnalytics(
         campaigns_by_status=campaigns_by_status,
         total_contacts_reached=total_contacts_reached,
@@ -193,6 +207,7 @@ def get_overview_analytics(
         total_sms=total_sms,
         avg_call_duration_seconds=avg_call_duration,
         overall_delivery_rate=delivery_rate,
+        avg_sentiment_score=avg_sentiment_score,
         credits_consumed=credits_consumed,
         credits_by_period=credits_by_period,
         start_date=start_date,
@@ -283,6 +298,16 @@ def get_campaign_analytics(db: Session, campaign_id: uuid.UUID) -> CampaignAnaly
         carrier = detect_carrier(phone)
         carrier_counts[carrier] = carrier_counts.get(carrier, 0) + 1
 
+    # --- Average sentiment score ---
+    avg_sentiment = db.execute(
+        select(func.avg(Interaction.sentiment_score)).where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.status == "completed",
+            Interaction.sentiment_score.isnot(None),
+        )
+    ).scalar_one()
+    avg_sentiment_score = round(float(avg_sentiment), 2) if avg_sentiment is not None else None
+
     return CampaignAnalytics(
         campaign_id=campaign.id,
         campaign_name=campaign.name,
@@ -292,6 +317,7 @@ def get_campaign_analytics(db: Session, campaign_id: uuid.UUID) -> CampaignAnaly
         completion_rate=completion_rate,
         avg_duration_seconds=avg_duration,
         credit_consumption=credit_consumption,
+        avg_sentiment_score=avg_sentiment_score,
         hourly_distribution=hourly_distribution,
         daily_distribution=daily_distribution,
         carrier_breakdown=carrier_counts,
@@ -387,4 +413,54 @@ def get_campaign_progress(db: Session, campaign_id: uuid.UUID) -> CampaignProgre
         pending=pending,
         in_progress=in_progress,
         completion_percentage=round(completion_pct, 2),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /analytics/campaigns/{id}/sentiment
+# ---------------------------------------------------------------------------
+
+
+def get_campaign_sentiment_summary(db: Session, campaign_id: uuid.UUID) -> CampaignSentimentSummary:
+    """Compute sentiment summary for a campaign."""
+
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    # Average sentiment score
+    avg_sentiment = db.execute(
+        select(func.avg(Interaction.sentiment_score)).where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.sentiment_score.isnot(None),
+        )
+    ).scalar_one()
+
+    # Count by sentiment bucket
+    sentiment_bucket = case(
+        (Interaction.sentiment_score > 0.3, "positive"),
+        (Interaction.sentiment_score < -0.3, "negative"),
+        else_="neutral",
+    )
+
+    bucket_rows = db.execute(
+        select(sentiment_bucket.label("bucket"), func.count().label("count"))
+        .where(
+            Interaction.campaign_id == campaign_id,
+            Interaction.sentiment_score.isnot(None),
+        )
+        .group_by(sentiment_bucket)
+    ).all()
+
+    bucket_counts = {row.bucket: row.count for row in bucket_rows}
+
+    analyzed_count = sum(bucket_counts.values())
+
+    return CampaignSentimentSummary(
+        campaign_id=campaign_id,
+        avg_sentiment_score=round(float(avg_sentiment), 2) if avg_sentiment is not None else None,
+        positive_count=bucket_counts.get("positive", 0),
+        neutral_count=bucket_counts.get("neutral", 0),
+        negative_count=bucket_counts.get("negative", 0),
+        analyzed_count=analyzed_count,
     )

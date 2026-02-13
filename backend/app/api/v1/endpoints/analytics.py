@@ -19,19 +19,23 @@ from app.schemas.analytics import (
     CampaignAnalytics,
     CampaignPlaybackDetail,
     CampaignProgress,
+    CampaignSentimentSummary,
     ContactPlayback,
     DashboardPlaybackWidget,
     EventListResponse,
     OverviewAnalytics,
     PlaybackBucket,
     PlaybackDistribution,
+    SentimentBackfillResponse,
 )
 from app.services.analytics import (
     get_campaign_analytics,
     get_campaign_progress,
+    get_campaign_sentiment_summary,
     get_overview_analytics,
     query_events,
 )
+from app.services.sentiment import SentimentError, backfill_sentiment
 
 logger = logging.getLogger(__name__)
 
@@ -411,3 +415,43 @@ def get_dashboard_playback(
         total_completed_calls=total_completed,
         distribution=distribution,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sentiment analysis endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/campaigns/{campaign_id}/sentiment",
+    response_model=CampaignSentimentSummary,
+)
+def get_sentiment_summary(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Sentiment summary for a campaign: average score and positive/neutral/negative counts."""
+    try:
+        return get_campaign_sentiment_summary(db, campaign_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+
+@router.post(
+    "/sentiment/backfill",
+    response_model=SentimentBackfillResponse,
+)
+async def sentiment_backfill(
+    campaign_id: uuid.UUID | None = Query(None, description="Limit backfill to a specific campaign"),
+    force: bool = Query(False, description="Re-analyze even if sentiment_score already set"),
+    db: Session = Depends(get_db),
+):
+    """Backfill sentiment scores for completed interactions with transcripts.
+
+    Calls OpenAI to analyze each transcript and stores the score on the Interaction record.
+    """
+    try:
+        summary = await backfill_sentiment(db, campaign_id=campaign_id, force=force)
+    except SentimentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return SentimentBackfillResponse(**summary)
