@@ -104,6 +104,55 @@ export const api = {
       `/notifications/${params ? `?${params}` : ""}`,
     ),
   getUnreadCount: () => request<{ count: number }>("/notifications/unread-count"),
+
+  // TTS
+  getTTSProviders: () => request<{ providers: string[] }>("/tts/providers"),
+  getTTSProviderDetails: () => request<import("@/types/dashboard").ProviderInfo[]>("/tts/providers/details"),
+  getTTSVoices: (provider: string, locale?: string) =>
+    request<import("@/types/dashboard").VoiceInfo[]>("/tts/voices", {
+      method: "POST",
+      body: JSON.stringify({ provider, locale: locale || null }),
+    }),
+  synthesizeTTS: async (params: {
+    text: string;
+    provider: string;
+    voice: string;
+    rate?: string;
+    pitch?: string;
+    volume?: string;
+    output_format?: string;
+  }): Promise<{ audioBlob: Blob; durationMs: number; providerUsed: string; charsConsumed: number }> => {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/tts/synthesize`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text: params.text,
+        provider: params.provider,
+        voice: params.voice,
+        rate: params.rate || "+0%",
+        pitch: params.pitch || "+0Hz",
+        volume: params.volume || "+0%",
+        output_format: params.output_format || "mp3",
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ApiError(res.status, body);
+    }
+
+    const audioBlob = await res.blob();
+    return {
+      audioBlob,
+      durationMs: parseInt(res.headers.get("X-TTS-Duration-Ms") || "0", 10),
+      providerUsed: res.headers.get("X-TTS-Provider") || params.provider,
+      charsConsumed: parseInt(res.headers.get("X-TTS-Chars-Consumed") || "0", 10),
+    };
+  },
 };
 
 export { ApiError };
