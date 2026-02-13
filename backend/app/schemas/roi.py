@@ -15,6 +15,7 @@ class CostBreakdown(BaseModel):
 
     tts_cost: float = Field(description="Text-to-speech synthesis cost (NPR)")
     telephony_cost: float = Field(description="Twilio/telephony cost (NPR)")
+    gemini_cost: float = Field(default=0.0, description="Gemini interactive agent cost (NPR)")
     total_cost: float = Field(description="Total campaign cost (NPR)")
 
 
@@ -108,6 +109,9 @@ class ABTestVariantResult(BaseModel):
     variant_name: str
     campaign_id: uuid.UUID
     campaign_name: str
+    campaign_type: str
+    tts_provider: str | None = Field(description="TTS provider used (e.g. edge-tts, azure, gemini)")
+    tts_voice: str | None = Field(description="TTS voice name used")
     total_interactions: int
     completed: int
     failed: int

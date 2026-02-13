@@ -160,6 +160,7 @@ export interface CreditUsagePoint {
 export interface CostBreakdown {
   tts_cost: number;
   telephony_cost: number;
+  gemini_cost: number;
   total_cost: number;
 }
 
@@ -204,6 +205,9 @@ export interface ABTestVariantResult {
   variant_name: string;
   campaign_id: string;
   campaign_name: string;
+  campaign_type: string;
+  tts_provider: string | null;
+  tts_voice: string | null;
   total_interactions: number;
   completed: number;
   failed: number;

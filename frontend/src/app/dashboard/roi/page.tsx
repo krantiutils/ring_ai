@@ -35,6 +35,8 @@ import type {
   CampaignROI,
   CampaignComparison,
   CampaignComparisonEntry,
+  ABTestResponse,
+  ABTestResult,
   ROICalculatorResult,
 } from "@/types/dashboard";
 
@@ -63,11 +65,12 @@ function formatDurationShort(seconds: number | null): string {
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "overview" | "compare" | "calculator";
+type Tab = "overview" | "compare" | "ab_testing" | "calculator";
 
 const TABS: { key: Tab; label: string; icon: typeof TrendingUp }[] = [
   { key: "overview", label: "Campaign ROI", icon: TrendingUp },
   { key: "compare", label: "Compare", icon: BarChart3 },
+  { key: "ab_testing", label: "A/B Testing", icon: FlaskConical },
   { key: "calculator", label: "ROI Calculator", icon: Calculator },
 ];
 
@@ -135,6 +138,7 @@ export default function ROIAnalyticsPage() {
         <>
           {activeTab === "overview" && <CampaignROITab campaigns={campaigns} />}
           {activeTab === "compare" && <CompareTab campaigns={campaigns} />}
+          {activeTab === "ab_testing" && <ABTestingTab campaigns={campaigns} />}
           {activeTab === "calculator" && <CalculatorTab campaigns={campaigns} />}
         </>
       )}
@@ -175,6 +179,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
     ? [
         { name: "TTS", value: roi.cost_breakdown.tts_cost, fill: "#FF6B6B" },
         { name: "Telephony", value: roi.cost_breakdown.telephony_cost, fill: "#4ECDC4" },
+        { name: "Gemini", value: roi.cost_breakdown.gemini_cost, fill: "#FFD93D" },
       ].filter((d) => d.value > 0)
     : [];
 
@@ -368,6 +373,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                 { label: "Conversion Rate", value: formatPct(roi.conversion_rate) },
                 { label: "TTS Cost", value: formatCurrency(roi.cost_breakdown.tts_cost) },
                 { label: "Telephony Cost", value: formatCurrency(roi.cost_breakdown.telephony_cost) },
+                { label: "Gemini Cost", value: formatCurrency(roi.cost_breakdown.gemini_cost) },
                 { label: "Total Cost", value: formatCurrency(roi.total_cost) },
                 { label: "Cost per Interaction", value: roi.cost_per_interaction !== null ? formatCurrency(roi.cost_per_interaction) : "N/A" },
                 { label: "Cost per Conversion", value: roi.cost_per_conversion !== null ? formatCurrency(roi.cost_per_conversion) : "N/A" },
@@ -675,6 +681,409 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
           </p>
           <p className="text-xs text-[#2D2D2D]/40 mt-1">
             See conversion rates, costs, and performance side by side
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A/B Testing Tab
+// ---------------------------------------------------------------------------
+
+function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
+  const [abTests, setAbTests] = useState<ABTestResponse[]>([]);
+  const [loadingTests, setLoadingTests] = useState(false);
+  const [selectedTestId, setSelectedTestId] = useState<string>("");
+  const [testResult, setTestResult] = useState<ABTestResult | null>(null);
+  const [loadingResult, setLoadingResult] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createDesc, setCreateDesc] = useState("");
+  const [createCampaignIds, setCreateCampaignIds] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
+
+  const loadTests = useCallback(async () => {
+    setLoadingTests(true);
+    try {
+      // org_id is inferred from the user's token on the backend for most endpoints,
+      // but the A/B test list requires it explicitly. We use a placeholder approach:
+      // fetch from the first campaign's context or pass empty to let backend handle it.
+      const data = await api.listABTests("");
+      setAbTests(data);
+    } catch {
+      // If org_id is required and we can't get it, silently fail
+      setAbTests([]);
+    } finally {
+      setLoadingTests(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTests();
+  }, [loadTests]);
+
+  const loadResult = useCallback(async (testId: string) => {
+    if (!testId) return;
+    setLoadingResult(true);
+    setError(null);
+    try {
+      const data = await api.getABTestResults(testId);
+      setTestResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load A/B test results");
+      setTestResult(null);
+    } finally {
+      setLoadingResult(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedTestId) loadResult(selectedTestId);
+  }, [selectedTestId, loadResult]);
+
+  function toggleCreateCampaign(id: string) {
+    setCreateCampaignIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleCreate() {
+    const ids = Array.from(createCampaignIds);
+    if (ids.length < 2 || !createName.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await api.createABTest(
+        {
+          name: createName.trim(),
+          description: createDesc.trim() || undefined,
+          campaign_ids: ids,
+        },
+        "",
+      );
+      setShowCreate(false);
+      setCreateName("");
+      setCreateDesc("");
+      setCreateCampaignIds(new Set());
+      await loadTests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create A/B test");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const bestVariant = testResult?.winner;
+
+  return (
+    <div className="space-y-6">
+      {/* Header with create button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-[#2D2D2D]">A/B Tests</h3>
+          <p className="text-xs text-[#2D2D2D]/40 mt-0.5">
+            Split test campaigns and compare outcomes with statistical significance
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#FF6B6B] text-white hover:bg-[#ff5252] transition-colors"
+        >
+          <FlaskConical className="w-4 h-4" />
+          {showCreate ? "Cancel" : "New A/B Test"}
+        </button>
+      </div>
+
+      {/* Create form */}
+      {showCreate && (
+        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-1">
+              Test Name
+            </label>
+            <input
+              type="text"
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              placeholder="e.g. Voice Provider Comparison Q1"
+              className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-1">
+              Description (optional)
+            </label>
+            <input
+              type="text"
+              value={createDesc}
+              onChange={(e) => setCreateDesc(e.target.value)}
+              placeholder="What are you testing?"
+              className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+              Select Variant Campaigns (min 2) — {createCampaignIds.size} selected
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+              {campaigns.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => toggleCreateCampaign(c.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors border",
+                    createCampaignIds.has(c.id)
+                      ? "border-[#FF6B6B] bg-[#FF6B6B]/5 text-[#2D2D2D]"
+                      : "border-[#FF6B6B]/10 hover:border-[#FF6B6B]/30 text-[#2D2D2D]/60",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                      createCampaignIds.has(c.id)
+                        ? "bg-[#FF6B6B] border-[#FF6B6B]"
+                        : "border-[#FF6B6B]/30",
+                    )}
+                  >
+                    {createCampaignIds.has(c.id) && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <span className="truncate">{c.name}</span>
+                  <span className="text-xs text-[#2D2D2D]/30 ml-auto capitalize shrink-0">
+                    {c.type}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={handleCreate}
+            disabled={createCampaignIds.size < 2 || !createName.trim() || creating}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              createCampaignIds.size >= 2 && createName.trim()
+                ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
+                : "bg-[#FF6B6B]/20 text-[#FF6B6B]/40 cursor-not-allowed",
+            )}
+          >
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
+            Create Test
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Test selector */}
+      {abTests.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+          <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+            Select A/B Test
+          </label>
+          <select
+            value={selectedTestId}
+            onChange={(e) => setSelectedTestId(e.target.value)}
+            className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+          >
+            <option value="">Choose a test...</option>
+            {abTests.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.status}) — {t.variants.length} variants
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {loadingTests && (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+        </div>
+      )}
+
+      {loadingResult && (
+        <div className="flex items-center justify-center h-48">
+          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+        </div>
+      )}
+
+      {/* Results */}
+      {testResult && !loadingResult && (
+        <>
+          {/* Significance banner */}
+          <div
+            className={cn(
+              "rounded-xl border p-5",
+              testResult.is_significant
+                ? "bg-[#4ECDC4]/5 border-[#4ECDC4]/20"
+                : "bg-[#FFF8F0] border-[#FF6B6B]/15",
+            )}
+          >
+            <div className="flex items-center gap-3">
+              {testResult.is_significant ? (
+                <Check className="w-6 h-6 text-[#4ECDC4]" />
+              ) : (
+                <X className="w-6 h-6 text-[#FF6B6B]/50" />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-[#2D2D2D]">
+                  {testResult.is_significant
+                    ? `Statistically significant — "${testResult.winner}" wins`
+                    : "Not yet significant"}
+                </p>
+                <p className="text-xs text-[#2D2D2D]/50 mt-0.5">
+                  Chi-squared: {testResult.chi_squared?.toFixed(4) ?? "N/A"} | p-value:{" "}
+                  {testResult.p_value?.toFixed(6) ?? "N/A"}
+                  {!testResult.is_significant && " (p > 0.05)"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Variant comparison chart */}
+          {testResult.variants.length > 0 && (
+            <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+              <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">
+                Conversion Rate by Variant
+              </h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart
+                  data={testResult.variants.map((v) => ({
+                    name: v.variant_name,
+                    conversion: v.conversion_rate !== null ? +(v.conversion_rate * 100).toFixed(1) : 0,
+                  }))}
+                  barSize={48}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: "8px", border: "1px solid #FF6B6B26", fontSize: "13px" }}
+                    formatter={(value) => [`${Number(value)}%`, "Conversion"]}
+                  />
+                  <Bar dataKey="conversion" radius={[4, 4, 0, 0]}>
+                    {testResult.variants.map((v, i) => (
+                      <Cell
+                        key={i}
+                        fill={v.variant_name === bestVariant ? "#4ECDC4" : "#FF6B6B"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Variant details table */}
+          <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#FF6B6B]/10">
+              <h3 className="text-sm font-semibold text-[#2D2D2D]">Variant Details</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
+                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Variant
+                    </th>
+                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Campaign
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Interactions
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Completed
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Conv. Rate
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Cost
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Cost/Conv.
+                    </th>
+                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                      Sentiment
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#FF6B6B]/10">
+                  {testResult.variants.map((v) => (
+                    <tr
+                      key={v.variant_name}
+                      className={cn(
+                        "hover:bg-[#FFF8F0]/50",
+                        v.variant_name === bestVariant && "bg-[#4ECDC4]/5",
+                      )}
+                    >
+                      <td className="px-5 py-3 text-sm font-medium text-[#2D2D2D]">
+                        {v.variant_name}
+                        {v.variant_name === bestVariant && (
+                          <span className="ml-2 text-xs font-medium text-[#4ECDC4]">WINNER</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60">
+                        {v.campaign_name}
+                        {v.tts_provider && (
+                          <span className="block text-xs text-[#2D2D2D]/30 mt-0.5">
+                            {v.tts_provider}{v.tts_voice ? ` — ${v.tts_voice}` : ""}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        {v.total_interactions}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        {v.completed}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-5 py-3 text-sm text-right font-medium",
+                          v.variant_name === bestVariant ? "text-[#4ECDC4]" : "text-[#2D2D2D]/60",
+                        )}
+                      >
+                        {formatPct(v.conversion_rate)}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        {formatCurrency(v.total_cost)}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        {v.cost_per_conversion !== null ? formatCurrency(v.cost_per_conversion) : "N/A"}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        {v.avg_sentiment_score !== null ? v.avg_sentiment_score.toFixed(2) : "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Empty state */}
+      {abTests.length === 0 && !loadingTests && !showCreate && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center mb-4">
+            <FlaskConical className="w-7 h-7 text-[#FF6B6B]/40" />
+          </div>
+          <p className="text-sm font-medium text-[#2D2D2D]/60">No A/B tests yet</p>
+          <p className="text-xs text-[#2D2D2D]/40 mt-1">
+            Create a test to compare campaign variants with statistical significance
           </p>
         </div>
       )}

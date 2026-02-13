@@ -22,6 +22,7 @@ from app.services.roi import (
     get_ab_test_results,
     get_campaign_comparison,
     get_campaign_roi,
+    list_ab_tests,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,20 @@ def roi_compare(
             detail="At least 2 campaign IDs are required for comparison",
         )
     return get_campaign_comparison(db, campaign_ids)
+
+
+# ---------------------------------------------------------------------------
+# GET /roi/ab-tests
+# ---------------------------------------------------------------------------
+
+
+@router.get("/ab-tests", response_model=list[ABTestResponse])
+def list_ab_tests_endpoint(
+    org_id: uuid.UUID = Query(..., description="Organization ID"),
+    db: Session = Depends(get_db),
+):
+    """List all A/B tests for an organization."""
+    return list_ab_tests(db, org_id)
 
 
 # ---------------------------------------------------------------------------
