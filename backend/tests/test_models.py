@@ -38,7 +38,8 @@ def test_campaign_columns():
         "id", "org_id", "name", "type", "status", "category",
         "template_id", "voice_model_id", "form_id", "schedule_config", "scheduled_at",
         "audio_file", "bulk_file", "retry_count", "retry_config",
-        "source_campaign_id", "created_at", "updated_at",
+        "source_campaign_id", "ab_test_id", "ab_test_variant",
+        "created_at", "updated_at",
     }
 
 

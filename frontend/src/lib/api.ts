@@ -110,6 +110,26 @@ export const api = {
       `/notifications/${params ? `?${params}` : ""}`,
     ),
   getUnreadCount: () => request<{ count: number }>("/notifications/unread-count"),
+
+  // ROI Analytics
+  getCampaignROI: (id: string) =>
+    request<import("@/types/dashboard").CampaignROI>(`/roi/campaigns/${id}`),
+  compareCampaigns: (ids: string[]) =>
+    request<import("@/types/dashboard").CampaignComparison>(
+      `/roi/compare?${ids.map((id) => `campaign_ids=${id}`).join("&")}`,
+    ),
+  getABTestResults: (id: string) =>
+    request<import("@/types/dashboard").ABTestResult>(`/roi/ab-tests/${id}/results`),
+  createABTest: (data: { name: string; description?: string; campaign_ids: string[]; variant_names?: string[] }, orgId: string) =>
+    request<import("@/types/dashboard").ABTestResponse>(`/roi/ab-tests?org_id=${orgId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  calculateROI: (data: { campaign_ids: string[]; manual_cost_per_call?: number }) =>
+    request<import("@/types/dashboard").ROICalculatorResult>("/roi/calculator", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export { ApiError };
