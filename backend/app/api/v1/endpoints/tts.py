@@ -11,6 +11,7 @@ from app.tts.exceptions import (
 )
 from app.tts.models import (
     AudioFormat,
+    ProviderInfo,
     SynthesizeRequest,
     TTSConfig,
     VoiceInfo,
@@ -88,3 +89,9 @@ async def list_voices(request: VoicesRequest) -> list[VoiceInfo]:
 async def list_providers() -> dict:
     """List all configured TTS providers."""
     return {"providers": tts_router.available_providers}
+
+
+@router.get("/providers/details", response_model=list[ProviderInfo])
+async def provider_details() -> list[ProviderInfo]:
+    """Return detailed metadata for all providers including pricing and capabilities."""
+    return tts_router.provider_details()

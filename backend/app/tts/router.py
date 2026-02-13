@@ -2,7 +2,7 @@ import logging
 
 from app.tts.base import BaseTTSProvider
 from app.tts.exceptions import TTSProviderError, TTSProviderUnavailableError
-from app.tts.models import TTSConfig, TTSProvider, TTSResult, VoiceInfo
+from app.tts.models import ProviderInfo, TTSConfig, TTSProvider, TTSResult, VoiceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +84,7 @@ class TTSRouter:
         """List voices for a specific provider."""
         impl = self.get_provider(provider)
         return await impl.list_voices(locale=locale)
+
+    def provider_details(self) -> list[ProviderInfo]:
+        """Return detailed metadata for all registered providers."""
+        return [provider.info for provider in self._providers.values()]
