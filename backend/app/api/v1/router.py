@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     credits,
     forms,
     gateway,
+    knowledge_bases,
     kyc,
     notifications,
     otp,
@@ -40,3 +41,4 @@ api_v1_router.include_router(phone_numbers.router, prefix="/phone-numbers", tags
 api_v1_router.include_router(credits.router, prefix="/credits", tags=["credits"])
 api_v1_router.include_router(roi.router, prefix="/roi", tags=["roi"])
 api_v1_router.include_router(gateway.router, prefix="/gateway", tags=["gateway"])
+api_v1_router.include_router(knowledge_bases.router, prefix="/knowledge-bases", tags=["knowledge-bases"])

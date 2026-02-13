@@ -8,6 +8,7 @@ from app.models.credit_transaction import CreditTransaction
 from app.models.form import Form
 from app.models.form_response import FormResponse
 from app.models.interaction import Interaction
+from app.models.knowledge_base import KnowledgeBase, KnowledgeChunk, KnowledgeDocument
 from app.models.kyc_verification import KYCVerification
 from app.models.notification import Notification
 from app.models.organization import Organization
@@ -32,6 +33,9 @@ __all__ = [
     "Form",
     "FormResponse",
     "Interaction",
+    "KnowledgeBase",
+    "KnowledgeChunk",
+    "KnowledgeDocument",
     "KYCVerification",
     "Notification",
     "Organization",

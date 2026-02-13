@@ -42,6 +42,8 @@ class CallConnectedMessage(BaseModel):
     call_id: str = Field(..., description="Unique call identifier from the gateway")
     caller_number: str = Field(..., description="Caller's phone number (E.164)")
     gateway_id: str = Field(..., description="Identifier of the Android gateway device")
+    org_id: str | None = Field(None, description="Organization ID for knowledge base lookup")
+    knowledge_base_id: str | None = Field(None, description="Knowledge base ID for RAG context injection")
 
 
 class CallEndedMessage(BaseModel):

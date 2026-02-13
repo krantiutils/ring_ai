@@ -10,6 +10,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket
 
+from app.core.database import SessionLocal
 from app.services.gateway_bridge.bridge import GatewayBridge
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ async def gateway_websocket(websocket: WebSocket) -> None:
     remote = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
     logger.info("Gateway connected from %s", remote)
 
-    bridge = GatewayBridge(websocket=websocket, call_manager=call_manager)
+    bridge = GatewayBridge(websocket=websocket, call_manager=call_manager, db_factory=SessionLocal)
     await bridge.run()
 
     logger.info("Gateway disconnected: %s", remote)

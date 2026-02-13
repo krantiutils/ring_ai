@@ -133,6 +133,65 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Knowledge Bases
+  getKnowledgeBases: (orgId: string, params?: string) =>
+    request<import("@/types/dashboard").KnowledgeBaseListResponse>(
+      `/knowledge-bases/?org_id=${orgId}${params ? `&${params}` : ""}`,
+    ),
+  getKnowledgeBase: (id: string, orgId: string) =>
+    request<import("@/types/dashboard").KnowledgeBase>(`/knowledge-bases/${id}?org_id=${orgId}`),
+  createKnowledgeBase: (data: { name: string; description?: string; org_id: string }) =>
+    request<import("@/types/dashboard").KnowledgeBase>("/knowledge-bases/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateKnowledgeBase: (id: string, orgId: string, data: { name?: string; description?: string }) =>
+    request<import("@/types/dashboard").KnowledgeBase>(`/knowledge-bases/${id}?org_id=${orgId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteKnowledgeBase: (id: string, orgId: string) =>
+    request<void>(`/knowledge-bases/${id}?org_id=${orgId}`, { method: "DELETE" }),
+
+  // Knowledge Base Documents
+  getKBDocuments: (kbId: string, orgId: string) =>
+    request<import("@/types/dashboard").KnowledgeDocumentListResponse>(
+      `/knowledge-bases/${kbId}/documents?org_id=${orgId}`,
+    ),
+  uploadKBDocument: async (kbId: string, orgId: string, file: File): Promise<import("@/types/dashboard").KnowledgeDocument> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_BASE}/knowledge-bases/${kbId}/documents?org_id=${orgId}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ApiError(res.status, body);
+    }
+
+    return res.json();
+  },
+  deleteKBDocument: (kbId: string, docId: string, orgId: string) =>
+    request<void>(`/knowledge-bases/${kbId}/documents/${docId}?org_id=${orgId}`, { method: "DELETE" }),
+
+  // Knowledge Base Search
+  searchKnowledgeBase: (kbId: string, orgId: string, query: string, topK?: number) =>
+    request<import("@/types/dashboard").KnowledgeSearchResponse>(
+      `/knowledge-bases/${kbId}/search?org_id=${orgId}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ query, top_k: topK || 5 }),
+      },
+    ),
+
   // TTS
   getTTSProviders: () => request<{ providers: string[] }>("/tts/providers"),
   getTTSProviderDetails: () => request<import("@/types/dashboard").ProviderInfo[]>("/tts/providers/details"),

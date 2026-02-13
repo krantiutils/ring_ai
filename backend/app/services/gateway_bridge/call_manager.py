@@ -7,11 +7,18 @@ Handles the lifecycle of call-to-session mappings:
 - teardown_all: Bulk cleanup for shutdown
 
 Thread-safe via asyncio.Lock for all mutations.
+
+Supports optional RAG knowledge base context injection: if a knowledge_base_id
+is provided, relevant context is retrieved and injected into the Gemini
+system instruction.
 """
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+
+from sqlalchemy.orm import Session as DBSession
 
 from app.services.interactive_agent.models import SessionConfig
 from app.services.interactive_agent.pool import SessionPool
@@ -59,6 +66,8 @@ class CallManager:
         gateway_id: str,
         caller_number: str,
         session_config: SessionConfig | None = None,
+        db: DBSession | None = None,
+        knowledge_base_id: uuid.UUID | None = None,
     ) -> CallRecord:
         """Acquire a Gemini session from the pool and map it to the call.
 
@@ -78,6 +87,34 @@ class CallManager:
         """
         if call_id in self._calls:
             raise ValueError(f"Call {call_id} already has an active session")
+
+        # Inject knowledge base context into system instruction if available
+        if knowledge_base_id is not None and db is not None:
+            try:
+                from app.services.knowledge_base import (
+                    build_system_instruction_with_context,
+                    retrieve_context_for_session,
+                )
+
+                kb_context = retrieve_context_for_session(db, knowledge_base_id)
+                if kb_context:
+                    if session_config is None:
+                        session_config = SessionConfig()
+                    base_instruction = session_config.system_instruction or ""
+                    enhanced = build_system_instruction_with_context(base_instruction, kb_context)
+                    session_config = session_config.model_copy(update={"system_instruction": enhanced})
+                    logger.info(
+                        "Injected KB context for call %s (kb=%s, context_len=%d)",
+                        call_id,
+                        knowledge_base_id,
+                        len(kb_context),
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to retrieve KB context for call %s: %s (continuing without context)",
+                    call_id,
+                    exc,
+                )
 
         session = await self._pool.acquire(config=session_config)
 

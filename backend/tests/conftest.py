@@ -16,9 +16,15 @@ from app.models import Organization
 settings.DEBUG = True
 
 # ---------------------------------------------------------------------------
-# SQLite compatibility for PostgreSQL-specific types (JSONB, UUID)
+# SQLite compatibility for PostgreSQL-specific types (JSONB, UUID, Vector)
 # ---------------------------------------------------------------------------
 sqlite_base.SQLiteTypeCompiler.visit_JSONB = lambda self, type_, **kw: self.visit_JSON(type_, **kw)
+
+# pgvector Vector type → TEXT in SQLite (stores nothing, but allows table creation)
+from pgvector.sqlalchemy import Vector  # noqa: E402
+
+_original_vector_ddl = getattr(Vector, "compile", None)
+sqlite_base.SQLiteTypeCompiler.visit_VECTOR = lambda self, type_, **kw: "TEXT"
 
 # In-memory SQLite for tests — no PostgreSQL dependency needed
 TEST_DATABASE_URL = "sqlite://"
