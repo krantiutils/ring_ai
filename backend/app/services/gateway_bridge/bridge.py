@@ -9,10 +9,16 @@ Barge-in is handled natively by Gemini's send_realtime_input — sending
 caller audio while Gemini is speaking triggers interruption. The bridge
 detects `is_interrupted` on the response and stops forwarding stale audio.
 
+Function calling: When Gemini returns a tool_call, the bridge pauses audio
+forwarding, executes the function via the ToolExecutor, sends the result
+back to Gemini, and resumes audio relay. Tool execution is async and
+non-blocking to the main event loop.
+
 Lifecycle:
     1. Gateway sends CALL_CONNECTED → bridge creates Gemini session
     2. Audio flows bidirectionally until CALL_ENDED
-    3. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
+    3. Tool calls are handled inline during the audio relay
+    4. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
 """
 
 import asyncio
@@ -20,6 +26,7 @@ import json
 import logging
 
 from fastapi import WebSocket, WebSocketDisconnect
+from google.genai.types import FunctionResponse
 from starlette.websockets import WebSocketState
 
 from app.services.gateway_bridge.call_manager import CallManager
@@ -29,11 +36,13 @@ from app.services.gateway_bridge.models import (
     GatewayMessageType,
     SessionErrorMessage,
     SessionReadyMessage,
+    ToolExecutionMessage,
     TurnCompleteMessage,
 )
 from app.services.gateway_bridge.resampler import resample_24k_to_16k
 from app.services.interactive_agent.exceptions import InteractiveAgentError
 from app.services.interactive_agent.models import AudioChunk
+from app.services.interactive_agent.tools import ToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +59,15 @@ class GatewayBridge:
         await bridge.run()  # blocks until WS disconnect
     """
 
-    def __init__(self, websocket: WebSocket, call_manager: CallManager) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        call_manager: CallManager,
+        tool_executor: ToolExecutor | None = None,
+    ) -> None:
         self._ws = websocket
         self._call_manager = call_manager
+        self._tool_executor = tool_executor
         self._active_call_id: str | None = None
         self._gemini_relay_task: asyncio.Task | None = None
         self._running = True
@@ -178,6 +193,7 @@ class GatewayBridge:
         Runs as a background task for the duration of the call.
         Handles:
         - Audio resampling (24kHz → 16kHz)
+        - Function calling (tool_call → execute → tool_response)
         - Turn completion notifications
         - Barge-in / interruption detection
         - Transcript forwarding
@@ -187,6 +203,11 @@ class GatewayBridge:
 
         try:
             async for response in session.receive():
+                # Handle tool calls from Gemini — pause audio, execute, respond
+                if response.has_tool_calls:
+                    await self._handle_tool_calls(call_id, session, response.tool_calls)
+                    continue
+
                 # Forward resampled audio to the gateway
                 if response.audio_data:
                     try:
@@ -234,6 +255,74 @@ class GatewayBridge:
             logger.info("Gemini relay task cancelled for call %s", call_id)
         except Exception as exc:
             logger.error("Gemini relay error for call %s: %s", call_id, exc, exc_info=True)
+
+    async def _handle_tool_calls(self, call_id: str, session, tool_calls) -> None:
+        """Execute tool function calls and send results back to Gemini.
+
+        Args:
+            call_id: The active call ID (for logging and gateway notifications).
+            session: The active AgentSession.
+            tool_calls: List of FunctionCallPart from the AgentResponse.
+        """
+        if self._tool_executor is None:
+            logger.warning(
+                "Call %s: received tool calls but no ToolExecutor configured — "
+                "sending error responses",
+                call_id,
+            )
+            error_responses = [
+                FunctionResponse(
+                    id=tc.call_id,
+                    name=tc.name,
+                    response={"error": "Tool execution not available"},
+                )
+                for tc in tool_calls
+            ]
+            await session.send_tool_response(error_responses)
+            return
+
+        # Execute all function calls and collect responses
+        function_responses = []
+        for tc in tool_calls:
+            logger.info(
+                "Call %s: executing tool %s(call_id=%s)",
+                call_id,
+                tc.name,
+                tc.call_id,
+            )
+
+            # Notify gateway that a tool is being executed
+            await self._send_json(
+                ToolExecutionMessage(
+                    call_id=call_id,
+                    tool_name=tc.name,
+                    tool_call_id=tc.call_id,
+                    status="executing",
+                )
+            )
+
+            result = await self._tool_executor.execute(
+                name=tc.name, args=tc.args, call_id=tc.call_id
+            )
+            function_responses.append(result.to_function_response())
+
+            # Notify gateway that tool execution completed
+            await self._send_json(
+                ToolExecutionMessage(
+                    call_id=call_id,
+                    tool_name=tc.name,
+                    tool_call_id=tc.call_id,
+                    status="completed",
+                )
+            )
+
+        # Send all function responses back to Gemini
+        await session.send_tool_response(function_responses)
+        logger.info(
+            "Call %s: sent %d tool response(s) back to Gemini",
+            call_id,
+            len(function_responses),
+        )
 
     async def _teardown_call(self) -> None:
         """Tear down the active call: cancel relay task, release session."""

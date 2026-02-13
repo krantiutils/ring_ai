@@ -64,6 +64,7 @@ class BackendMessageType(str, Enum):
     SESSION_ERROR = "SESSION_ERROR"
     TURN_COMPLETE = "TURN_COMPLETE"
     CALL_TRANSCRIPT = "CALL_TRANSCRIPT"
+    TOOL_EXECUTION = "TOOL_EXECUTION"
 
 
 class SessionReadyMessage(BaseModel):
@@ -90,6 +91,16 @@ class TurnCompleteMessage(BaseModel):
     output_transcript: str | None = None
     input_transcript: str | None = None
     was_interrupted: bool = False
+
+
+class ToolExecutionMessage(BaseModel):
+    """Sent when a tool function is being executed or has completed."""
+
+    type: BackendMessageType = BackendMessageType.TOOL_EXECUTION
+    call_id: str
+    tool_name: str = Field(..., description="Name of the tool being executed")
+    tool_call_id: str = Field(..., description="Unique ID for this function call")
+    status: str = Field(..., description="'executing' or 'completed'")
 
 
 class CallTranscriptMessage(BaseModel):

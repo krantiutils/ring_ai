@@ -23,18 +23,23 @@ async def gateway_websocket(websocket: WebSocket) -> None:
 
     Lifecycle:
         1. Accept the WebSocket connection
-        2. Create a GatewayBridge to manage the audio relay
+        2. Create a GatewayBridge with tool executor for function calling
         3. Run the bridge (blocks until WS disconnects)
     """
     await websocket.accept()
 
-    # Access the call_manager from app state (set during lifespan startup)
+    # Access services from app state (set during lifespan startup)
     call_manager = websocket.app.state.call_manager
+    tool_executor = getattr(websocket.app.state, "tool_executor", None)
 
     remote = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
     logger.info("Gateway connected from %s", remote)
 
-    bridge = GatewayBridge(websocket=websocket, call_manager=call_manager)
+    bridge = GatewayBridge(
+        websocket=websocket,
+        call_manager=call_manager,
+        tool_executor=tool_executor,
+    )
     await bridge.run()
 
     logger.info("Gateway disconnected: %s", remote)
