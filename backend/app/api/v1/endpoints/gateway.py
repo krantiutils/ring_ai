@@ -3,6 +3,11 @@
 Gateways connect via WebSocket to relay phone call audio to/from Gemini.
 Protocol: JSON text frames for control, binary frames for PCM audio.
 
+Inbound call flow:
+    1. Gateway sends INCOMING_CALL → backend evaluates routing rules
+    2. Backend sends ANSWER_CALL / REJECT_CALL / FORWARD_CALL
+    3. On ANSWER: gateway answers → CALL_CONNECTED → audio bridge starts
+
 Route: /api/v1/gateway/ws
 """
 
@@ -28,13 +33,18 @@ async def gateway_websocket(websocket: WebSocket) -> None:
     """
     await websocket.accept()
 
-    # Access the call_manager from app state (set during lifespan startup)
+    # Access services from app state (set during lifespan startup)
     call_manager = websocket.app.state.call_manager
+    inbound_router = getattr(websocket.app.state, "inbound_router", None)
 
     remote = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
     logger.info("Gateway connected from %s", remote)
 
-    bridge = GatewayBridge(websocket=websocket, call_manager=call_manager)
+    bridge = GatewayBridge(
+        websocket=websocket,
+        call_manager=call_manager,
+        inbound_router=inbound_router,
+    )
     await bridge.run()
 
     logger.info("Gateway disconnected: %s", remote)

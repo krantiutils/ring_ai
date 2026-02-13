@@ -5,14 +5,21 @@ Each active call runs two concurrent async tasks:
 2. gemini_to_gateway: reads AgentResponses from Gemini, resamples audio
    from 24 kHz to 16 kHz, sends binary PCM back to the gateway
 
+Inbound call routing:
+    1. Gateway sends INCOMING_CALL → bridge evaluates routing rules
+    2. Bridge sends ANSWER_CALL / REJECT_CALL / FORWARD_CALL decision
+    3. On ANSWER: gateway answers, sends CALL_CONNECTED → bridge creates
+       Gemini session and starts audio relay
+
 Barge-in is handled natively by Gemini's send_realtime_input — sending
 caller audio while Gemini is speaking triggers interruption. The bridge
 detects `is_interrupted` on the response and stops forwarding stale audio.
 
 Lifecycle:
-    1. Gateway sends CALL_CONNECTED → bridge creates Gemini session
-    2. Audio flows bidirectionally until CALL_ENDED
-    3. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
+    1. Gateway sends INCOMING_CALL → bridge routes, sends decision
+    2. If ANSWER → gateway sends CALL_CONNECTED → bridge creates Gemini session
+    3. Audio flows bidirectionally until CALL_ENDED
+    4. On CALL_ENDED or WebSocket disconnect → teardown Gemini session
 """
 
 import asyncio
@@ -24,16 +31,22 @@ from starlette.websockets import WebSocketState
 
 from app.services.gateway_bridge.call_manager import CallManager
 from app.services.gateway_bridge.models import (
+    AnswerCallMessage,
     CallConnectedMessage,
     CallEndedMessage,
+    ForwardCallMessage,
     GatewayMessageType,
+    IncomingCallMessage,
+    RejectCallMessage,
+    RoutingAction,
     SessionErrorMessage,
     SessionReadyMessage,
     TurnCompleteMessage,
 )
 from app.services.gateway_bridge.resampler import resample_24k_to_16k
+from app.services.inbound_router import InboundCallRouter, RoutingDecision
 from app.services.interactive_agent.exceptions import InteractiveAgentError
-from app.services.interactive_agent.models import AudioChunk
+from app.services.interactive_agent.models import AudioChunk, SessionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +59,28 @@ class GatewayBridge:
 
     Usage::
 
-        bridge = GatewayBridge(websocket=ws, call_manager=mgr)
+        bridge = GatewayBridge(
+            websocket=ws,
+            call_manager=mgr,
+            inbound_router=router,
+        )
         await bridge.run()  # blocks until WS disconnect
     """
 
-    def __init__(self, websocket: WebSocket, call_manager: CallManager) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        call_manager: CallManager,
+        inbound_router: InboundCallRouter | None = None,
+    ) -> None:
         self._ws = websocket
         self._call_manager = call_manager
+        self._inbound_router = inbound_router
         self._active_call_id: str | None = None
         self._gemini_relay_task: asyncio.Task | None = None
         self._running = True
+        # Pending routing decisions — keyed by call_id, consumed when CALL_CONNECTED arrives
+        self._pending_decisions: dict[str, RoutingDecision] = {}
 
     async def run(self) -> None:
         """Main loop: read messages from gateway, dispatch by type.
@@ -91,7 +116,9 @@ class GatewayBridge:
             return
 
         msg_type = data.get("type")
-        if msg_type == GatewayMessageType.CALL_CONNECTED:
+        if msg_type == GatewayMessageType.INCOMING_CALL:
+            await self._on_incoming_call(IncomingCallMessage(**data))
+        elif msg_type == GatewayMessageType.CALL_CONNECTED:
             await self._on_call_connected(CallConnectedMessage(**data))
         elif msg_type == GatewayMessageType.CALL_ENDED:
             await self._on_call_ended(CallEndedMessage(**data))
@@ -116,8 +143,64 @@ class GatewayBridge:
                 exc,
             )
 
+    async def _on_incoming_call(self, msg: IncomingCallMessage) -> None:
+        """Handle an INCOMING_CALL — evaluate routing rules and send decision."""
+        logger.info(
+            "Incoming call: call_id=%s, from=%s, to=%s, gateway=%s, carrier=%s, sim=%d",
+            msg.call_id,
+            msg.from_number,
+            msg.to_number,
+            msg.gateway_id,
+            msg.carrier,
+            msg.sim_slot,
+        )
+
+        # Evaluate routing rules
+        if self._inbound_router is not None:
+            decision = await self._inbound_router.route(msg)
+        else:
+            # No router configured — default to ANSWER
+            logger.warning("No inbound router configured, defaulting to ANSWER for call %s", msg.call_id)
+            decision = RoutingDecision(action=RoutingAction.ANSWER, call_id=msg.call_id)
+
+        logger.info(
+            "Routing decision for call %s: %s (rule=%s)",
+            msg.call_id,
+            decision.action.value,
+            decision.rule_name or "default",
+        )
+
+        # Log the inbound interaction
+        if self._inbound_router is not None:
+            asyncio.create_task(self._inbound_router.log_interaction(decision, msg))
+
+        # Send routing decision to gateway
+        if decision.action == RoutingAction.ANSWER:
+            self._pending_decisions[msg.call_id] = decision
+            await self._send_json(AnswerCallMessage(call_id=msg.call_id))
+        elif decision.action == RoutingAction.REJECT:
+            await self._send_json(
+                RejectCallMessage(call_id=msg.call_id, reason=decision.reject_reason)
+            )
+        elif decision.action == RoutingAction.FORWARD:
+            if decision.forward_to:
+                await self._send_json(
+                    ForwardCallMessage(call_id=msg.call_id, forward_to=decision.forward_to)
+                )
+            else:
+                logger.error(
+                    "FORWARD decision for call %s but no forward_to number — falling back to ANSWER",
+                    msg.call_id,
+                )
+                self._pending_decisions[msg.call_id] = decision
+                await self._send_json(AnswerCallMessage(call_id=msg.call_id))
+
     async def _on_call_connected(self, msg: CallConnectedMessage) -> None:
-        """Handle a new inbound call from the gateway."""
+        """Handle a call that has been answered by the gateway.
+
+        This may follow an ANSWER_CALL decision (new flow) or arrive
+        directly for backward compatibility with gateways that auto-answer.
+        """
         logger.info(
             "Call connected: call_id=%s, caller=%s, gateway=%s",
             msg.call_id,
@@ -134,11 +217,26 @@ class GatewayBridge:
             )
             await self._teardown_call()
 
+        # Retrieve pending routing decision (if INCOMING_CALL was processed)
+        decision = self._pending_decisions.pop(msg.call_id, None)
+
+        # Build session config from routing decision overrides
+        session_config = None
+        if decision is not None:
+            overrides = {}
+            if decision.system_instruction:
+                overrides["system_instruction"] = decision.system_instruction
+            if decision.voice_name:
+                overrides["voice_name"] = decision.voice_name
+            if overrides:
+                session_config = SessionConfig(**overrides)
+
         try:
             record = await self._call_manager.create_session(
                 call_id=msg.call_id,
                 gateway_id=msg.gateway_id,
                 caller_number=msg.caller_number,
+                session_config=session_config,
             )
         except Exception as exc:
             logger.error("Failed to create Gemini session for call %s: %s", msg.call_id, exc)
@@ -165,6 +263,9 @@ class GatewayBridge:
     async def _on_call_ended(self, msg: CallEndedMessage) -> None:
         """Handle call termination from the gateway."""
         logger.info("Call ended: call_id=%s, reason=%s", msg.call_id, msg.reason)
+
+        # Clean up any pending decision for this call
+        self._pending_decisions.pop(msg.call_id, None)
 
         if self._active_call_id == msg.call_id:
             await self._teardown_call()
@@ -258,6 +359,7 @@ class GatewayBridge:
     async def _cleanup(self) -> None:
         """Final cleanup when the WebSocket connection closes."""
         await self._teardown_call()
+        self._pending_decisions.clear()
         logger.info("Gateway bridge cleaned up")
 
     async def _send_json(self, message) -> None:

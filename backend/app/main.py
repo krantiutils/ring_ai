@@ -7,7 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
+from app.core.database import SessionLocal
 from app.services.gateway_bridge.call_manager import CallManager
+from app.services.inbound_router import InboundCallRouter
 from app.services.interactive_agent.pool import SessionPool
 from app.services.scheduler import scheduler_loop
 
@@ -28,8 +30,11 @@ async def lifespan(app: FastAPI):
     )
     call_manager = CallManager(pool=session_pool)
 
+    inbound_router = InboundCallRouter(session_factory=SessionLocal)
+
     app.state.session_pool = session_pool
     app.state.call_manager = call_manager
+    app.state.inbound_router = inbound_router
 
     logger.info(
         "Gateway bridge initialized (max_sessions=%d, model=%s, voice=%s)",

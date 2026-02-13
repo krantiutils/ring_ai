@@ -7,6 +7,8 @@ from app.models.credit import Credit
 from app.models.credit_transaction import CreditTransaction
 from app.models.form import Form
 from app.models.form_response import FormResponse
+from app.models.gateway_phone import GatewayPhone
+from app.models.inbound_routing_rule import InboundRoutingRule
 from app.models.interaction import Interaction
 from app.models.kyc_verification import KYCVerification
 from app.models.notification import Notification
@@ -31,6 +33,8 @@ __all__ = [
     "CreditTransaction",
     "Form",
     "FormResponse",
+    "GatewayPhone",
+    "InboundRoutingRule",
     "Interaction",
     "KYCVerification",
     "Notification",
