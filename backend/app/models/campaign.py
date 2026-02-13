@@ -5,6 +5,11 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.ab_test import ABTest
+
 from app.core.database import Base
 
 
@@ -55,6 +60,10 @@ class Campaign(Base):
     source_campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True
     )
+    ab_test_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ab_tests.id"), nullable=True
+    )
+    ab_test_variant: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -63,6 +72,7 @@ class Campaign(Base):
     voice_model: Mapped["VoiceModel | None"] = relationship()
     form: Mapped["Form | None"] = relationship(back_populates="campaigns", foreign_keys=[form_id])
     interactions: Mapped[list["Interaction"]] = relationship(back_populates="campaign")
+    ab_test: Mapped["ABTest | None"] = relationship(back_populates="campaigns")
 
     def __repr__(self) -> str:
         return f"<Campaign {self.name} ({self.type}/{self.status})>"
