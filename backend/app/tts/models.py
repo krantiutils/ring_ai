@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class TTSProvider(str, Enum):
     EDGE_TTS = "edge_tts"
     AZURE = "azure"
+    ELEVENLABS = "elevenlabs"
 
 
 class AudioFormat(str, Enum):
@@ -24,6 +25,10 @@ class TTSConfig(BaseModel):
     # Azure-specific — ignored for edge_tts
     api_key: str | None = None
     region: str | None = None
+    # ElevenLabs-specific — ignored for other providers
+    elevenlabs_api_key: str | None = None
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_language_code: str | None = "nep"
     # Optional fallback provider on failure
     fallback_provider: TTSProvider | None = None
 
@@ -53,6 +58,10 @@ class SynthesizeRequest(BaseModel):
     volume: str = "+0%"
     output_format: AudioFormat = AudioFormat.MP3
     fallback_provider: TTSProvider | None = None
+    # ElevenLabs-specific
+    elevenlabs_api_key: str | None = None
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_language_code: str | None = "nep"
 
 
 class VoicesRequest(BaseModel):

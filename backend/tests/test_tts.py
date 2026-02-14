@@ -20,6 +20,7 @@ from app.tts.models import (
     VoiceInfo,
 )
 from app.tts.providers.edge import EdgeTTSProvider, _estimate_duration_from_mp3
+from app.tts.providers.elevenlabs import ElevenLabsTTSProvider
 from app.tts.router import TTSRouter
 
 
@@ -434,6 +435,150 @@ class TestAzureTTSProvider:
 
 
 # ---------------------------------------------------------------------------
+# ElevenLabsTTSProvider unit tests (mocked)
+# ---------------------------------------------------------------------------
+
+
+class TestElevenLabsTTSProvider:
+    def test_name(self):
+        provider = ElevenLabsTTSProvider()
+        assert provider.name == "elevenlabs"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_missing_api_key(self):
+        provider = ElevenLabsTTSProvider()
+        config = TTSConfig(
+            provider=TTSProvider.ELEVENLABS,
+            voice="some-voice-id",
+            elevenlabs_api_key=None,
+        )
+        with pytest.raises(TTSConfigurationError, match="elevenlabs_api_key"):
+            await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_success(self):
+        fake_audio = b"\xff\xfb\x90\x00" + b"\x00" * 500
+
+        with patch("app.tts.providers.elevenlabs.ElevenLabs") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.text_to_speech.convert.return_value = iter([fake_audio])
+
+            provider = ElevenLabsTTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.ELEVENLABS,
+                voice="test-voice-id",
+                elevenlabs_api_key="test-key",
+                elevenlabs_model_id="eleven_multilingual_v2",
+                elevenlabs_language_code="nep",
+            )
+            result = await provider.synthesize("नमस्ते", config)
+
+            assert result.audio_bytes == fake_audio
+            assert result.provider_used == TTSProvider.ELEVENLABS
+            assert result.chars_consumed == len("नमस्ते")
+            assert result.output_format == AudioFormat.MP3
+            assert result.duration_ms > 0
+
+            MockClient.assert_called_once_with(api_key="test-key")
+            mock_client.text_to_speech.convert.assert_called_once_with(
+                voice_id="test-voice-id",
+                text="नमस्ते",
+                model_id="eleven_multilingual_v2",
+                output_format="mp3_44100_128",
+                language_code="nep",
+            )
+
+    @pytest.mark.asyncio
+    async def test_synthesize_empty_audio_raises(self):
+        with patch("app.tts.providers.elevenlabs.ElevenLabs") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.text_to_speech.convert.return_value = iter([])
+
+            provider = ElevenLabsTTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.ELEVENLABS,
+                voice="test-voice-id",
+                elevenlabs_api_key="test-key",
+            )
+            with pytest.raises(TTSProviderError, match="empty audio"):
+                await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_api_error(self):
+        with patch("app.tts.providers.elevenlabs.ElevenLabs") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.text_to_speech.convert.side_effect = RuntimeError("API limit exceeded")
+
+            provider = ElevenLabsTTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.ELEVENLABS,
+                voice="test-voice-id",
+                elevenlabs_api_key="test-key",
+            )
+            with pytest.raises(TTSProviderError, match="Synthesis failed"):
+                await provider.synthesize("hello", config)
+
+    @pytest.mark.asyncio
+    async def test_synthesize_no_language_code(self):
+        """When language_code is None, it should not be passed to the SDK."""
+        fake_audio = b"\x00" * 200
+
+        with patch("app.tts.providers.elevenlabs.ElevenLabs") as MockClient:
+            mock_client = MockClient.return_value
+            mock_client.text_to_speech.convert.return_value = iter([fake_audio])
+
+            provider = ElevenLabsTTSProvider()
+            config = TTSConfig(
+                provider=TTSProvider.ELEVENLABS,
+                voice="test-voice-id",
+                elevenlabs_api_key="test-key",
+                elevenlabs_language_code=None,
+            )
+            result = await provider.synthesize("hello", config)
+            assert result.audio_bytes == fake_audio
+
+            # Verify language_code was NOT passed
+            call_kwargs = mock_client.text_to_speech.convert.call_args
+            assert "language_code" not in call_kwargs.kwargs
+
+    @pytest.mark.asyncio
+    async def test_list_voices_success(self):
+        mock_voice = MagicMock()
+        mock_voice.voice_id = "abc123"
+        mock_voice.name = "Test Voice"
+        mock_voice.labels = {"language": "ne-NP", "gender": "Female"}
+
+        mock_response = MagicMock()
+        mock_response.voices = [mock_voice]
+
+        with (
+            patch("app.core.config.settings") as mock_settings,
+            patch("app.tts.providers.elevenlabs.ElevenLabs") as MockClient,
+        ):
+            mock_settings.ELEVENLABS_API_KEY = "test-key"
+            mock_client = MockClient.return_value
+            mock_client.voices.search.return_value = mock_response
+
+            provider = ElevenLabsTTSProvider()
+            voices = await provider.list_voices(locale="ne-NP")
+
+            assert len(voices) == 1
+            assert voices[0].voice_id == "abc123"
+            assert voices[0].name == "Test Voice"
+            assert voices[0].gender == "Female"
+            assert voices[0].provider == TTSProvider.ELEVENLABS
+
+    @pytest.mark.asyncio
+    async def test_list_voices_missing_api_key(self):
+        with patch("app.core.config.settings") as mock_settings:
+            mock_settings.ELEVENLABS_API_KEY = ""
+
+            provider = ElevenLabsTTSProvider()
+            with pytest.raises(TTSConfigurationError, match="ELEVENLABS_API_KEY"):
+                await provider.list_voices()
+
+
+# ---------------------------------------------------------------------------
 # Duration estimation utility
 # ---------------------------------------------------------------------------
 
@@ -464,6 +609,7 @@ class TestTTSEndpoints:
         assert "providers" in data
         assert "edge_tts" in data["providers"]
         assert "azure" in data["providers"]
+        assert "elevenlabs" in data["providers"]
 
     def test_synthesize_validation_error(self, client):
         # Empty text should fail validation

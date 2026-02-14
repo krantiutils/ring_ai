@@ -43,6 +43,9 @@ async def synthesize(request: SynthesizeRequest) -> Response:
         volume=request.volume,
         output_format=request.output_format,
         fallback_provider=request.fallback_provider,
+        elevenlabs_api_key=request.elevenlabs_api_key,
+        elevenlabs_model_id=request.elevenlabs_model_id,
+        elevenlabs_language_code=request.elevenlabs_language_code,
     )
 
     try:
