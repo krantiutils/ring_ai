@@ -42,6 +42,8 @@ async def synthesize(request: SynthesizeRequest) -> Response:
         pitch=request.pitch,
         volume=request.volume,
         output_format=request.output_format,
+        speech_model=request.speech_model,
+        mood=request.mood,
         fallback_provider=request.fallback_provider,
     )
 
