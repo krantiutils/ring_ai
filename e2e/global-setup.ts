@@ -295,18 +295,13 @@ async function globalSetup() {
   // ── Browser-based auth: save storageState for Playwright ──
   const browser = await chromium.launch();
   const context = await browser.newContext({ baseURL: FRONTEND_URL });
-  const page = await context.newPage();
-
-  await page.goto("/login");
-  await page.getByPlaceholder("you@company.com").fill(TEST_USER.email);
-  await page.getByPlaceholder("Enter your password").fill(TEST_USER.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL("**/dashboard", { timeout: 15_000 });
-
-  // Inject the access token into localStorage (matches the app's auth mechanism)
-  await page.evaluate((token: string) => {
+  await context.addInitScript((token: string) => {
     localStorage.setItem("access_token", token);
   }, accessToken);
+  const page = await context.newPage();
+
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/dashboard(\/.*)?$/, { timeout: 30_000 });
 
   await context.storageState({ path: STORAGE_STATE_FILE });
   await browser.close();
