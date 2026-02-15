@@ -38,9 +38,7 @@ def resample_24k_to_16k(data: bytes) -> bytes:
         return b""
 
     if len(data) % SAMPLE_SIZE != 0:
-        raise ValueError(
-            f"Audio data length ({len(data)}) must be a multiple of {SAMPLE_SIZE} bytes (16-bit samples)"
-        )
+        raise ValueError(f"Audio data length ({len(data)}) must be a multiple of {SAMPLE_SIZE} bytes (16-bit samples)")
 
     num_input_samples = len(data) // SAMPLE_SIZE
     if num_input_samples < 2:

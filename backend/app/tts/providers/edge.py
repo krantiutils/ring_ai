@@ -132,7 +132,10 @@ class EdgeTTSProvider(BaseTTSProvider):
         return ProviderInfo(
             provider=TTSProvider.EDGE_TTS,
             display_name="Edge TTS",
-            description="Microsoft Edge's online TTS service. Free, no API key required. Supports 400+ voices across 100+ languages.",
+            description=(
+                "Microsoft Edge's online TTS service. Free, no API key required. "
+                "Supports 400+ voices across 100+ languages."
+            ),
             pricing=ProviderPricing(
                 cost_per_million_chars=0.0,
                 free_tier_chars=None,

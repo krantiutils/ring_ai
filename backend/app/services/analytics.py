@@ -79,9 +79,7 @@ def get_overview_analytics(
 
     # --- Campaign counts by status ---
     status_rows = db.execute(
-        select(Campaign.status, func.count())
-        .where(Campaign.org_id == org_id)
-        .group_by(Campaign.status)
+        select(Campaign.status, func.count()).where(Campaign.org_id == org_id).group_by(Campaign.status)
     ).all()
     campaigns_by_status = {row[0]: row[1] for row in status_rows}
 
@@ -144,11 +142,7 @@ def get_overview_analytics(
         .where(*interaction_filter, Interaction.status == "completed")
     ).scalar_one()
 
-    delivery_rate = (
-        completed_interactions / total_interactions
-        if total_interactions > 0
-        else None
-    )
+    delivery_rate = completed_interactions / total_interactions if total_interactions > 0 else None
 
     # --- Credits consumed ---
     # Sum cost per completed interaction grouped by type
@@ -185,10 +179,7 @@ def get_overview_analytics(
             cost_per = COST_PER_INTERACTION.get(itype, 1.0)
             day_credits[day_str] += cost_per
 
-    credits_by_period = [
-        PeriodCredits(period=day, credits=credits)
-        for day, credits in sorted(day_credits.items())
-    ]
+    credits_by_period = [PeriodCredits(period=day, credits=credits) for day, credits in sorted(day_credits.items())]
 
     # --- Average sentiment score ---
     avg_sentiment = db.execute(
@@ -262,14 +253,17 @@ def get_campaign_analytics(db: Session, campaign_id: uuid.UUID) -> CampaignAnaly
     # --- Hourly and daily distributions ---
     # Fetch completed interaction timestamps and bucket in Python
     # (avoids dialect-specific EXTRACT/CAST — works on both PostgreSQL and SQLite)
-    completed_timestamps = db.execute(
-        select(Interaction.created_at)
-        .where(
-            Interaction.campaign_id == campaign_id,
-            Interaction.status == "completed",
-            Interaction.created_at.isnot(None),
+    completed_timestamps = (
+        db.execute(
+            select(Interaction.created_at).where(
+                Interaction.campaign_id == campaign_id,
+                Interaction.status == "completed",
+                Interaction.created_at.isnot(None),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     hourly_counts: dict[int, int] = defaultdict(int)
     daily_counts: dict[str, int] = defaultdict(int)
@@ -278,23 +272,21 @@ def get_campaign_analytics(db: Session, campaign_id: uuid.UUID) -> CampaignAnaly
             hourly_counts[ts.hour] += 1
             daily_counts[str(ts.date())] += 1
 
-    hourly_distribution = [
-        HourlyBucket(hour=h, count=c)
-        for h, c in sorted(hourly_counts.items())
-    ]
-    daily_distribution = [
-        DailyBucket(date=d, count=c)
-        for d, c in sorted(daily_counts.items())
-    ]
+    hourly_distribution = [HourlyBucket(hour=h, count=c) for h, c in sorted(hourly_counts.items())]
+    daily_distribution = [DailyBucket(date=d, count=c) for d, c in sorted(daily_counts.items())]
 
     # --- Carrier breakdown ---
     # Fetch phone numbers of contacts in this campaign
-    contact_phones = db.execute(
-        select(Contact.phone)
-        .join(Interaction, Interaction.contact_id == Contact.id)
-        .where(Interaction.campaign_id == campaign_id)
-        .distinct()
-    ).scalars().all()
+    contact_phones = (
+        db.execute(
+            select(Contact.phone)
+            .join(Interaction, Interaction.contact_id == Contact.id)
+            .where(Interaction.campaign_id == campaign_id)
+            .distinct()
+        )
+        .scalars()
+        .all()
+    )
 
     carrier_counts: dict[str, int] = {}
     for phone in contact_phones:
@@ -351,9 +343,7 @@ def query_events(
         filters.append(AnalyticsEvent.event_type == event_type)
     if campaign_id is not None:
         filters.append(
-            AnalyticsEvent.interaction_id.in_(
-                select(Interaction.id).where(Interaction.campaign_id == campaign_id)
-            )
+            AnalyticsEvent.interaction_id.in_(select(Interaction.id).where(Interaction.campaign_id == campaign_id))
         )
     if start_date is not None:
         filters.append(AnalyticsEvent.created_at >= start_date)
@@ -367,15 +357,7 @@ def query_events(
     total = db.execute(count_query).scalar_one()
 
     offset = (page - 1) * page_size
-    items = (
-        db.execute(
-            query.order_by(AnalyticsEvent.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
-        .scalars()
-        .all()
-    )
+    items = db.execute(query.order_by(AnalyticsEvent.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
 
     return items, total
 
@@ -441,9 +423,7 @@ def get_intent_distribution(
     if campaign_id is not None:
         filters.append(Interaction.campaign_id == campaign_id)
 
-    metadata_rows = db.execute(
-        select(Interaction.metadata_).where(*filters)
-    ).scalars().all()
+    metadata_rows = db.execute(select(Interaction.metadata_).where(*filters)).scalars().all()
 
     intent_counts: dict[str, int] = defaultdict(int)
     for meta in metadata_rows:
@@ -452,8 +432,7 @@ def get_intent_distribution(
 
     total_classified = sum(intent_counts.values())
     buckets = [
-        IntentBucket(intent=intent, count=count)
-        for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
+        IntentBucket(intent=intent, count=count) for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
     ]
 
     return IntentDistribution(
@@ -470,13 +449,17 @@ def get_campaign_intent_summary(db: Session, campaign_id: uuid.UUID) -> Campaign
     if campaign is None:
         raise ValueError(f"Campaign {campaign_id} not found")
 
-    metadata_rows = db.execute(
-        select(Interaction.metadata_).where(
-            Interaction.campaign_id == campaign_id,
-            Interaction.status == "completed",
-            Interaction.metadata_.isnot(None),
+    metadata_rows = (
+        db.execute(
+            select(Interaction.metadata_).where(
+                Interaction.campaign_id == campaign_id,
+                Interaction.status == "completed",
+                Interaction.metadata_.isnot(None),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     intent_counts: dict[str, int] = defaultdict(int)
     for meta in metadata_rows:
@@ -485,8 +468,7 @@ def get_campaign_intent_summary(db: Session, campaign_id: uuid.UUID) -> Campaign
 
     total_classified = sum(intent_counts.values())
     buckets = [
-        IntentBucket(intent=intent, count=count)
-        for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
+        IntentBucket(intent=intent, count=count) for intent, count in sorted(intent_counts.items(), key=lambda x: -x[1])
     ]
 
     top_intent = buckets[0].intent if buckets else None

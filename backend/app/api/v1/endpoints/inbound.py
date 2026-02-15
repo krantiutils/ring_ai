@@ -37,11 +37,7 @@ def list_gateway_phones(
 ):
     """List gateway phones for an organization."""
     phones = (
-        db.execute(
-            select(GatewayPhone)
-            .where(GatewayPhone.org_id == org_id)
-            .order_by(GatewayPhone.created_at.desc())
-        )
+        db.execute(select(GatewayPhone).where(GatewayPhone.org_id == org_id).order_by(GatewayPhone.created_at.desc()))
         .scalars()
         .all()
     )
@@ -138,9 +134,7 @@ def list_routing_rules(
     """List inbound routing rules for an organization, sorted by priority."""
     rules = (
         db.execute(
-            select(InboundRoutingRule)
-            .where(InboundRoutingRule.org_id == org_id)
-            .order_by(InboundRoutingRule.priority)
+            select(InboundRoutingRule).where(InboundRoutingRule.org_id == org_id).order_by(InboundRoutingRule.priority)
         )
         .scalars()
         .all()

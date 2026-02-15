@@ -7,8 +7,6 @@ import pytest
 
 from app.models.campaign import Campaign
 from app.models.contact import Contact
-from app.models.credit import Credit
-from app.models.credit_transaction import CreditTransaction
 from app.models.interaction import Interaction
 from app.services.credits import (
     InsufficientCreditsError,
@@ -176,7 +174,9 @@ class TestConsumeCredits:
     def test_consume_with_reference(self, db, org):
         purchase_credits(db, org.id, 100.0)
         tx = consume_credits(
-            db, org.id, 2.0,
+            db,
+            org.id,
+            2.0,
             reference_id="interaction-123",
             description="Voice call",
         )
@@ -239,9 +239,7 @@ class TestEstimateCampaignCost:
         assert estimate["current_balance"] == 5.0
 
     def test_estimate_zero_contacts(self, db, org):
-        campaign = Campaign(
-            name="Empty", type="voice", org_id=org.id, status="draft"
-        )
+        campaign = Campaign(name="Empty", type="voice", org_id=org.id, status="draft")
         db.add(campaign)
         db.commit()
 
@@ -251,9 +249,7 @@ class TestEstimateCampaignCost:
         assert estimate["sufficient_credits"] is True
 
     def test_estimate_text_campaign_rate(self, db, org):
-        campaign = Campaign(
-            name="SMS Campaign", type="text", org_id=org.id, status="draft"
-        )
+        campaign = Campaign(name="SMS Campaign", type="text", org_id=org.id, status="draft")
         db.add(campaign)
         db.flush()
 
@@ -391,9 +387,7 @@ class TestCreditHistoryAPI:
         for i in range(5):
             purchase_credits(db, org_id, 10.0, f"Purchase {i}")
 
-        resp = client.get(
-            f"/api/v1/credits/history?org_id={org_id}&page=1&page_size=2"
-        )
+        resp = client.get(f"/api/v1/credits/history?org_id={org_id}&page=1&page_size=2")
         data = resp.json()
         assert data["total"] == 5
         assert len(data["items"]) == 2
@@ -435,19 +429,19 @@ class TestCreditPurchaseAPI:
 class TestCostEstimationAPI:
     def test_estimate_campaign(self, client, org_id, db):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-            ["+9779801234569", "Hari"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+                ["+9779801234569", "Hari"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # Add some credits
         purchase_credits(db, org_id, 100.0)
 
-        resp = client.post(
-            f"/api/v1/credits/campaigns/{created['id']}/estimate"
-        )
+        resp = client.post(f"/api/v1/credits/campaigns/{created['id']}/estimate")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_contacts"] == 3
@@ -457,23 +451,21 @@ class TestCostEstimationAPI:
         assert data["sufficient_credits"] is True
 
     def test_estimate_campaign_not_found(self, client):
-        resp = client.post(
-            f"/api/v1/credits/campaigns/{NONEXISTENT_UUID}/estimate"
-        )
+        resp = client.post(f"/api/v1/credits/campaigns/{NONEXISTENT_UUID}/estimate")
         assert resp.status_code == 404
 
     def test_estimate_insufficient_credits(self, client, org_id, db):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # No credits purchased — balance is 0
-        resp = client.post(
-            f"/api/v1/credits/campaigns/{created['id']}/estimate"
-        )
+        resp = client.post(f"/api/v1/credits/campaigns/{created['id']}/estimate")
         assert resp.status_code == 200
         data = resp.json()
         assert data["sufficient_credits"] is False
@@ -489,10 +481,12 @@ class TestCostEstimationAPI:
 class TestCampaignStartCreditCheck:
     def _campaign_with_contacts_via_api(self, client, org_id):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
         return created
 

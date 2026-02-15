@@ -888,9 +888,7 @@ class TestVoiceQualityHelpers:
             # Reset voices to untested state
             for name in ("Kore", "Charon", "Fenrir"):
                 v = GEMINI_VOICES[name]
-                GEMINI_VOICES[name] = v.model_copy(
-                    update={"nepali_quality": "untested", "nepali_score": None}
-                )
+                GEMINI_VOICES[name] = v.model_copy(update={"nepali_quality": "untested", "nepali_score": None})
 
     def test_load_quality_results_ignores_unknown_voices(self):
         results_data = {

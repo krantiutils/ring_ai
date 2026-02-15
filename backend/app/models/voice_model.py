@@ -32,9 +32,7 @@ class VoiceModel(Base):
     locale: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ne-NP")
     gender: Mapped[str | None] = mapped_column(String(20))
     is_premium: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    org_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True
-    )
+    org_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     organization: Mapped["Organization | None"] = relationship()

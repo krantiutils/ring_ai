@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.campaign import Campaign
 from app.models.contact import Contact
+from app.models.form import Form
 from app.models.interaction import Interaction
 from app.models.template import Template
 from app.schemas.campaigns import CampaignStats
-from app.models.form import Form
 from app.services.telephony import (
     AudioEntry,
     CallContext,
@@ -260,6 +260,7 @@ def start_campaign(db: Session, campaign: Campaign) -> Campaign:
 
     # Check credit balance before launching
     from app.services.credits import check_sufficient_credits
+
     check_sufficient_credits(db, campaign.org_id, campaign)
 
     campaign.status = "active"
@@ -354,9 +355,7 @@ def _get_max_retries(campaign: Campaign) -> int:
     return settings.CAMPAIGN_MAX_RETRIES
 
 
-def retry_campaign(
-    db: Session, campaign: Campaign
-) -> tuple[int, datetime | None]:
+def retry_campaign(db: Session, campaign: Campaign) -> tuple[int, datetime | None]:
     """Retry failed/no-answer contacts in a completed campaign.
 
     Creates new pending interactions for contacts whose interactions have
@@ -376,24 +375,25 @@ def retry_campaign(
     max_retries = _get_max_retries(campaign)
     if campaign.retry_count >= max_retries:
         raise MaxRetriesExceeded(
-            f"Campaign has already been retried {campaign.retry_count} "
-            f"time(s) (max: {max_retries})"
+            f"Campaign has already been retried {campaign.retry_count} time(s) (max: {max_retries})"
         )
 
     # Find contacts with failed interactions that haven't already been
     # retried in a later round.
     # We want distinct contacts whose LATEST interaction is failed.
-    failed_interactions = db.execute(
-        select(Interaction).where(
-            Interaction.campaign_id == campaign.id,
-            Interaction.status == "failed",
+    failed_interactions = (
+        db.execute(
+            select(Interaction).where(
+                Interaction.campaign_id == campaign.id,
+                Interaction.status == "failed",
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not failed_interactions:
-        raise NoFailedInteractions(
-            "No failed interactions to retry in this campaign"
-        )
+        raise NoFailedInteractions("No failed interactions to retry in this campaign")
 
     # Deduplicate by contact_id — only retry each contact once.
     # A contact may have multiple failed interactions from previous
@@ -455,24 +455,24 @@ def relaunch_campaign(db: Session, campaign: Campaign) -> tuple[Campaign, int]:
         CampaignError: Campaign has no failed interactions to relaunch.
     """
     if campaign.status not in ("completed", "paused", "active"):
-        raise CampaignError(
-            f"Cannot relaunch a campaign in '{campaign.status}' status"
-        )
+        raise CampaignError(f"Cannot relaunch a campaign in '{campaign.status}' status")
 
     # Find distinct contacts with failed interactions
-    failed_contact_ids = db.execute(
-        select(Interaction.contact_id)
-        .where(
-            Interaction.campaign_id == campaign.id,
-            Interaction.status == "failed",
+    failed_contact_ids = (
+        db.execute(
+            select(Interaction.contact_id)
+            .where(
+                Interaction.campaign_id == campaign.id,
+                Interaction.status == "failed",
+            )
+            .distinct()
         )
-        .distinct()
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not failed_contact_ids:
-        raise NoFailedInteractions(
-            "No failed interactions to relaunch in this campaign"
-        )
+        raise NoFailedInteractions("No failed interactions to relaunch in this campaign")
 
     # Clone campaign
     new_campaign = Campaign(
@@ -491,13 +491,15 @@ def relaunch_campaign(db: Session, campaign: Campaign) -> tuple[Campaign, int]:
     # Create interactions for each failed contact
     interaction_type = CAMPAIGN_TYPE_TO_INTERACTION_TYPE[campaign.type]
     for contact_id in failed_contact_ids:
-        db.add(Interaction(
-            campaign_id=new_campaign.id,
-            contact_id=contact_id,
-            type=interaction_type,
-            status="pending",
-            metadata_={"source_campaign_id": str(campaign.id)},
-        ))
+        db.add(
+            Interaction(
+                campaign_id=new_campaign.id,
+                contact_id=contact_id,
+                type=interaction_type,
+                status="pending",
+                metadata_={"source_campaign_id": str(campaign.id)},
+            )
+        )
 
     db.commit()
     db.refresh(new_campaign)
@@ -560,11 +562,7 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
             Interaction.playback_percentage.isnot(None),
         )
     ).scalar_one()
-    avg_playback_pct = (
-        round(float(avg_playback_pct_result), 1)
-        if avg_playback_pct_result is not None
-        else None
-    )
+    avg_playback_pct = round(float(avg_playback_pct_result), 1) if avg_playback_pct_result is not None else None
 
     # Average playback duration for completed interactions
     avg_playback_dur_result = db.execute(
@@ -574,11 +572,7 @@ def calculate_stats(db: Session, campaign_id: uuid.UUID) -> CampaignStats:
             Interaction.playback_duration_seconds.isnot(None),
         )
     ).scalar_one()
-    avg_playback_dur = (
-        float(avg_playback_dur_result)
-        if avg_playback_dur_result is not None
-        else None
-    )
+    avg_playback_dur = float(avg_playback_dur_result) if avg_playback_dur_result is not None else None
 
     return CampaignStats(
         total_contacts=total,
@@ -683,19 +677,21 @@ def generate_report_csv(db: Session, campaign_id: uuid.UUID) -> Generator[str, N
         buf = io.StringIO()
         writer = csv.writer(buf)
         carrier = contact.carrier if contact.carrier else detect_carrier(contact.phone)
-        writer.writerow([
-            contact.phone,
-            contact.name or "",
-            interaction.status,
-            interaction.duration_seconds if interaction.duration_seconds is not None else "",
-            interaction.audio_duration_seconds if interaction.audio_duration_seconds is not None else "",
-            interaction.playback_duration_seconds if interaction.playback_duration_seconds is not None else "",
-            f"{interaction.playback_percentage:.1f}" if interaction.playback_percentage is not None else "",
-            interaction.credit_consumed if interaction.credit_consumed is not None else "",
-            carrier,
-            interaction.audio_url or "",
-            interaction.updated_at.isoformat() if interaction.updated_at else "",
-        ])
+        writer.writerow(
+            [
+                contact.phone,
+                contact.name or "",
+                interaction.status,
+                interaction.duration_seconds if interaction.duration_seconds is not None else "",
+                interaction.audio_duration_seconds if interaction.audio_duration_seconds is not None else "",
+                interaction.playback_duration_seconds if interaction.playback_duration_seconds is not None else "",
+                f"{interaction.playback_percentage:.1f}" if interaction.playback_percentage is not None else "",
+                interaction.credit_consumed if interaction.credit_consumed is not None else "",
+                carrier,
+                interaction.audio_url or "",
+                interaction.updated_at.isoformat() if interaction.updated_at else "",
+            ]
+        )
         yield buf.getvalue()
 
 
@@ -757,10 +753,7 @@ async def _dispatch_voice_call(
     """
     if preloaded_audio is not None:
         # Pre-recorded audio path: skip TTS entirely
-        content_type = (
-            "audio/wav" if campaign.audio_file and campaign.audio_file.endswith(".wav")
-            else "audio/mpeg"
-        )
+        content_type = "audio/wav" if campaign.audio_file and campaign.audio_file.endswith(".wav") else "audio/mpeg"
         audio_id = str(uuid.uuid4())
         audio_store.put(
             audio_id,
@@ -769,9 +762,7 @@ async def _dispatch_voice_call(
     else:
         # TTS path: render template and synthesize
         if template is None:
-            raise TelephonyConfigurationError(
-                "Campaign has no template and no audio file — cannot dispatch voice call"
-            )
+            raise TelephonyConfigurationError("Campaign has no template and no audio file — cannot dispatch voice call")
         variables = _build_contact_variables(contact)
         rendered_text = render(template.content, variables)
 
@@ -879,9 +870,7 @@ async def _dispatch_form_call(
         # Clean up audio on failure
         for aid in audio_ids.values():
             audio_store.delete(aid)
-        raise TelephonyConfigurationError(
-            "TWILIO_BASE_URL not configured — cannot generate callback URLs"
-        )
+        raise TelephonyConfigurationError("TWILIO_BASE_URL not configured — cannot generate callback URLs")
 
     # 3. Set up form call context
     temp_call_id = str(uuid.uuid4())
@@ -1023,9 +1012,7 @@ def _dispatch_interaction(
             db.commit()
             return
 
-        call_sid = asyncio.run(
-            _dispatch_form_call(interaction, contact, form, campaign)
-        )
+        call_sid = asyncio.run(_dispatch_form_call(interaction, contact, form, campaign))
         interaction.metadata_ = {
             **(interaction.metadata_ or {}),
             "twilio_call_sid": call_sid,
@@ -1044,9 +1031,7 @@ def _dispatch_interaction(
         db.commit()
 
     elif campaign.type == "text":
-        message_sid = asyncio.run(
-            _dispatch_sms(interaction, contact, template, campaign)
-        )
+        message_sid = asyncio.run(_dispatch_sms(interaction, contact, template, campaign))
         interaction.status = "completed"
         interaction.ended_at = datetime.now(timezone.utc)
         interaction.metadata_ = {

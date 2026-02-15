@@ -11,9 +11,7 @@ from app.core.database import Base
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
-    __table_args__ = (
-        Index("ix_knowledge_bases_org_id", "org_id"),
-    )
+    __table_args__ = (Index("ix_knowledge_bases_org_id", "org_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -43,9 +41,7 @@ class KnowledgeDocument(Base):
     file_name: Mapped[str] = mapped_column(String(500), nullable=False)
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="pending"
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -53,9 +49,7 @@ class KnowledgeDocument(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     knowledge_base: Mapped["KnowledgeBase"] = relationship(back_populates="documents")
-    chunks: Mapped[list["KnowledgeChunk"]] = relationship(
-        back_populates="document", cascade="all, delete-orphan"
-    )
+    chunks: Mapped[list["KnowledgeChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<KnowledgeDocument {self.file_name} ({self.status})>"
@@ -63,9 +57,7 @@ class KnowledgeDocument(Base):
 
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
-    __table_args__ = (
-        Index("ix_knowledge_chunks_doc_id", "document_id"),
-    )
+    __table_args__ = (Index("ix_knowledge_chunks_doc_id", "document_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(

@@ -11,7 +11,6 @@ from app.models.contact import Contact
 from app.models.sms_conversation import SmsConversation
 from app.models.sms_message import SmsMessage
 from app.services.telephony import SmsResult, get_twilio_provider
-from app.services.telephony.exceptions import TelephonyProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -180,14 +179,18 @@ def match_auto_response(db: Session, org_id, message_body: str) -> AutoResponseR
     Evaluates active rules for the org in priority order (ascending).
     Returns the first matching rule, or None.
     """
-    rules = db.execute(
-        select(AutoResponseRule)
-        .where(
-            AutoResponseRule.org_id == org_id,
-            AutoResponseRule.is_active.is_(True),
+    rules = (
+        db.execute(
+            select(AutoResponseRule)
+            .where(
+                AutoResponseRule.org_id == org_id,
+                AutoResponseRule.is_active.is_(True),
+            )
+            .order_by(AutoResponseRule.priority.asc())
         )
-        .order_by(AutoResponseRule.priority.asc())
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     normalized_body = message_body.strip().lower()
 
@@ -224,9 +227,7 @@ def update_message_status(db: Session, twilio_sid: str, new_status: str) -> SmsM
     Called by the delivery status webhook.
     Returns the updated message, or None if not found.
     """
-    message = db.execute(
-        select(SmsMessage).where(SmsMessage.twilio_sid == twilio_sid)
-    ).scalar_one_or_none()
+    message = db.execute(select(SmsMessage).where(SmsMessage.twilio_sid == twilio_sid)).scalar_one_or_none()
 
     if message is None:
         logger.warning("Status update for unknown twilio_sid: %s", twilio_sid)

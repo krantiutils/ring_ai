@@ -10,11 +10,9 @@ import pytest
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
-from app.models.template import Template
 from app.services.campaigns import execute_campaign_batch
 from app.services.telephony import audio_store, call_context_store
 from app.services.telephony.models import CallResult, CallStatus
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -519,15 +517,18 @@ class TestBatchExecutorWithAudioFile:
         db.flush()
 
         for c in contacts:
-            db.add(Interaction(
-                campaign_id=audio_campaign.id,
-                contact_id=c.id,
-                type="outbound_call",
-                status="pending",
-            ))
+            db.add(
+                Interaction(
+                    campaign_id=audio_campaign.id,
+                    contact_id=c.id,
+                    type="outbound_call",
+                    status="pending",
+                )
+            )
         db.commit()
 
         call_counter = [0]
+
         def make_call_result(**kwargs):
             call_counter[0] += 1
             return CallResult(

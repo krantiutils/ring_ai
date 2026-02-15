@@ -28,7 +28,9 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     api_keys: Mapped[list["UserAPIKey"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    kyc_verifications: Mapped[list["KYCVerification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    kyc_verifications: Mapped[list["KYCVerification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     notifications: Mapped[list["Notification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:

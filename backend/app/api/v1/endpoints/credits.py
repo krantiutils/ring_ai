@@ -77,9 +77,7 @@ def purchase_credits_endpoint(
     db: Session = Depends(get_db),
 ):
     """Add credits to an organization's balance."""
-    transaction = purchase_credits(
-        db, payload.org_id, payload.amount, payload.description
-    )
+    transaction = purchase_credits(db, payload.org_id, payload.amount, payload.description)
     return transaction
 
 

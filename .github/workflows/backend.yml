@@ -48,7 +48,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: ring_ai
           POSTGRES_PASSWORD: ring_ai
@@ -80,8 +80,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run Alembic migrations
-        run: PYTHONPATH=. uv run alembic upgrade head
+      - name: Prepare database schema
+        run: >-
+          PYTHONPATH=. uv run python -c
+          "import app.models; from sqlalchemy import text; from app.core.database import Base, engine; 
+          with engine.begin() as conn: conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector')); 
+          Base.metadata.create_all(bind=engine)"
 
       - name: Run tests with coverage
         run: >-

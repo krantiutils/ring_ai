@@ -58,9 +58,7 @@ def create_notification(
     return notification
 
 
-def get_notification(
-    db: Session, notification_id: uuid.UUID, user_id: uuid.UUID
-) -> Notification:
+def get_notification(db: Session, notification_id: uuid.UUID, user_id: uuid.UUID) -> Notification:
     """Fetch a single notification belonging to a user.
 
     Raises NotificationNotFound if not found or not owned by user.
@@ -72,9 +70,7 @@ def get_notification(
         )
     ).scalar_one_or_none()
     if notification is None:
-        raise NotificationNotFound(
-            f"Notification {notification_id} not found for user {user_id}"
-        )
+        raise NotificationNotFound(f"Notification {notification_id} not found for user {user_id}")
     return notification
 
 
@@ -91,11 +87,7 @@ def list_notifications(
     Returns (notifications, total_count).
     """
     base = select(Notification).where(Notification.user_id == user_id)
-    count_base = (
-        select(func.count())
-        .select_from(Notification)
-        .where(Notification.user_id == user_id)
-    )
+    count_base = select(func.count()).select_from(Notification).where(Notification.user_id == user_id)
 
     if is_read is not None:
         base = base.where(Notification.is_read == is_read)
@@ -104,20 +96,12 @@ def list_notifications(
     total = db.execute(count_base).scalar_one()
     offset = (page - 1) * page_size
     notifications = (
-        db.execute(
-            base.order_by(Notification.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
-        .scalars()
-        .all()
+        db.execute(base.order_by(Notification.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
     )
     return notifications, total
 
 
-def mark_as_read(
-    db: Session, notification_id: uuid.UUID, user_id: uuid.UUID
-) -> Notification:
+def mark_as_read(db: Session, notification_id: uuid.UUID, user_id: uuid.UUID) -> Notification:
     """Mark a single notification as read.
 
     Raises NotificationNotFound if not found.
@@ -148,9 +132,7 @@ def mark_all_as_read(db: Session, user_id: uuid.UUID) -> int:
     return count
 
 
-def delete_notification(
-    db: Session, notification_id: uuid.UUID, user_id: uuid.UUID
-) -> None:
+def delete_notification(db: Session, notification_id: uuid.UUID, user_id: uuid.UUID) -> None:
     """Delete a notification.
 
     Raises NotificationNotFound if not found.
@@ -181,9 +163,7 @@ def get_unread_count(db: Session, user_id: uuid.UUID) -> int:
 # Call them from the relevant service or endpoint when an event occurs.
 
 
-def notify_campaign_completed(
-    db: Session, user_id: uuid.UUID, campaign_name: str
-) -> Notification:
+def notify_campaign_completed(db: Session, user_id: uuid.UUID, campaign_name: str) -> Notification:
     """Create a notification when a campaign completes successfully."""
     return create_notification(
         db,
@@ -194,9 +174,7 @@ def notify_campaign_completed(
     )
 
 
-def notify_campaign_failed(
-    db: Session, user_id: uuid.UUID, campaign_name: str, reason: str
-) -> Notification:
+def notify_campaign_failed(db: Session, user_id: uuid.UUID, campaign_name: str, reason: str) -> Notification:
     """Create a notification when a campaign fails."""
     return create_notification(
         db,
@@ -207,9 +185,7 @@ def notify_campaign_failed(
     )
 
 
-def notify_credit_balance_low(
-    db: Session, user_id: uuid.UUID, balance: float
-) -> Notification:
+def notify_credit_balance_low(db: Session, user_id: uuid.UUID, balance: float) -> Notification:
     """Create a notification when credit balance drops below threshold."""
     return create_notification(
         db,
@@ -220,9 +196,7 @@ def notify_credit_balance_low(
     )
 
 
-def notify_kyc_status_change(
-    db: Session, user_id: uuid.UUID, new_status: str
-) -> Notification:
+def notify_kyc_status_change(db: Session, user_id: uuid.UUID, new_status: str) -> Notification:
     """Create a notification when KYC verification status changes."""
     type_ = "success" if new_status == "verified" else "info"
     return create_notification(
@@ -234,9 +208,7 @@ def notify_kyc_status_change(
     )
 
 
-def notify_otp_delivery_failure(
-    db: Session, user_id: uuid.UUID, phone_number: str, method: str
-) -> Notification:
+def notify_otp_delivery_failure(db: Session, user_id: uuid.UUID, phone_number: str, method: str) -> Notification:
     """Create a notification when OTP delivery fails."""
     return create_notification(
         db,

@@ -261,9 +261,7 @@ class GeminiLiveClient:
                 len(function_responses),
             )
         except Exception as exc:
-            raise GeminiClientError(
-                f"Failed to send tool response on session {self.session_id}: {exc}"
-            ) from exc
+            raise GeminiClientError(f"Failed to send tool response on session {self.session_id}: {exc}") from exc
 
     async def receive(self) -> AsyncIterator[AgentResponse]:
         """Async iterator that yields AgentResponse objects from the session.
@@ -310,11 +308,13 @@ class GeminiLiveClient:
                     if function_calls:
                         parts = []
                         for fc in function_calls:
-                            parts.append(FunctionCallPart(
-                                call_id=fc.id,
-                                name=fc.name,
-                                args=dict(fc.args) if fc.args else {},
-                            ))
+                            parts.append(
+                                FunctionCallPart(
+                                    call_id=fc.id,
+                                    name=fc.name,
+                                    args=dict(fc.args) if fc.args else {},
+                                )
+                            )
                         logger.info(
                             "Session %s received %d tool call(s): %s",
                             self.session_id,

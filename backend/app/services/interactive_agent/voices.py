@@ -131,9 +131,7 @@ def load_quality_results(results_path: Path) -> int:
             continue
 
         voice = GEMINI_VOICES[voice_name]
-        GEMINI_VOICES[voice_name] = voice.model_copy(
-            update={"nepali_quality": quality, "nepali_score": score}
-        )
+        GEMINI_VOICES[voice_name] = voice.model_copy(update={"nepali_quality": quality, "nepali_score": score})
         updated += 1
 
     logger.info("Loaded Nepali quality scores for %d voices from %s", updated, results_path)

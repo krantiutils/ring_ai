@@ -1,7 +1,6 @@
 import io
 import uuid
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.models.kyc_verification import KYCVerification

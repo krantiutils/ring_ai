@@ -186,9 +186,7 @@ class TwilioProvider(BaseTelephonyProvider):
                 partial(self._client.messages.create, **create_kwargs),
             )
         except Exception as exc:
-            raise TelephonyProviderError(
-                "twilio", f"Failed to send SMS to {to}: {exc}"
-            ) from exc
+            raise TelephonyProviderError("twilio", f"Failed to send SMS to {to}: {exc}") from exc
 
         logger.info(
             "Twilio SMS sent: sid=%s to=%s status=%s",

@@ -83,15 +83,7 @@ class TestAnalyzeSentiment:
 
     @pytest.mark.asyncio
     async def test_successful_analysis(self):
-        api_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({"score": 0.7, "confidence": 0.95})
-                    }
-                }
-            ]
-        }
+        api_response = {"choices": [{"message": {"content": json.dumps({"score": 0.7, "confidence": 0.95})}}]}
 
         original = settings.OPENAI_API_KEY
         settings.OPENAI_API_KEY = "test-key"
@@ -114,15 +106,7 @@ class TestAnalyzeSentiment:
 
     @pytest.mark.asyncio
     async def test_clamping_out_of_range_values(self):
-        api_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({"score": 1.5, "confidence": 2.0})
-                    }
-                }
-            ]
-        }
+        api_response = {"choices": [{"message": {"content": json.dumps({"score": 1.5, "confidence": 2.0})}}]}
 
         original = settings.OPENAI_API_KEY
         settings.OPENAI_API_KEY = "test-key"
@@ -145,15 +129,7 @@ class TestAnalyzeSentiment:
 
     @pytest.mark.asyncio
     async def test_malformed_response_raises(self):
-        api_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "This is not JSON"
-                    }
-                }
-            ]
-        }
+        api_response = {"choices": [{"message": {"content": "This is not JSON"}}]}
 
         original = settings.OPENAI_API_KEY
         settings.OPENAI_API_KEY = "test-key"
@@ -220,9 +196,7 @@ def _create_campaign_with_sentiment(db, org, *, sentiment_scores=None):
 class TestAnalyzeInteractionSentiment:
     @pytest.mark.asyncio
     async def test_disabled_returns_none(self, db, org):
-        campaign, interactions = _create_campaign_with_sentiment(
-            db, org, sentiment_scores=[None]
-        )
+        campaign, interactions = _create_campaign_with_sentiment(db, org, sentiment_scores=[None])
         original = settings.SENTIMENT_ANALYSIS_ENABLED
         settings.SENTIMENT_ANALYSIS_ENABLED = False
         try:
@@ -238,9 +212,7 @@ class TestAnalyzeInteractionSentiment:
 
     @pytest.mark.asyncio
     async def test_no_transcript_returns_none(self, db, org):
-        campaign, interactions = _create_campaign_with_sentiment(
-            db, org, sentiment_scores=[None]
-        )
+        campaign, interactions = _create_campaign_with_sentiment(db, org, sentiment_scores=[None])
         # This interaction has no transcript (None sentiment_score means None transcript in our helper)
         result = await analyze_interaction_sentiment(db, interactions[0].id)
         assert result is None
@@ -305,9 +277,7 @@ class TestBackfillSentiment:
 
     @pytest.mark.asyncio
     async def test_backfill_skips_already_scored(self, db, org):
-        campaign, interactions = _create_campaign_with_sentiment(
-            db, org, sentiment_scores=[0.5]
-        )
+        campaign, interactions = _create_campaign_with_sentiment(db, org, sentiment_scores=[0.5])
         # interaction already has score, should be skipped (no force)
         original_key = settings.OPENAI_API_KEY
         settings.OPENAI_API_KEY = "test-key"
@@ -347,9 +317,7 @@ class TestBackfillSentiment:
         try:
             with patch("app.services.sentiment.analyze_sentiment") as mock_analyze:
                 mock_analyze.return_value = SentimentResult(score=0.9, confidence=0.99)
-                summary = await backfill_sentiment(
-                    db, campaign_id=campaign.id, force=True
-                )
+                summary = await backfill_sentiment(db, campaign_id=campaign.id, force=True)
 
             assert summary["analyzed"] == 1
             db.refresh(interaction)
@@ -421,9 +389,7 @@ class TestSentimentAnalytics:
         assert abs(result.avg_sentiment_score - 0.37) < 0.01
 
     def test_campaign_sentiment_summary(self, db, org):
-        _create_campaign_with_sentiment(
-            db, org, sentiment_scores=[0.8, -0.5, 0.1, 0.0, None]
-        )
+        _create_campaign_with_sentiment(db, org, sentiment_scores=[0.8, -0.5, 0.1, 0.0, None])
 
         campaign = db.query(Campaign).filter(Campaign.org_id == org.id).first()
         result = get_campaign_sentiment_summary(db, campaign.id)
@@ -447,9 +413,7 @@ class TestSentimentAnalytics:
 
 class TestSentimentEndpoints:
     def test_campaign_sentiment_endpoint(self, client, org, db):
-        _create_campaign_with_sentiment(
-            db, org, sentiment_scores=[0.8, -0.5, 0.1]
-        )
+        _create_campaign_with_sentiment(db, org, sentiment_scores=[0.8, -0.5, 0.1])
         campaign = db.query(Campaign).filter(Campaign.org_id == org.id).first()
 
         resp = client.get(f"/api/v1/analytics/campaigns/{campaign.id}/sentiment")

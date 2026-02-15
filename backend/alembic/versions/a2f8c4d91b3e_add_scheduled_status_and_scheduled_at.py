@@ -35,7 +35,6 @@ def upgrade() -> None:
         "campaigns",
         ["scheduled_at"],
         unique=False,
-        postgresql_where=sa.text("status = 'scheduled'"),
     )
 
 

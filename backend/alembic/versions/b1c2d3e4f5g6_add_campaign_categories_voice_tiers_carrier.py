@@ -5,10 +5,12 @@ Revises: 3134a9e01ece
 Create Date: 2026-02-12 09:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b1c2d3e4f5g6"
@@ -19,9 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # --- Campaign categories ---
-    campaign_category = sa.Enum(
-        "text", "voice", "survey", "combined", name="campaign_category"
-    )
+    campaign_category = sa.Enum("text", "voice", "survey", "combined", name="campaign_category")
     campaign_category.create(op.get_bind(), checkfirst=True)
     op.add_column(
         "campaigns",

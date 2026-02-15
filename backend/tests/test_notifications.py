@@ -18,6 +18,7 @@ from app.models.notification import Notification
 from app.models.user import User
 from app.services.auth import create_access_token, hash_password
 from app.services.notifications import (
+    NotificationNotFound,
     create_notification,
     delete_notification,
     get_unread_count,
@@ -29,7 +30,6 @@ from app.services.notifications import (
     notify_credit_balance_low,
     notify_kyc_status_change,
     notify_otp_delivery_failure,
-    NotificationNotFound,
 )
 
 BASE_URL = "/api/v1/notifications"
@@ -82,9 +82,7 @@ def _create_notif(db: Session, user: User, **overrides) -> Notification:
 class TestCreateNotification:
     def test_create_basic(self, db: Session):
         user = _create_user(db)
-        notif = create_notification(
-            db, user_id=user.id, title="Hello", message="World"
-        )
+        notif = create_notification(db, user_id=user.id, title="Hello", message="World")
         assert notif.id is not None
         assert notif.user_id == user.id
         assert notif.title == "Hello"
@@ -95,9 +93,7 @@ class TestCreateNotification:
 
     def test_create_with_type(self, db: Session):
         user = _create_user(db)
-        notif = create_notification(
-            db, user_id=user.id, title="Error", message="Bad thing", type="error"
-        )
+        notif = create_notification(db, user_id=user.id, title="Error", message="Bad thing", type="error")
         assert notif.type == "error"
 
 
@@ -340,9 +336,7 @@ class TestListEndpoint:
         n2 = _create_notif(db, user, title="Read")
         mark_as_read(db, n2.id, user.id)
 
-        resp = client.get(
-            BASE_URL, headers=_auth_header(user), params={"is_read": "false"}
-        )
+        resp = client.get(BASE_URL, headers=_auth_header(user), params={"is_read": "false"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 1
@@ -383,17 +377,13 @@ class TestMarkReadEndpoint:
         user = _create_user(db)
         notif = _create_notif(db, user)
 
-        resp = client.patch(
-            f"{BASE_URL}/{notif.id}/read", headers=_auth_header(user)
-        )
+        resp = client.patch(f"{BASE_URL}/{notif.id}/read", headers=_auth_header(user))
         assert resp.status_code == 200
         assert resp.json()["is_read"] is True
 
     def test_mark_read_not_found(self, client: TestClient, db: Session):
         user = _create_user(db)
-        resp = client.patch(
-            f"{BASE_URL}/{uuid.uuid4()}/read", headers=_auth_header(user)
-        )
+        resp = client.patch(f"{BASE_URL}/{uuid.uuid4()}/read", headers=_auth_header(user))
         assert resp.status_code == 404
 
     def test_mark_read_wrong_user(self, client: TestClient, db: Session):
@@ -401,9 +391,7 @@ class TestMarkReadEndpoint:
         user2 = _create_user(db)
         notif = _create_notif(db, user1)
 
-        resp = client.patch(
-            f"{BASE_URL}/{notif.id}/read", headers=_auth_header(user2)
-        )
+        resp = client.patch(f"{BASE_URL}/{notif.id}/read", headers=_auth_header(user2))
         assert resp.status_code == 404
 
     def test_mark_read_no_auth(self, client: TestClient, db: Session):
@@ -439,9 +427,7 @@ class TestDeleteEndpoint:
         user = _create_user(db)
         notif = _create_notif(db, user)
 
-        resp = client.delete(
-            f"{BASE_URL}/{notif.id}", headers=_auth_header(user)
-        )
+        resp = client.delete(f"{BASE_URL}/{notif.id}", headers=_auth_header(user))
         assert resp.status_code == 204
 
         # Verify it's gone
@@ -450,9 +436,7 @@ class TestDeleteEndpoint:
 
     def test_delete_not_found(self, client: TestClient, db: Session):
         user = _create_user(db)
-        resp = client.delete(
-            f"{BASE_URL}/{uuid.uuid4()}", headers=_auth_header(user)
-        )
+        resp = client.delete(f"{BASE_URL}/{uuid.uuid4()}", headers=_auth_header(user))
         assert resp.status_code == 404
 
     def test_delete_wrong_user(self, client: TestClient, db: Session):
@@ -460,9 +444,7 @@ class TestDeleteEndpoint:
         user2 = _create_user(db)
         notif = _create_notif(db, user1)
 
-        resp = client.delete(
-            f"{BASE_URL}/{notif.id}", headers=_auth_header(user2)
-        )
+        resp = client.delete(f"{BASE_URL}/{notif.id}", headers=_auth_header(user2))
         assert resp.status_code == 404
 
     def test_delete_no_auth(self, client: TestClient, db: Session):
@@ -475,9 +457,7 @@ class TestDeleteEndpoint:
 class TestUnreadCountEndpoint:
     def test_unread_count_zero(self, client: TestClient, db: Session):
         user = _create_user(db)
-        resp = client.get(
-            f"{BASE_URL}/unread-count", headers=_auth_header(user)
-        )
+        resp = client.get(f"{BASE_URL}/unread-count", headers=_auth_header(user))
         assert resp.status_code == 200
         assert resp.json()["unread_count"] == 0
 
@@ -486,9 +466,7 @@ class TestUnreadCountEndpoint:
         _create_notif(db, user)
         _create_notif(db, user)
 
-        resp = client.get(
-            f"{BASE_URL}/unread-count", headers=_auth_header(user)
-        )
+        resp = client.get(f"{BASE_URL}/unread-count", headers=_auth_header(user))
         assert resp.status_code == 200
         assert resp.json()["unread_count"] == 2
 
@@ -498,9 +476,7 @@ class TestUnreadCountEndpoint:
         _create_notif(db, user)
         mark_as_read(db, n1.id, user.id)
 
-        resp = client.get(
-            f"{BASE_URL}/unread-count", headers=_auth_header(user)
-        )
+        resp = client.get(f"{BASE_URL}/unread-count", headers=_auth_header(user))
         assert resp.status_code == 200
         assert resp.json()["unread_count"] == 1
 

@@ -3,14 +3,11 @@
 import uuid
 from datetime import datetime, timezone
 
-import pytest
-
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.services.analytics import detect_carrier, get_campaign_analytics, get_overview_analytics
-
 
 NONEXISTENT_UUID = str(uuid.uuid4())
 
@@ -35,7 +32,7 @@ def _create_campaign_with_interactions(db, org, *, num_completed=2, num_failed=1
         "+9771234567890",  # Other
     ]
 
-    for i, phone in enumerate(phones[:num_completed + num_failed + num_pending]):
+    for i, phone in enumerate(phones[: num_completed + num_failed + num_pending]):
         contact = Contact(phone=phone, name=f"Contact {i}", org_id=org.id)
         db.add(contact)
         db.flush()
@@ -232,9 +229,7 @@ class TestAnalyticsEvents:
         campaign = _create_campaign_with_interactions(db, org)
 
         # Get an interaction to attach events to
-        interaction = db.query(Interaction).filter(
-            Interaction.campaign_id == campaign.id
-        ).first()
+        interaction = db.query(Interaction).filter(Interaction.campaign_id == campaign.id).first()
 
         # Create analytics events
         for i in range(3):
@@ -254,9 +249,7 @@ class TestAnalyticsEvents:
 
     def test_events_filter_by_type(self, client, org, db):
         campaign = _create_campaign_with_interactions(db, org)
-        interaction = db.query(Interaction).filter(
-            Interaction.campaign_id == campaign.id
-        ).first()
+        interaction = db.query(Interaction).filter(Interaction.campaign_id == campaign.id).first()
 
         db.add(AnalyticsEvent(interaction_id=interaction.id, event_type="call_started"))
         db.add(AnalyticsEvent(interaction_id=interaction.id, event_type="call_ended"))
@@ -273,9 +266,7 @@ class TestAnalyticsEvents:
 
     def test_events_filter_by_campaign(self, client, org, db):
         campaign = _create_campaign_with_interactions(db, org)
-        interaction = db.query(Interaction).filter(
-            Interaction.campaign_id == campaign.id
-        ).first()
+        interaction = db.query(Interaction).filter(Interaction.campaign_id == campaign.id).first()
 
         db.add(AnalyticsEvent(interaction_id=interaction.id, event_type="test"))
         db.commit()
@@ -290,16 +281,16 @@ class TestAnalyticsEvents:
 
     def test_events_pagination(self, client, org, db):
         campaign = _create_campaign_with_interactions(db, org)
-        interaction = db.query(Interaction).filter(
-            Interaction.campaign_id == campaign.id
-        ).first()
+        interaction = db.query(Interaction).filter(Interaction.campaign_id == campaign.id).first()
 
         for i in range(10):
-            db.add(AnalyticsEvent(
-                interaction_id=interaction.id,
-                event_type="test",
-                event_data={"i": i},
-            ))
+            db.add(
+                AnalyticsEvent(
+                    interaction_id=interaction.id,
+                    event_type="test",
+                    event_data={"i": i},
+                )
+            )
         db.commit()
 
         resp = client.get("/api/v1/analytics/events?page=1&page_size=3")
@@ -323,9 +314,7 @@ class TestCampaignLive:
         assert resp.status_code == 404
 
     def test_live_returns_event_stream(self, client, org, db):
-        campaign = _create_campaign_with_interactions(
-            db, org, num_completed=2, num_failed=0, num_pending=0
-        )
+        campaign = _create_campaign_with_interactions(db, org, num_completed=2, num_failed=0, num_pending=0)
         # Mark campaign as completed so stream terminates quickly
         campaign.status = "completed"
         db.commit()
@@ -342,9 +331,7 @@ class TestCampaignLive:
         assert "data:" in body
 
     def test_live_progress_data(self, client, org, db):
-        campaign = _create_campaign_with_interactions(
-            db, org, num_completed=3, num_failed=1, num_pending=0
-        )
+        campaign = _create_campaign_with_interactions(db, org, num_completed=3, num_failed=1, num_pending=0)
         campaign.status = "completed"
         db.commit()
 

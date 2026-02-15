@@ -38,15 +38,13 @@ def _validate_upload(file: UploadFile, label: str) -> None:
     """Validate a single uploaded file."""
     if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
         raise KYCFileValidationError(
-            f"{label}: Invalid file type '{file.content_type}'. "
-            f"Allowed: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}"
+            f"{label}: Invalid file type '{file.content_type}'. Allowed: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}"
         )
     if file.filename:
         ext = os.path.splitext(file.filename)[1].lower()
         if ext and ext not in ALLOWED_EXTENSIONS:
             raise KYCFileValidationError(
-                f"{label}: Invalid file extension '{ext}'. "
-                f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                f"{label}: Invalid file extension '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
             )
 
 
@@ -68,8 +66,7 @@ async def _save_file(file: UploadFile, user_id: uuid.UUID, category: str) -> str
     content = await file.read()
     if len(content) > max_bytes:
         raise KYCFileValidationError(
-            f"{category}: File too large ({len(content)} bytes). "
-            f"Maximum: {settings.KYC_MAX_FILE_SIZE_MB} MB"
+            f"{category}: File too large ({len(content)} bytes). Maximum: {settings.KYC_MAX_FILE_SIZE_MB} MB"
         )
     if not content:
         raise KYCFileValidationError(f"{category}: Uploaded file is empty")
@@ -114,9 +111,7 @@ async def submit_kyc(
         KYCVerification.STATUS_SUBMITTED,
         KYCVerification.STATUS_VERIFIED,
     ):
-        raise KYCAlreadySubmittedError(
-            f"KYC already {existing.status}. Cannot submit again."
-        )
+        raise KYCAlreadySubmittedError(f"KYC already {existing.status}. Cannot submit again.")
 
     _validate_upload(document_front, "document_front")
     _validate_upload(document_back, "document_back")
@@ -152,9 +147,7 @@ def admin_verify_kyc(
         raise KYCNotFoundError("KYC record not found")
 
     if kyc.status != KYCVerification.STATUS_SUBMITTED:
-        raise KYCInvalidStateError(
-            f"KYC is '{kyc.status}', can only verify submissions with status 'submitted'"
-        )
+        raise KYCInvalidStateError(f"KYC is '{kyc.status}', can only verify submissions with status 'submitted'")
 
     if action == "approve":
         kyc.status = KYCVerification.STATUS_VERIFIED

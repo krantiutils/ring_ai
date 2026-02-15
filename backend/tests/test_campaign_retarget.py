@@ -23,7 +23,6 @@ from app.services.campaigns import (
     retry_campaign,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -105,9 +104,7 @@ def _completed_campaign_with_failures(db, org, *, num_completed=1, num_failed=2)
 
 class TestRetryCampaignService:
     def test_retry_creates_new_interactions(self, db, org):
-        campaign, contacts, interactions = _completed_campaign_with_failures(
-            db, org, num_completed=1, num_failed=2
-        )
+        campaign, contacts, interactions = _completed_campaign_with_failures(db, org, num_completed=1, num_failed=2)
 
         retried, scheduled_at = retry_campaign(db, campaign)
 
@@ -132,15 +129,16 @@ class TestRetryCampaignService:
 
     def test_retry_deduplicates_contacts(self, db, org):
         """If a contact has multiple failed interactions, only one retry is created."""
-        template = Template(
-            name="Dedup Test", content="Hi", type="voice", org_id=org.id
-        )
+        template = Template(name="Dedup Test", content="Hi", type="voice", org_id=org.id)
         db.add(template)
         db.flush()
 
         campaign = Campaign(
-            name="Dedup", type="voice", org_id=org.id,
-            status="completed", template_id=template.id,
+            name="Dedup",
+            type="voice",
+            org_id=org.id,
+            status="completed",
+            template_id=template.id,
         )
         db.add(campaign)
         db.flush()
@@ -151,12 +149,14 @@ class TestRetryCampaignService:
 
         # Two failed interactions for the same contact
         for _ in range(2):
-            db.add(Interaction(
-                campaign_id=campaign.id,
-                contact_id=contact.id,
-                type="outbound_call",
-                status="failed",
-            ))
+            db.add(
+                Interaction(
+                    campaign_id=campaign.id,
+                    contact_id=contact.id,
+                    type="outbound_call",
+                    status="failed",
+                )
+            )
         db.commit()
 
         retried, _ = retry_campaign(db, campaign)
@@ -187,15 +187,16 @@ class TestRetryCampaignService:
             retry_campaign(db, campaign)
 
     def test_retry_no_failed_interactions_raises(self, db, org):
-        template = Template(
-            name="All Good", content="Hi", type="voice", org_id=org.id
-        )
+        template = Template(name="All Good", content="Hi", type="voice", org_id=org.id)
         db.add(template)
         db.flush()
 
         campaign = Campaign(
-            name="All Good", type="voice", org_id=org.id,
-            status="completed", template_id=template.id,
+            name="All Good",
+            type="voice",
+            org_id=org.id,
+            status="completed",
+            template_id=template.id,
         )
         db.add(campaign)
         db.flush()
@@ -204,12 +205,14 @@ class TestRetryCampaignService:
         db.add(contact)
         db.flush()
 
-        db.add(Interaction(
-            campaign_id=campaign.id,
-            contact_id=contact.id,
-            type="outbound_call",
-            status="completed",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign.id,
+                contact_id=contact.id,
+                type="outbound_call",
+                status="completed",
+            )
+        )
         db.commit()
 
         with pytest.raises(NoFailedInteractions):
@@ -230,11 +233,7 @@ class TestRetryCampaignService:
                 Interaction.status == "pending",
             )
         ).fetchall():
-            db.execute(
-                Interaction.__table__.update()
-                .where(Interaction.id == interaction.id)
-                .values(status="failed")
-            )
+            db.execute(Interaction.__table__.update().where(Interaction.id == interaction.id).values(status="failed"))
         campaign.status = "completed"
         db.commit()
 
@@ -326,9 +325,7 @@ class TestRetryBackoff:
 
 class TestRelaunchCampaignService:
     def test_relaunch_creates_new_draft_campaign(self, db, org):
-        campaign, contacts, _ = _completed_campaign_with_failures(
-            db, org, num_completed=1, num_failed=2
-        )
+        campaign, contacts, _ = _completed_campaign_with_failures(db, org, num_completed=1, num_failed=2)
 
         new_campaign, imported = relaunch_campaign(db, campaign)
 
@@ -341,9 +338,7 @@ class TestRelaunchCampaignService:
         assert new_campaign.source_campaign_id == campaign.id
 
     def test_relaunch_only_imports_failed_contacts(self, db, org):
-        campaign, contacts, _ = _completed_campaign_with_failures(
-            db, org, num_completed=3, num_failed=1
-        )
+        campaign, contacts, _ = _completed_campaign_with_failures(db, org, num_completed=3, num_failed=1)
 
         new_campaign, imported = relaunch_campaign(db, campaign)
         assert imported == 1
@@ -377,15 +372,16 @@ class TestRelaunchCampaignService:
             relaunch_campaign(db, campaign)
 
     def test_relaunch_no_failed_interactions_raises(self, db, org):
-        template = Template(
-            name="Perfect", content="Hi", type="voice", org_id=org.id
-        )
+        template = Template(name="Perfect", content="Hi", type="voice", org_id=org.id)
         db.add(template)
         db.flush()
 
         campaign = Campaign(
-            name="Perfect", type="voice", org_id=org.id,
-            status="completed", template_id=template.id,
+            name="Perfect",
+            type="voice",
+            org_id=org.id,
+            status="completed",
+            template_id=template.id,
         )
         db.add(campaign)
         db.flush()
@@ -394,12 +390,14 @@ class TestRelaunchCampaignService:
         db.add(contact)
         db.flush()
 
-        db.add(Interaction(
-            campaign_id=campaign.id,
-            contact_id=contact.id,
-            type="outbound_call",
-            status="completed",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign.id,
+                contact_id=contact.id,
+                type="outbound_call",
+                status="completed",
+            )
+        )
         db.commit()
 
         with pytest.raises(NoFailedInteractions):
@@ -446,11 +444,13 @@ class TestRetryCampaignAPI:
         created = _create_campaign(client, org_id)
         campaign_id = uuid.UUID(created["id"])
 
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-            ["+9779801234569", "Hari"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+                ["+9779801234569", "Hari"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         # Manually set campaign to completed with mixed results
@@ -466,11 +466,7 @@ class TestRetryCampaignAPI:
         # First interaction: completed, others: failed
         for i, row in enumerate(interactions):
             status = "completed" if i == 0 else "failed"
-            db.execute(
-                Interaction.__table__.update()
-                .where(Interaction.id == row.id)
-                .values(status=status)
-            )
+            db.execute(Interaction.__table__.update().where(Interaction.id == row.id).values(status=status))
         db.commit()
 
         return created
@@ -554,10 +550,12 @@ class TestRelaunchCampaignAPI:
         created = _create_campaign(client, org_id)
         campaign_id = uuid.UUID(created["id"])
 
-        csv_bytes = _make_csv([
-            ["+9779801234567", "Ram"],
-            ["+9779801234568", "Sita"],
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779801234567", "Ram"],
+                ["+9779801234568", "Sita"],
+            ]
+        )
         _upload_csv(client, created["id"], csv_bytes)
 
         campaign = db.get(Campaign, campaign_id)
@@ -572,11 +570,7 @@ class TestRelaunchCampaignAPI:
         # First: completed, second: failed
         for i, row in enumerate(interactions):
             status = "completed" if i == 0 else "failed"
-            db.execute(
-                Interaction.__table__.update()
-                .where(Interaction.id == row.id)
-                .values(status=status)
-            )
+            db.execute(Interaction.__table__.update().where(Interaction.id == row.id).values(status=status))
         db.commit()
 
         return created
@@ -636,9 +630,7 @@ class TestRelaunchCampaignAPI:
         campaign = db.get(Campaign, campaign_id)
         campaign.status = "completed"
         db.execute(
-            Interaction.__table__.update()
-            .where(Interaction.campaign_id == campaign_id)
-            .values(status="completed")
+            Interaction.__table__.update().where(Interaction.campaign_id == campaign_id).values(status="completed")
         )
         db.commit()
 
@@ -682,9 +674,7 @@ def _mock_tts_and_twilio():
 
     mock_provider = MagicMock()
     mock_provider.default_from_number = "+15551234567"
-    mock_provider.initiate_call = AsyncMock(
-        return_value=MagicMock(call_id="CA-retry-001", status="initiated")
-    )
+    mock_provider.initiate_call = AsyncMock(return_value=MagicMock(call_id="CA-retry-001", status="initiated"))
 
     return mock_tts, mock_provider
 
@@ -710,9 +700,7 @@ class TestRetryWithBatchExecutor:
         mock_settings.CAMPAIGN_RETRY_BACKOFF_MINUTES = [0, 30, 120]
         mock_settings.TWILIO_BASE_URL = "https://test.ngrok.io"
 
-        campaign, contacts, interactions = _completed_campaign_with_failures(
-            db, org, num_completed=1, num_failed=2
-        )
+        campaign, contacts, interactions = _completed_campaign_with_failures(db, org, num_completed=1, num_failed=2)
 
         # Retry the campaign
         retried, scheduled_at = retry_campaign(db, campaign)

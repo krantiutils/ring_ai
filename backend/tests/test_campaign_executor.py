@@ -669,9 +669,7 @@ class TestExecuteBatchSMSCampaign:
     ):
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.send_sms = AsyncMock(
-            return_value=SmsResult(message_id="SM-001", status="queued")
-        )
+        mock_provider.send_sms = AsyncMock(return_value=SmsResult(message_id="SM-001", status="queued"))
         mock_get_provider.return_value = mock_provider
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
@@ -709,9 +707,7 @@ class TestExecuteBatchSMSCampaign:
         """SMS campaign auto-completes because interactions are marked completed immediately."""
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.send_sms = AsyncMock(
-            return_value=SmsResult(message_id="SM-done", status="queued")
-        )
+        mock_provider.send_sms = AsyncMock(return_value=SmsResult(message_id="SM-done", status="queued"))
         mock_get_provider.return_value = mock_provider
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
@@ -734,9 +730,7 @@ class TestExecuteBatchSMSCampaign:
     ):
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.send_sms = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "rate limited")
-        )
+        mock_provider.send_sms = AsyncMock(side_effect=TelephonyProviderError("twilio", "rate limited"))
         mock_get_provider.return_value = mock_provider
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
@@ -765,9 +759,7 @@ class TestExecuteBatchSMSCampaign:
 
         mock_provider = MagicMock()
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.send_sms = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "persistent failure")
-        )
+        mock_provider.send_sms = AsyncMock(side_effect=TelephonyProviderError("twilio", "persistent failure"))
         mock_get_provider.return_value = mock_provider
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
@@ -845,9 +837,7 @@ class TestExecuteBatchSMSCampaign:
         sms_interaction,
     ):
         """Twilio not configured should trigger retry."""
-        mock_get_provider.side_effect = TelephonyConfigurationError(
-            "Twilio not configured"
-        )
+        mock_get_provider.side_effect = TelephonyConfigurationError("Twilio not configured")
         mock_settings.CAMPAIGN_BATCH_SIZE = 50
         mock_settings.CAMPAIGN_MAX_RETRIES = 3
         mock_settings.CAMPAIGN_RATE_LIMIT_PER_SECOND = 0
@@ -879,12 +869,14 @@ class TestExecuteBatchSMSCampaign:
         db.flush()
 
         for contact in [sms_contact, contact2]:
-            db.add(Interaction(
-                campaign_id=sms_campaign.id,
-                contact_id=contact.id,
-                type="sms",
-                status="pending",
-            ))
+            db.add(
+                Interaction(
+                    campaign_id=sms_campaign.id,
+                    contact_id=contact.id,
+                    type="sms",
+                    status="pending",
+                )
+            )
         db.commit()
 
         mock_provider = MagicMock()

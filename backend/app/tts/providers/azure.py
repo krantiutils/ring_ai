@@ -97,7 +97,9 @@ class AzureTTSProvider(BaseTTSProvider):
         return ProviderInfo(
             provider=TTSProvider.AZURE,
             display_name="Azure Cognitive Services",
-            description="Production-grade Neural TTS with SLA. Supports SSML for fine prosody control. 400+ neural voices.",
+            description=(
+                "Production-grade Neural TTS with SLA. Supports SSML for fine prosody control. 400+ neural voices."
+            ),
             pricing=ProviderPricing(
                 cost_per_million_chars=16.0,
                 free_tier_chars=500_000,

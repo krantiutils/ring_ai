@@ -193,9 +193,7 @@ async def backfill_sentiment(
     if not force:
         filters.append(Interaction.sentiment_score.is_(None))
 
-    interactions = db.execute(
-        select(Interaction).where(*filters)
-    ).scalars().all()
+    interactions = db.execute(select(Interaction).where(*filters)).scalars().all()
 
     analyzed = 0
     skipped = 0
@@ -216,9 +214,7 @@ async def backfill_sentiment(
 
             analyzed += 1
         except SentimentError:
-            logger.exception(
-                "Sentiment backfill failed for interaction %s", interaction.id
-            )
+            logger.exception("Sentiment backfill failed for interaction %s", interaction.id)
             failed += 1
 
     if analyzed > 0:

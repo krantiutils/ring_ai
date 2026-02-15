@@ -5,9 +5,11 @@ Revises: c4d5e6f7a8b9
 Create Date: 2026-02-13 14:00:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+from alembic import op
 
 revision = "d1e2f3a4b5c6"
 down_revision = "c4d5e6f7a8b9"
@@ -17,7 +19,13 @@ depends_on = None
 
 def upgrade() -> None:
     # Create ab_test_status enum
-    ab_test_status = sa.Enum("draft", "active", "completed", name="ab_test_status")
+    ab_test_status = postgresql.ENUM(
+        "draft",
+        "active",
+        "completed",
+        name="ab_test_status",
+        create_type=False,
+    )
     ab_test_status.create(op.get_bind(), checkfirst=True)
 
     # Create ab_tests table

@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.ab_test import ABTest
@@ -46,23 +45,17 @@ class Campaign(Base):
     voice_model_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("voice_models.id"), nullable=True
     )
-    form_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("forms.id")
-    )
+    form_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("forms.id"))
     schedule_config: Mapped[dict | None] = mapped_column(JSONB)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     audio_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
     bulk_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    retry_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     retry_config: Mapped[dict | None] = mapped_column(JSONB)
     source_campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True
     )
-    ab_test_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("ab_tests.id"), nullable=True
-    )
+    ab_test_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("ab_tests.id"), nullable=True)
     ab_test_variant: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

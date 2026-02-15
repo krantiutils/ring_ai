@@ -105,11 +105,7 @@ NEPALI_TEST_PHRASES: list[dict[str, str]] = [
     },
     {
         "id": "long_compound",
-        "text": (
-            "तपाईंको ऋण भुक्तानीको म्याद सकिएको छ, "
-            "कृपया यथाशीघ्र भुक्तानी गर्नुहोस् "
-            "अन्यथा थप शुल्क लाग्न सक्छ।"
-        ),
+        "text": ("तपाईंको ऋण भुक्तानीको म्याद सकिएको छ, कृपया यथाशीघ्र भुक्तानी गर्नुहोस् अन्यथा थप शुल्क लाग्न सक्छ।"),
         "category": "prosody",
         "notes": "Multi-clause sentence — tests prosody, pausing, ऋ vowel, श्र cluster",
     },
@@ -146,9 +142,7 @@ def _score_transcription(expected: str, actual: str | None) -> float:
 
     def _normalize(s: str) -> str:
         # Keep only Devanagari characters and digits for comparison
-        return "".join(
-            c for c in s if ("\u0900" <= c <= "\u097F") or ("\u0966" <= c <= "\u096F") or c.isalnum()
-        )
+        return "".join(c for c in s if ("\u0900" <= c <= "\u097f") or ("\u0966" <= c <= "\u096f") or c.isalnum())
 
     norm_expected = _normalize(expected)
     norm_actual = _normalize(actual)
@@ -372,9 +366,7 @@ def export_results(results: list[VoiceTestResult], output_path: Path) -> None:
             "fair": sum(1 for r in results if r.overall_quality == "fair"),
             "poor": sum(1 for r in results if r.overall_quality == "poor"),
             "errors": sum(1 for r in results if r.error is not None),
-            "recommended_voices": [
-                r.voice_name for r in results if r.overall_quality in ("excellent", "good")
-            ],
+            "recommended_voices": [r.voice_name for r in results if r.overall_quality in ("excellent", "good")],
         },
     }
 

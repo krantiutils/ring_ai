@@ -18,11 +18,13 @@ from app.schemas.forms import (
     FormCreate,
     FormDetailResponse,
     FormListResponse,
-    FormResponse as FormResponseOut,
     FormResponseListResponse,
     FormResponseSchema,
     FormSubmission,
     FormUpdate,
+)
+from app.schemas.forms import (
+    FormResponse as FormResponseOut,
 )
 
 router = APIRouter()
@@ -47,13 +49,9 @@ def _validate_questions(questions: list[dict]) -> list[str]:
         if q.get("type") == "multiple_choice":
             opts = q.get("options")
             if not opts or len(opts) < 2:
-                errors.append(
-                    f"Question {i}: multiple_choice requires at least 2 options"
-                )
+                errors.append(f"Question {i}: multiple_choice requires at least 2 options")
             if opts and len(opts) > 9:
-                errors.append(
-                    f"Question {i}: multiple_choice supports at most 9 options (DTMF digits 1-9)"
-                )
+                errors.append(f"Question {i}: multiple_choice supports at most 9 options (DTMF digits 1-9)")
         if q.get("type") == "rating":
             # Rating is always 1-5, no options needed
             pass
@@ -81,9 +79,7 @@ def _validate_answers(form: Form, answers: dict) -> list[str]:
         if q_type == "multiple_choice":
             options = question.get("options", [])
             if value not in options:
-                errors.append(
-                    f"Question {i}: '{value}' is not a valid option"
-                )
+                errors.append(f"Question {i}: '{value}' is not a valid option")
         elif q_type == "rating":
             try:
                 rating = int(value)
@@ -149,13 +145,7 @@ def list_forms(
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
-    forms = (
-        db.execute(
-            query.order_by(Form.created_at.desc()).offset(offset).limit(page_size)
-        )
-        .scalars()
-        .all()
-    )
+    forms = db.execute(query.order_by(Form.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
 
     return FormListResponse(
         items=forms,
@@ -170,9 +160,7 @@ def get_form(form_id: uuid.UUID, db: Session = Depends(get_db)):
     form = _get_form_or_404(form_id, db)
 
     response_count = db.execute(
-        select(func.count())
-        .select_from(FormResponse)
-        .where(FormResponse.form_id == form.id)
+        select(func.count()).select_from(FormResponse).where(FormResponse.form_id == form.id)
     ).scalar_one()
 
     return FormDetailResponse(
@@ -197,9 +185,7 @@ def update_form(
     form = _get_form_or_404(form_id, db)
 
     if form.status == "archived":
-        raise HTTPException(
-            status_code=409, detail="Cannot update an archived form"
-        )
+        raise HTTPException(status_code=409, detail="Cannot update an archived form")
 
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
@@ -249,9 +235,7 @@ def submit_form_response(
     form = _get_form_or_404(form_id, db)
 
     if form.status != "active":
-        raise HTTPException(
-            status_code=409, detail="Form is not active — cannot accept responses"
-        )
+        raise HTTPException(status_code=409, detail="Form is not active — cannot accept responses")
 
     contact = db.get(Contact, payload.contact_id)
     if contact is None:
@@ -282,11 +266,7 @@ def list_form_responses(
 ):
     _get_form_or_404(form_id, db)
 
-    count_query = (
-        select(func.count())
-        .select_from(FormResponse)
-        .where(FormResponse.form_id == form_id)
-    )
+    count_query = select(func.count()).select_from(FormResponse).where(FormResponse.form_id == form_id)
     total = db.execute(count_query).scalar_one()
 
     offset = (page - 1) * page_size
@@ -319,11 +299,7 @@ def download_form_responses(
     form = _get_form_or_404(form_id, db)
 
     responses = (
-        db.execute(
-            select(FormResponse)
-            .where(FormResponse.form_id == form_id)
-            .order_by(FormResponse.created_at.asc())
-        )
+        db.execute(select(FormResponse).where(FormResponse.form_id == form_id).order_by(FormResponse.created_at.asc()))
         .scalars()
         .all()
     )
@@ -347,9 +323,7 @@ def download_form_responses(
         for i in range(len(questions)):
             answer = resp.answers.get(str(i), "")
             row.append(str(answer) if answer is not None else "")
-        row.append(
-            resp.completed_at.isoformat() if resp.completed_at else ""
-        )
+        row.append(resp.completed_at.isoformat() if resp.completed_at else "")
         writer.writerow(row)
 
     output.seek(0)

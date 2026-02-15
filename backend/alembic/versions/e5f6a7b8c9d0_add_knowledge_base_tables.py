@@ -12,9 +12,10 @@ Revises: d1e2f3a4b5c6
 Create Date: 2026-02-13 23:30:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+from alembic import op
 
 revision = "e5f6a7b8c9d0"
 down_revision = "d1e2f3a4b5c6"
@@ -73,8 +74,7 @@ def upgrade() -> None:
 
     # Create HNSW index for fast cosine similarity search
     op.execute(
-        "CREATE INDEX ix_knowledge_chunks_embedding ON knowledge_chunks "
-        "USING hnsw (embedding vector_cosine_ops)"
+        "CREATE INDEX ix_knowledge_chunks_embedding ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)"
     )
 
 

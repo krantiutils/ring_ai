@@ -4,7 +4,6 @@ import uuid
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Cost breakdown
 # ---------------------------------------------------------------------------
@@ -133,12 +132,8 @@ class ABTestResult(BaseModel):
     # Statistical significance
     chi_squared: float | None = Field(description="Chi-squared statistic for conversion rates")
     p_value: float | None = Field(description="p-value from chi-squared test")
-    is_significant: bool = Field(
-        description="Whether the result is statistically significant (p < 0.05)"
-    )
-    winner: str | None = Field(
-        description="Variant name with highest conversion rate (if significant)"
-    )
+    is_significant: bool = Field(description="Whether the result is statistically significant (p < 0.05)")
+    winner: str | None = Field(description="Variant name with highest conversion rate (if significant)")
 
 
 class ABTestResponse(BaseModel):

@@ -31,9 +31,7 @@ class InsufficientCreditsError(Exception):
     def __init__(self, required: float, available: float) -> None:
         self.required = required
         self.available = available
-        super().__init__(
-            f"Insufficient credits: required {required}, available {available}"
-        )
+        super().__init__(f"Insufficient credits: required {required}, available {available}")
 
 
 class CreditNotFoundError(Exception):
@@ -47,9 +45,7 @@ class CreditNotFoundError(Exception):
 
 def get_or_create_credit(db: Session, org_id: uuid.UUID) -> Credit:
     """Return the Credit row for an org, creating one with zero balance if absent."""
-    credit = db.execute(
-        select(Credit).where(Credit.org_id == org_id)
-    ).scalar_one_or_none()
+    credit = db.execute(select(Credit).where(Credit.org_id == org_id)).scalar_one_or_none()
 
     if credit is None:
         credit = Credit(org_id=org_id, balance=0.0, total_purchased=0.0, total_consumed=0.0)
@@ -83,20 +79,12 @@ def get_transaction_history(
 ) -> tuple[list[CreditTransaction], int]:
     """Return paginated transaction history for an org."""
     base = select(CreditTransaction).where(CreditTransaction.org_id == org_id)
-    count_query = select(func.count()).select_from(CreditTransaction).where(
-        CreditTransaction.org_id == org_id
-    )
+    count_query = select(func.count()).select_from(CreditTransaction).where(CreditTransaction.org_id == org_id)
 
     total = db.execute(count_query).scalar_one()
     offset = (page - 1) * page_size
     transactions = (
-        db.execute(
-            base.order_by(CreditTransaction.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
-        .scalars()
-        .all()
+        db.execute(base.order_by(CreditTransaction.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
     )
 
     return transactions, total
@@ -107,9 +95,7 @@ def get_transaction_history(
 # ---------------------------------------------------------------------------
 
 
-def estimate_campaign_cost(
-    db: Session, campaign: Campaign
-) -> dict:
+def estimate_campaign_cost(db: Session, campaign: Campaign) -> dict:
     """Calculate pre-launch cost for a campaign.
 
     Returns a dict with estimation details including whether the org has
@@ -175,9 +161,7 @@ def purchase_credits(
     return transaction
 
 
-def check_sufficient_credits(
-    db: Session, org_id: uuid.UUID, campaign: Campaign
-) -> None:
+def check_sufficient_credits(db: Session, org_id: uuid.UUID, campaign: Campaign) -> None:
     """Raise InsufficientCreditsError if org can't afford to launch the campaign."""
     total_contacts = db.execute(
         select(func.count())

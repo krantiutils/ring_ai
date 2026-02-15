@@ -127,9 +127,7 @@ def list_voice_models(
 
     query = select(VoiceModel)
     if org_id is not None:
-        query = query.where(
-            or_(VoiceModel.org_id.is_(None), VoiceModel.org_id == org_id)
-        )
+        query = query.where(or_(VoiceModel.org_id.is_(None), VoiceModel.org_id == org_id))
     else:
         query = query.where(VoiceModel.org_id.is_(None))
 

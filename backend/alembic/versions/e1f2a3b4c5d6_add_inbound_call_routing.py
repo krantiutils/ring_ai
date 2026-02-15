@@ -53,11 +53,16 @@ def upgrade() -> None:
 
     # --- inbound_routing_rules table ---
     inbound_routing_match_type = sa.Enum(
-        "all", "prefix", "exact", "contact_only",
+        "all",
+        "prefix",
+        "exact",
+        "contact_only",
         name="inbound_routing_match_type",
     )
     inbound_routing_action = sa.Enum(
-        "answer", "reject", "forward",
+        "answer",
+        "reject",
+        "forward",
         name="inbound_routing_action",
     )
 

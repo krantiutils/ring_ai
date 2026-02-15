@@ -22,7 +22,6 @@ from app.schemas.roi import (
     CostBreakdown,
     ROICalculatorResult,
 )
-from app.services.campaigns import CAMPAIGN_TYPE_TO_INTERACTION_TYPE, COST_PER_INTERACTION
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,9 @@ FORM_TELEPHONY_COST = 1.0  # Form calls (telephony only, TTS included)
 
 
 def _cost_breakdown_for_campaign(
-    campaign_type: str, completed: int, uses_gemini: bool = False,
+    campaign_type: str,
+    completed: int,
+    uses_gemini: bool = False,
 ) -> CostBreakdown:
     """Calculate itemised cost breakdown based on campaign type and completed count."""
     gemini_cost = 0.0
@@ -98,9 +99,7 @@ def _query_campaign_metrics(db: Session, campaign_id: uuid.UUID) -> dict:
 
     # Status counts
     status_rows = db.execute(
-        select(Interaction.status, func.count())
-        .where(base_filter)
-        .group_by(Interaction.status)
+        select(Interaction.status, func.count()).where(base_filter).group_by(Interaction.status)
     ).all()
     status_counts = {row[0]: row[1] for row in status_rows}
 
@@ -231,11 +230,7 @@ def get_campaign_comparison(
 
 def list_ab_tests(db: Session, org_id: uuid.UUID) -> list[ABTestResponse]:
     """List all A/B tests for an organization."""
-    tests = db.execute(
-        select(ABTest)
-        .where(ABTest.org_id == org_id)
-        .order_by(ABTest.created_at.desc())
-    ).scalars().all()
+    tests = db.execute(select(ABTest).where(ABTest.org_id == org_id).order_by(ABTest.created_at.desc())).scalars().all()
 
     return [
         ABTestResponse(
@@ -266,18 +261,18 @@ def create_ab_test(db: Session, org_id: uuid.UUID, data: ABTestCreate) -> ABTest
     if data.variant_names and len(data.variant_names) == len(data.campaign_ids):
         variant_names = data.variant_names
     else:
-        variant_names = [
-            f"variant_{chr(ord('a') + i)}" for i in range(len(data.campaign_ids))
-        ]
+        variant_names = [f"variant_{chr(ord('a') + i)}" for i in range(len(data.campaign_ids))]
 
     # Build variants structure
     variants = []
     for campaign, vname in zip(campaigns, variant_names):
-        variants.append({
-            "name": vname,
-            "campaign_id": str(campaign.id),
-            "campaign_name": campaign.name,
-        })
+        variants.append(
+            {
+                "name": vname,
+                "campaign_id": str(campaign.id),
+                "campaign_name": campaign.name,
+            }
+        )
 
     ab_test = ABTest(
         org_id=org_id,

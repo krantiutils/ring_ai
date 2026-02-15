@@ -5,13 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models import Contact, PhoneNumber, SmsConversation, SmsMessage, AutoResponseRule
+from app.models import AutoResponseRule, Contact, PhoneNumber, SmsConversation, SmsMessage
 from app.services.sms import (
     check_handoff_needed,
     find_or_create_conversation,
     match_auto_response,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -146,9 +145,7 @@ class TestSendSms:
 
         mock_provider = mock_get_provider.return_value
         mock_provider.default_from_number = "+15551234567"
-        mock_provider.send_sms = AsyncMock(
-            side_effect=TelephonyProviderError("twilio", "API error")
-        )
+        mock_provider.send_sms = AsyncMock(side_effect=TelephonyProviderError("twilio", "API error"))
 
         response = client.post(
             "/api/v1/text/send",
@@ -310,9 +307,7 @@ class TestInboundWebhook:
         assert conv is not None
         assert conv.status == "needs_handoff"
 
-    def test_inbound_sms_threads_to_existing_conversation(
-        self, client, db, org, contact, phone_number, conversation
-    ):
+    def test_inbound_sms_threads_to_existing_conversation(self, client, db, org, contact, phone_number, conversation):
         """Multiple inbound messages from same contact thread to same conversation."""
         for i in range(3):
             client.post(
@@ -481,14 +476,16 @@ class TestListConversations:
 class TestListConversationMessages:
     def test_list_messages(self, client, db, conversation):
         for i in range(3):
-            db.add(SmsMessage(
-                conversation_id=conversation.id,
-                direction="outbound" if i % 2 == 0 else "inbound",
-                body=f"Message {i}",
-                from_number="+15551234567",
-                to_number="+9779812345678",
-                status="sent",
-            ))
+            db.add(
+                SmsMessage(
+                    conversation_id=conversation.id,
+                    direction="outbound" if i % 2 == 0 else "inbound",
+                    body=f"Message {i}",
+                    from_number="+15551234567",
+                    to_number="+9779812345678",
+                    status="sent",
+                )
+            )
         db.commit()
 
         response = client.get(f"/api/v1/text/conversations/{conversation.id}/messages")
@@ -566,14 +563,16 @@ class TestConversationHandoff:
 class TestContactHistory:
     def test_contact_history(self, client, db, contact, conversation):
         for i in range(3):
-            db.add(SmsMessage(
-                conversation_id=conversation.id,
-                direction="inbound",
-                body=f"Message {i}",
-                from_number="+9779812345678",
-                to_number="+15551234567",
-                status="received",
-            ))
+            db.add(
+                SmsMessage(
+                    conversation_id=conversation.id,
+                    direction="inbound",
+                    body=f"Message {i}",
+                    from_number="+9779812345678",
+                    to_number="+15551234567",
+                    status="received",
+                )
+            )
         db.commit()
 
         response = client.get(f"/api/v1/text/contacts/{contact.id}/history")
@@ -637,13 +636,15 @@ class TestAutoResponseRules:
     def test_list_rules(self, client, db, org):
         # Create rules
         for i in range(3):
-            db.add(AutoResponseRule(
-                org_id=org.id,
-                keyword=f"keyword{i}",
-                match_type="contains",
-                response_template=f"Response {i}",
-                priority=i,
-            ))
+            db.add(
+                AutoResponseRule(
+                    org_id=org.id,
+                    keyword=f"keyword{i}",
+                    match_type="contains",
+                    response_template=f"Response {i}",
+                    priority=i,
+                )
+            )
         db.commit()
 
         response = client.get(f"/api/v1/text/auto-response-rules?org_id={org.id}")
@@ -727,22 +728,26 @@ class TestSmsService:
 
     def test_match_auto_response_priority(self, db, org):
         """Higher priority (lower number) rule should match first."""
-        db.add(AutoResponseRule(
-            org_id=org.id,
-            keyword="sale",
-            match_type="contains",
-            response_template="Low priority",
-            is_active=True,
-            priority=10,
-        ))
-        db.add(AutoResponseRule(
-            org_id=org.id,
-            keyword="sale",
-            match_type="contains",
-            response_template="High priority",
-            is_active=True,
-            priority=1,
-        ))
+        db.add(
+            AutoResponseRule(
+                org_id=org.id,
+                keyword="sale",
+                match_type="contains",
+                response_template="Low priority",
+                is_active=True,
+                priority=10,
+            )
+        )
+        db.add(
+            AutoResponseRule(
+                org_id=org.id,
+                keyword="sale",
+                match_type="contains",
+                response_template="High priority",
+                is_active=True,
+                priority=1,
+            )
+        )
         db.commit()
 
         rule = match_auto_response(db, org.id, "big sale today")
@@ -750,13 +755,15 @@ class TestSmsService:
         assert rule.response_template == "High priority"
 
     def test_match_auto_response_inactive_ignored(self, db, org):
-        db.add(AutoResponseRule(
-            org_id=org.id,
-            keyword="promo",
-            match_type="contains",
-            response_template="Promo active",
-            is_active=False,
-        ))
+        db.add(
+            AutoResponseRule(
+                org_id=org.id,
+                keyword="promo",
+                match_type="contains",
+                response_template="Promo active",
+                is_active=False,
+            )
+        )
         db.commit()
 
         assert match_auto_response(db, org.id, "promo code") is None

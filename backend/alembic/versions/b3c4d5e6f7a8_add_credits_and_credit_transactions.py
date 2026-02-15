@@ -5,10 +5,12 @@ Revises: 3134a9e01ece
 Create Date: 2026-02-12 09:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b3c4d5e6f7a8"
@@ -68,18 +70,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["credit_id"], ["credits.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_credit_transactions_org_id", "credit_transactions", ["org_id"]
-    )
-    op.create_index(
-        "ix_credit_transactions_credit_id", "credit_transactions", ["credit_id"]
-    )
-    op.create_index(
-        "ix_credit_transactions_type", "credit_transactions", ["type"]
-    )
-    op.create_index(
-        "ix_credit_transactions_created_at", "credit_transactions", ["created_at"]
-    )
+    op.create_index("ix_credit_transactions_org_id", "credit_transactions", ["org_id"])
+    op.create_index("ix_credit_transactions_credit_id", "credit_transactions", ["credit_id"])
+    op.create_index("ix_credit_transactions_type", "credit_transactions", ["type"])
+    op.create_index("ix_credit_transactions_created_at", "credit_transactions", ["created_at"])
 
 
 def downgrade() -> None:

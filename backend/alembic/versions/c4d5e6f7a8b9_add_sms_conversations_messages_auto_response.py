@@ -64,7 +64,12 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "queued", "sent", "delivered", "failed", "undelivered", "received",
+                "queued",
+                "sent",
+                "delivered",
+                "failed",
+                "undelivered",
+                "received",
                 name="sms_message_status",
             ),
             server_default="queued",

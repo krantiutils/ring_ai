@@ -198,14 +198,10 @@ class GatewayBridge:
             self._pending_decisions[msg.call_id] = decision
             await self._send_json(AnswerCallMessage(call_id=msg.call_id))
         elif decision.action == RoutingAction.REJECT:
-            await self._send_json(
-                RejectCallMessage(call_id=msg.call_id, reason=decision.reject_reason)
-            )
+            await self._send_json(RejectCallMessage(call_id=msg.call_id, reason=decision.reject_reason))
         elif decision.action == RoutingAction.FORWARD:
             if decision.forward_to:
-                await self._send_json(
-                    ForwardCallMessage(call_id=msg.call_id, forward_to=decision.forward_to)
-                )
+                await self._send_json(ForwardCallMessage(call_id=msg.call_id, forward_to=decision.forward_to))
             else:
                 logger.error(
                     "FORWARD decision for call %s but no forward_to number — falling back to ANSWER",
@@ -274,9 +270,7 @@ class GatewayBridge:
             )
         except Exception as exc:
             logger.error("Failed to create Gemini session for call %s: %s", msg.call_id, exc)
-            await self._send_json(
-                SessionErrorMessage(call_id=msg.call_id, error=str(exc))
-            )
+            await self._send_json(SessionErrorMessage(call_id=msg.call_id, error=str(exc)))
             return
         finally:
             if db is not None:
@@ -293,9 +287,7 @@ class GatewayBridge:
         )
 
         # Start the Gemini → gateway audio relay task
-        self._gemini_relay_task = asyncio.create_task(
-            self._relay_gemini_to_gateway(msg.call_id, record.session)
-        )
+        self._gemini_relay_task = asyncio.create_task(self._relay_gemini_to_gateway(msg.call_id, record.session))
 
     async def _on_call_ended(self, msg: CallEndedMessage) -> None:
         """Handle call termination from the gateway."""
@@ -389,8 +381,7 @@ class GatewayBridge:
         """
         if self._tool_executor is None:
             logger.warning(
-                "Call %s: received tool calls but no ToolExecutor configured — "
-                "sending error responses",
+                "Call %s: received tool calls but no ToolExecutor configured — sending error responses",
                 call_id,
             )
             error_responses = [
@@ -424,9 +415,7 @@ class GatewayBridge:
                 )
             )
 
-            result = await self._tool_executor.execute(
-                name=tc.name, args=tc.args, call_id=tc.call_id
-            )
+            result = await self._tool_executor.execute(name=tc.name, args=tc.args, call_id=tc.call_id)
             function_responses.append(result.to_function_response())
 
             # Notify gateway that tool execution completed

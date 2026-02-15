@@ -122,8 +122,7 @@ def create_agent_call(
     if invalid_tools:
         raise HTTPException(
             status_code=422,
-            detail=f"Unknown tool(s): {', '.join(invalid_tools)}. "
-            f"Available: {', '.join(TOOL_DECLARATIONS.keys())}",
+            detail=f"Unknown tool(s): {', '.join(invalid_tools)}. Available: {', '.join(TOOL_DECLARATIONS.keys())}",
         )
 
     # Resolve output mode
@@ -175,8 +174,10 @@ def list_available_tools():
     """
     tools = []
     for name, decl in TOOL_DECLARATIONS.items():
-        tools.append({
-            "name": name,
-            "description": decl.description,
-        })
+        tools.append(
+            {
+                "name": name,
+                "description": decl.description,
+            }
+        )
     return AvailableToolsResponse(tools=tools)

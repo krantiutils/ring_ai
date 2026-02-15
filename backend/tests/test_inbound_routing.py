@@ -556,32 +556,36 @@ class TestGatewayBridgeInboundRouting:
 
         # Mock router that always answers
         mock_router = AsyncMock()
-        mock_router.route = AsyncMock(
-            return_value=RoutingDecision(action=RoutingAction.ANSWER, call_id="call-1")
-        )
+        mock_router.route = AsyncMock(return_value=RoutingDecision(action=RoutingAction.ANSWER, call_id="call-1"))
         mock_router.log_interaction = AsyncMock(return_value=uuid.uuid4())
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+9771234567",
-            "to_number": "+9779876543",
-            "carrier": "NTC",
-            "sim_slot": 0,
-            "gateway_id": "gw-1",
-        })
-        connected_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+9771234567",
-            "gateway_id": "gw-1",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+9771234567",
+                "to_number": "+9779876543",
+                "carrier": "NTC",
+                "sim_slot": 0,
+                "gateway_id": "gw-1",
+            }
+        )
+        connected_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+9771234567",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.receive", "text": connected_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.receive", "text": connected_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr, inbound_router=mock_router)
         await bridge.run()
@@ -617,18 +621,22 @@ class TestGatewayBridgeInboundRouting:
         )
         mock_router.log_interaction = AsyncMock(return_value=uuid.uuid4())
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+9771234567",
-            "to_number": "+9779876543",
-            "gateway_id": "gw-1",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+9771234567",
+                "to_number": "+9779876543",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr, inbound_router=mock_router)
         await bridge.run()
@@ -659,18 +667,22 @@ class TestGatewayBridgeInboundRouting:
         )
         mock_router.log_interaction = AsyncMock(return_value=uuid.uuid4())
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+9771234567",
-            "to_number": "+9779876543",
-            "gateway_id": "gw-1",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+9771234567",
+                "to_number": "+9779876543",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr, inbound_router=mock_router)
         await bridge.run()
@@ -700,25 +712,31 @@ class TestGatewayBridgeInboundRouting:
         )
         mock_router.log_interaction = AsyncMock(return_value=uuid.uuid4())
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+977123",
-            "to_number": "+977456",
-            "gateway_id": "gw-1",
-        })
-        connected_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+977123",
+                "to_number": "+977456",
+                "gateway_id": "gw-1",
+            }
+        )
+        connected_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.receive", "text": connected_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.receive", "text": connected_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr, inbound_router=mock_router)
         await bridge.run()
@@ -737,17 +755,21 @@ class TestGatewayBridgeInboundRouting:
         ws = self._make_mock_ws()
         mgr, _ = self._make_mock_call_manager()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -768,25 +790,31 @@ class TestGatewayBridgeInboundRouting:
         ws = self._make_mock_ws()
         mgr, _ = self._make_mock_call_manager()
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+977123",
-            "to_number": "+977456",
-            "gateway_id": "gw-1",
-        })
-        connected_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+977123",
+                "to_number": "+977456",
+                "gateway_id": "gw-1",
+            }
+        )
+        connected_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.receive", "text": connected_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.receive", "text": connected_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         # No inbound_router passed
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
@@ -805,29 +833,33 @@ class TestGatewayBridgeInboundRouting:
         mgr, _ = self._make_mock_call_manager()
 
         mock_router = AsyncMock()
-        mock_router.route = AsyncMock(
-            return_value=RoutingDecision(action=RoutingAction.ANSWER, call_id="call-1")
-        )
+        mock_router.route = AsyncMock(return_value=RoutingDecision(action=RoutingAction.ANSWER, call_id="call-1"))
         mock_router.log_interaction = AsyncMock(return_value=uuid.uuid4())
 
-        incoming_msg = json.dumps({
-            "type": "INCOMING_CALL",
-            "call_id": "call-1",
-            "from_number": "+977123",
-            "to_number": "+977456",
-            "gateway_id": "gw-1",
-        })
-        end_msg = json.dumps({
-            "type": "CALL_ENDED",
-            "call_id": "call-1",
-            "reason": "caller_hangup",
-        })
+        incoming_msg = json.dumps(
+            {
+                "type": "INCOMING_CALL",
+                "call_id": "call-1",
+                "from_number": "+977123",
+                "to_number": "+977456",
+                "gateway_id": "gw-1",
+            }
+        )
+        end_msg = json.dumps(
+            {
+                "type": "CALL_ENDED",
+                "call_id": "call-1",
+                "reason": "caller_hangup",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": incoming_msg},
-            {"type": "websocket.receive", "text": end_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": incoming_msg},
+                {"type": "websocket.receive", "text": end_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr, inbound_router=mock_router)
         await bridge.run()

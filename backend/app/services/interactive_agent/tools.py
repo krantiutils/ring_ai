@@ -145,9 +145,7 @@ def build_tools(tool_names: list[str] | None = None) -> list[Tool]:
     declarations = []
     for name in tool_names:
         if name not in TOOL_DECLARATIONS:
-            raise ValueError(
-                f"Unknown tool '{name}'. Available tools: {', '.join(TOOL_DECLARATIONS.keys())}"
-            )
+            raise ValueError(f"Unknown tool '{name}'. Available tools: {', '.join(TOOL_DECLARATIONS.keys())}")
         declarations.append(TOOL_DECLARATIONS[name])
 
     if not declarations:
@@ -202,9 +200,7 @@ class ToolExecutor:
     def __init__(self, db_session_factory=None) -> None:
         self._db_session_factory = db_session_factory
 
-    async def execute(
-        self, name: str, args: dict[str, Any], call_id: str
-    ) -> ToolResult:
+    async def execute(self, name: str, args: dict[str, Any], call_id: str) -> ToolResult:
         """Execute a tool function call and return the result.
 
         Args:
@@ -250,9 +246,7 @@ class ToolExecutor:
 
         db = self._db_session_factory()
         try:
-            contact = db.execute(
-                select(Contact).where(Contact.phone == phone_number)
-            ).scalar_one_or_none()
+            contact = db.execute(select(Contact).where(Contact.phone == phone_number)).scalar_one_or_none()
 
             if contact is None:
                 return {

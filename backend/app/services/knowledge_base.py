@@ -244,20 +244,10 @@ def list_knowledge_bases(
         Tuple of (items, total_count).
     """
     base = select(KnowledgeBase).where(KnowledgeBase.org_id == org_id)
-    total = db.execute(
-        select(func.count()).select_from(base.subquery())
-    ).scalar_one()
+    total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
 
     offset = (page - 1) * page_size
-    items = (
-        db.execute(
-            base.order_by(KnowledgeBase.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
-        .scalars()
-        .all()
-    )
+    items = db.execute(base.order_by(KnowledgeBase.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
     return list(items), total
 
 
@@ -397,14 +387,8 @@ def list_documents(
         Tuple of (items, total_count).
     """
     base = select(KnowledgeDocument).where(KnowledgeDocument.kb_id == kb_id)
-    total = db.execute(
-        select(func.count()).select_from(base.subquery())
-    ).scalar_one()
-    items = (
-        db.execute(base.order_by(KnowledgeDocument.created_at.desc()))
-        .scalars()
-        .all()
-    )
+    total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
+    items = db.execute(base.order_by(KnowledgeDocument.created_at.desc())).scalars().all()
     return list(items), total
 
 
@@ -508,10 +492,7 @@ def retrieve_context_for_session(
             .order_by(KnowledgeChunk.created_at.desc())
             .limit(top_k)
         ).fetchall()
-        results = [
-            {"file_name": row.file_name, "content": row.content}
-            for row in rows
-        ]
+        results = [{"file_name": row.file_name, "content": row.content} for row in rows]
 
     if not results:
         return ""

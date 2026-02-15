@@ -20,7 +20,6 @@ from app.schemas.analytics import (
     CampaignAnalytics,
     CampaignIntentSummary,
     CampaignPlaybackDetail,
-    CampaignProgress,
     CampaignSentimentSummary,
     ContactPlayback,
     DashboardPlaybackWidget,
@@ -88,10 +87,12 @@ def campaigns_by_category(db: Session = Depends(get_db)):
 
     result = []
     for category, count in rows:
-        result.append({
-            "category": category if category is not None else "uncategorized",
-            "count": count,
-        })
+        result.append(
+            {
+                "category": category if category is not None else "uncategorized",
+                "count": count,
+            }
+        )
     return result
 
 
@@ -163,14 +164,12 @@ def carrier_breakdown(
     Optionally scoped to a specific campaign via campaign_id query param.
     """
     # Build base query joining contacts to interactions
-    base = (
-        select(
-            Contact.carrier,
-            func.count(func.distinct(Contact.id)).label("total"),
-            func.count(func.distinct(Contact.id)).filter(Interaction.status == "completed").label("success"),
-            func.count(func.distinct(Contact.id)).filter(Interaction.status == "failed").label("fail"),
-        ).join(Interaction, Interaction.contact_id == Contact.id)
-    )
+    base = select(
+        Contact.carrier,
+        func.count(func.distinct(Contact.id)).label("total"),
+        func.count(func.distinct(Contact.id)).filter(Interaction.status == "completed").label("success"),
+        func.count(func.distinct(Contact.id)).filter(Interaction.status == "failed").label("fail"),
+    ).join(Interaction, Interaction.contact_id == Contact.id)
 
     if campaign_id is not None:
         base = base.where(Interaction.campaign_id == campaign_id)
@@ -182,13 +181,15 @@ def carrier_breakdown(
     result = []
     for carrier, total, success, fail in rows:
         pickup_pct = round((success / total) * 100, 1) if total > 0 else 0.0
-        result.append({
-            "carrier": carrier if carrier is not None else "Unknown",
-            "total": total,
-            "success": success,
-            "fail": fail,
-            "pickup_pct": pickup_pct,
-        })
+        result.append(
+            {
+                "carrier": carrier if carrier is not None else "Unknown",
+                "total": total,
+                "success": success,
+                "fail": fail,
+                "pickup_pct": pickup_pct,
+            }
+        )
     return result
 
 
@@ -230,7 +231,7 @@ async def analytics_campaign_live(
                     return
             except Exception:
                 logger.exception("Error in SSE stream for campaign %s", campaign_id)
-                yield f"event: error\ndata: {{\"error\": \"internal_error\"}}\n\n"
+                yield 'event: error\ndata: {"error": "internal_error"}\n\n'
                 return
 
             await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
@@ -241,7 +242,7 @@ async def analytics_campaign_live(
             progress = get_campaign_progress(db, campaign_id)
             yield f"event: timeout\ndata: {progress.model_dump_json()}\n\n"
         except Exception:
-            yield f"event: timeout\ndata: {{\"error\": \"timeout\"}}\n\n"
+            yield 'event: timeout\ndata: {"error": "timeout"}\n\n'
 
     return StreamingResponse(
         event_generator(),

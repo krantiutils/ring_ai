@@ -21,7 +21,6 @@ from app.services.telephony import (
     CallContext,
     CallStatus,
     FormCallContext,
-    WebhookPayload,
     audio_store,
     call_context_store,
     form_call_context_store,
@@ -30,11 +29,11 @@ from app.services.telephony import (
     generate_form_question_twiml,
     get_twilio_provider,
 )
-from app.services.telephony.twilio import generate_form_completion_twiml
 from app.services.telephony.exceptions import (
     TelephonyConfigurationError,
     TelephonyProviderError,
 )
+from app.services.telephony.twilio import generate_form_completion_twiml
 from app.services.templates import UndefinedVariableError, render
 from app.tts import tts_router
 from app.tts.exceptions import TTSError
@@ -365,11 +364,13 @@ async def handle_webhook(
                 if interaction_status == "failed" and interaction.campaign_id:
                     try:
                         from app.models.campaign import Campaign
+                        from app.services.campaigns import CAMPAIGN_TYPE_TO_INTERACTION_TYPE
                         from app.services.credits import (
                             COST_PER_INTERACTION as CREDIT_COSTS,
+                        )
+                        from app.services.credits import (
                             refund_credits,
                         )
-                        from app.services.campaigns import CAMPAIGN_TYPE_TO_INTERACTION_TYPE
 
                         campaign = db.get(Campaign, interaction.campaign_id)
                         if campaign:
@@ -390,9 +391,7 @@ async def handle_webhook(
 
                 # Trigger sentiment analysis for completed calls with transcripts
                 if interaction_status == "completed" and interaction.transcript:
-                    background_tasks.add_task(
-                        _run_sentiment_analysis, interaction.id
-                    )
+                    background_tasks.add_task(_run_sentiment_analysis, interaction.id)
 
                 logger.info(
                     "Updated interaction %s: status=%s duration=%s",
@@ -497,9 +496,7 @@ async def serve_form_question_twiml(call_id: str, question_index: int):
     base_url = settings.TWILIO_BASE_URL
     audio_id = ctx.audio_ids.get(str(question_index))
     audio_url = f"{base_url}/api/v1/voice/audio/{audio_id}" if audio_id else None
-    answer_action_url = (
-        f"{base_url}/api/v1/voice/form-answer/{call_id}/{question_index}"
-    )
+    answer_action_url = f"{base_url}/api/v1/voice/form-answer/{call_id}/{question_index}"
 
     twiml = generate_form_question_twiml(
         question=question,

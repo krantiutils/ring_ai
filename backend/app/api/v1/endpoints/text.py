@@ -34,7 +34,6 @@ from app.schemas.text import (
     ConversationListResponse,
     ConversationResponse,
     MessageListResponse,
-    MessageResponse,
     SmsSendRequest,
     SmsSendResponse,
 )
@@ -224,10 +223,7 @@ async def handle_inbound_webhook(
 
     # Return TwiML — with auto-response Message if applicable
     if twiml_body:
-        twiml = (
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            f"<Response><Message>{twiml_body}</Message></Response>"
-        )
+        twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{twiml_body}</Message></Response>'
     else:
         twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
@@ -330,11 +326,7 @@ def list_conversation_messages(
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    count_query = (
-        select(func.count())
-        .select_from(SmsMessage)
-        .where(SmsMessage.conversation_id == conversation_id)
-    )
+    count_query = select(func.count()).select_from(SmsMessage).where(SmsMessage.conversation_id == conversation_id)
     total = db.execute(count_query).scalar_one()
 
     offset = (page - 1) * page_size
@@ -397,15 +389,9 @@ def get_contact_sms_history(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     # Get all conversation IDs for this contact
-    conv_ids_query = select(SmsConversation.id).where(
-        SmsConversation.contact_id == contact_id
-    )
+    conv_ids_query = select(SmsConversation.id).where(SmsConversation.contact_id == contact_id)
 
-    count_query = (
-        select(func.count())
-        .select_from(SmsMessage)
-        .where(SmsMessage.conversation_id.in_(conv_ids_query))
-    )
+    count_query = select(func.count()).select_from(SmsMessage).where(SmsMessage.conversation_id.in_(conv_ids_query))
     total = db.execute(count_query).scalar_one()
 
     offset = (page - 1) * page_size
@@ -464,18 +450,10 @@ def list_auto_response_rules(
     db: Session = Depends(get_db),
 ):
     """List all auto-response rules for an organization."""
-    count_query = (
-        select(func.count())
-        .select_from(AutoResponseRule)
-        .where(AutoResponseRule.org_id == org_id)
-    )
+    count_query = select(func.count()).select_from(AutoResponseRule).where(AutoResponseRule.org_id == org_id)
     total = db.execute(count_query).scalar_one()
 
-    query = (
-        select(AutoResponseRule)
-        .where(AutoResponseRule.org_id == org_id)
-        .order_by(AutoResponseRule.priority.asc())
-    )
+    query = select(AutoResponseRule).where(AutoResponseRule.org_id == org_id).order_by(AutoResponseRule.priority.asc())
     rules = db.execute(query).scalars().all()
 
     return AutoResponseRuleListResponse(items=rules, total=total)

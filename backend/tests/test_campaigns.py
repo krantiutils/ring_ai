@@ -430,6 +430,7 @@ class TestCampaignLifecycle:
         _upload_csv(client, created["id"], csv_bytes)
         if db is not None:
             from app.services.credits import purchase_credits
+
             purchase_credits(db, org_id, 1000.0)
         return created
 
@@ -725,6 +726,7 @@ class TestScheduleCampaignAPI:
         _upload_csv(client, created["id"], csv_bytes)
         if db is not None:
             from app.services.credits import purchase_credits
+
             purchase_credits(db, org_id, 1000.0)
         return created
 

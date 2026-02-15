@@ -4,14 +4,11 @@ import csv
 import io
 import uuid
 
-import pytest
-
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.voice_model import VoiceModel
 from app.services.campaigns import detect_carrier
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -286,11 +283,13 @@ class TestCarrierAutoDetectOnCSVImport:
 
     def test_carrier_set_on_csv_upload(self, client, org_id, db):
         created = _create_campaign(client, org_id)
-        csv_bytes = _make_csv([
-            ["+9779841234567", "Ram"],       # NTC
-            ["+9779801234568", "Sita"],      # Ncell
-            ["+9779611234569", "Hari"],      # SmartCell
-        ])
+        csv_bytes = _make_csv(
+            [
+                ["+9779841234567", "Ram"],  # NTC
+                ["+9779801234568", "Sita"],  # Ncell
+                ["+9779611234569", "Hari"],  # SmartCell
+            ]
+        )
         resp = _upload_csv(client, created["id"], csv_bytes)
         assert resp.status_code == 201
         assert resp.json()["created"] == 3
@@ -377,9 +376,7 @@ class TestCarrierBreakdownAnalytics:
         assert resp.json() == []
 
     def test_carrier_breakdown_with_data(self, client, db, org):
-        campaign = Campaign(
-            name="Test", type="voice", org_id=org.id, status="active"
-        )
+        campaign = Campaign(name="Test", type="voice", org_id=org.id, status="active")
         db.add(campaign)
         db.flush()
 
@@ -390,9 +387,7 @@ class TestCarrierBreakdownAnalytics:
             ("+9779801111111", "C", "Ncell", "completed"),
             ("+9779611111111", "D", "SmartCell", "completed"),
         ]:
-            contact = Contact(
-                phone=phone, name=name, org_id=org.id, carrier=carrier
-            )
+            contact = Contact(phone=phone, name=name, org_id=org.id, carrier=carrier)
             db.add(contact)
             db.flush()
             interaction = Interaction(
@@ -419,12 +414,8 @@ class TestCarrierBreakdownAnalytics:
         assert by_carrier["SmartCell"]["total"] == 1
 
     def test_carrier_breakdown_filtered_by_campaign(self, client, db, org):
-        campaign1 = Campaign(
-            name="C1", type="voice", org_id=org.id, status="active"
-        )
-        campaign2 = Campaign(
-            name="C2", type="voice", org_id=org.id, status="active"
-        )
+        campaign1 = Campaign(name="C1", type="voice", org_id=org.id, status="active")
+        campaign2 = Campaign(name="C2", type="voice", org_id=org.id, status="active")
         db.add_all([campaign1, campaign2])
         db.flush()
 
@@ -432,30 +423,32 @@ class TestCarrierBreakdownAnalytics:
         c1 = Contact(phone="+9779841111111", org_id=org.id, carrier="NTC")
         db.add(c1)
         db.flush()
-        db.add(Interaction(
-            campaign_id=campaign1.id,
-            contact_id=c1.id,
-            type="outbound_call",
-            status="completed",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign1.id,
+                contact_id=c1.id,
+                type="outbound_call",
+                status="completed",
+            )
+        )
 
         # Contact in campaign 2
         c2 = Contact(phone="+9779801111111", org_id=org.id, carrier="Ncell")
         db.add(c2)
         db.flush()
-        db.add(Interaction(
-            campaign_id=campaign2.id,
-            contact_id=c2.id,
-            type="outbound_call",
-            status="completed",
-        ))
+        db.add(
+            Interaction(
+                campaign_id=campaign2.id,
+                contact_id=c2.id,
+                type="outbound_call",
+                status="completed",
+            )
+        )
 
         db.commit()
 
         # Filter by campaign 1
-        resp = client.get(
-            f"/api/v1/analytics/carrier-breakdown?campaign_id={campaign1.id}"
-        )
+        resp = client.get(f"/api/v1/analytics/carrier-breakdown?campaign_id={campaign1.id}")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1

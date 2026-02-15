@@ -5,11 +5,13 @@ Revises: 3134a9e01ece
 Create Date: 2026-02-12 08:39:00.000000
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b3c4d5e6f7a8"
@@ -20,9 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Create form_status enum
-    form_status = postgresql.ENUM(
-        "draft", "active", "archived", name="form_status", create_type=False
-    )
+    form_status = postgresql.ENUM("draft", "active", "archived", name="form_status", create_type=False)
     form_status.create(op.get_bind(), checkfirst=True)
 
     # Create forms table
@@ -36,7 +36,9 @@ def upgrade() -> None:
         sa.Column(
             "status",
             postgresql.ENUM(
-                "draft", "active", "archived",
+                "draft",
+                "active",
+                "archived",
                 name="form_status",
                 create_type=False,
             ),
@@ -60,9 +62,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_forms_org_id", "forms", ["org_id"], unique=False)
     op.create_index("ix_forms_status", "forms", ["status"], unique=False)
-    op.create_index(
-        "ix_forms_org_status", "forms", ["org_id", "status"], unique=False
-    )
+    op.create_index("ix_forms_org_status", "forms", ["org_id", "status"], unique=False)
 
     # Create form_responses table
     op.create_table(
@@ -82,9 +82,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["contact_id"], ["contacts.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_form_responses_form_id", "form_responses", ["form_id"], unique=False
-    )
+    op.create_index("ix_form_responses_form_id", "form_responses", ["form_id"], unique=False)
     op.create_index(
         "ix_form_responses_contact_id",
         "form_responses",

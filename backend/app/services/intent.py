@@ -30,9 +30,7 @@ INTENT_SYSTEM_PROMPT = (
     "You are an intent-classification expert specializing in Nepali and South Asian conversational contexts. "
     "Given a call transcript, classify the **primary intent** of the caller.\n\n"
     "You MUST return a JSON object with exactly two fields:\n"
-    '- "intent": one of the following categories: '
-    + ", ".join(f'"{c}"' for c in INTENT_CATEGORIES)
-    + "\n"
+    '- "intent": one of the following categories: ' + ", ".join(f'"{c}"' for c in INTENT_CATEGORIES) + "\n"
     '- "confidence": a float from 0.0 to 1.0 indicating how confident you are\n\n'
     "Rules:\n"
     "- Choose the single best-matching intent for the overall conversation.\n"
@@ -62,9 +60,7 @@ class IntentResult:
 
     def __init__(self, intent: str, confidence: float) -> None:
         if intent not in INTENT_CATEGORIES:
-            raise ValueError(
-                f"intent must be one of {INTENT_CATEGORIES}, got {intent!r}"
-            )
+            raise ValueError(f"intent must be one of {INTENT_CATEGORIES}, got {intent!r}")
         if not 0.0 <= confidence <= 1.0:
             raise ValueError(f"confidence must be between 0.0 and 1.0, got {confidence}")
         self.intent = intent
@@ -144,9 +140,7 @@ async def classify_intent(transcript: str) -> IntentResult:
 
     # Normalize: if the model returns something outside our categories, map to "other"
     if raw_intent not in INTENT_CATEGORIES:
-        logger.warning(
-            "Gemini returned unknown intent %r, mapping to 'other'", raw_intent
-        )
+        logger.warning("Gemini returned unknown intent %r, mapping to 'other'", raw_intent)
         raw_intent = "other"
 
     confidence = max(0.0, min(1.0, confidence))
@@ -154,9 +148,7 @@ async def classify_intent(transcript: str) -> IntentResult:
     return IntentResult(intent=raw_intent, confidence=confidence)
 
 
-async def classify_interaction_intent(
-    db: Session, interaction_id: uuid.UUID
-) -> IntentResult | None:
+async def classify_interaction_intent(db: Session, interaction_id: uuid.UUID) -> IntentResult | None:
     """Classify intent for a single interaction and update the DB record.
 
     Stores the result in ``Interaction.metadata_`` under keys
@@ -236,9 +228,7 @@ async def backfill_intents(
     if campaign_id is not None:
         filters.append(Interaction.campaign_id == campaign_id)
 
-    interactions = db.execute(
-        select(Interaction).where(*filters)
-    ).scalars().all()
+    interactions = db.execute(select(Interaction).where(*filters)).scalars().all()
 
     classified = 0
     skipped = 0
@@ -261,9 +251,7 @@ async def backfill_intents(
             interaction.metadata_ = existing_meta
             classified += 1
         except IntentError:
-            logger.exception(
-                "Intent backfill failed for interaction %s", interaction.id
-            )
+            logger.exception("Intent backfill failed for interaction %s", interaction.id)
             failed += 1
 
     if classified > 0:

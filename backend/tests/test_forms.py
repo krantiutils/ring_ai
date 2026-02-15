@@ -4,13 +4,10 @@ import csv
 import io
 import uuid
 
-import pytest
-
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.form import Form
 from app.models.form_response import FormResponse
-from app.models.interaction import Interaction
 from app.services.telephony.models import FormCallContext
 
 NONEXISTENT_UUID = str(uuid.uuid4())
@@ -530,9 +527,7 @@ class TestListFormResponses:
         contact1 = _create_contact(db, org_id, phone="+9779801111111")
         contact2 = _create_contact(db, org_id, phone="+9779802222222")
         _create_form_response(db, form.id, contact1.id, {"0": "TV", "1": 5, "2": True})
-        _create_form_response(
-            db, form.id, contact2.id, {"0": "Radio", "1": 3, "2": False}
-        )
+        _create_form_response(db, form.id, contact2.id, {"0": "Radio", "1": 3, "2": False})
 
         resp = client.get(f"/api/v1/forms/{form.id}/responses")
         assert resp.status_code == 200
@@ -543,9 +538,7 @@ class TestListFormResponses:
     def test_list_responses_pagination(self, client, db, org_id):
         form = _create_form(db, org_id, status="active")
         for i in range(5):
-            contact = _create_contact(
-                db, org_id, phone=f"+977980000000{i}", name=f"User{i}"
-            )
+            contact = _create_contact(db, org_id, phone=f"+977980000000{i}", name=f"User{i}")
             _create_form_response(db, form.id, contact.id)
 
         resp = client.get(f"/api/v1/forms/{form.id}/responses?page=1&page_size=2")
@@ -645,7 +638,7 @@ class TestFormTwimlGeneration:
             answer_action_url="https://example.com/form-answer/abc/0",
         )
         assert "<Gather" in twiml
-        assert "numDigits=\"1\"" in twiml
+        assert 'numDigits="1"' in twiml
         assert "https://example.com/audio/q1.mp3" in twiml
         assert "https://example.com/form-answer/abc/0" in twiml
 
@@ -700,7 +693,7 @@ class TestFormTwimlGeneration:
             answer_action_url="https://example.com/form-answer/abc/0",
         )
         assert "<Gather" in twiml
-        assert "finishOnKey=\"#\"" in twiml
+        assert 'finishOnKey="#"' in twiml
 
     def test_generate_form_completion_twiml(self):
         from app.services.telephony.twilio import generate_form_completion_twiml

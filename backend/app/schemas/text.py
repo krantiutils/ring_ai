@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # Send SMS
 # ---------------------------------------------------------------------------
@@ -62,9 +61,7 @@ class ConversationListResponse(BaseModel):
 class ConversationHandoffRequest(BaseModel):
     """PUT /api/v1/text/conversations/{id}/handoff request body."""
 
-    status: Literal["needs_handoff", "active", "closed"] = Field(
-        ..., description="New conversation status"
-    )
+    status: Literal["needs_handoff", "active", "closed"] = Field(..., description="New conversation status")
 
 
 # ---------------------------------------------------------------------------

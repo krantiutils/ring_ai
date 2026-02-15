@@ -62,9 +62,7 @@ class HybridSession:
         tts_router: TTSRouter,
     ) -> None:
         if config.output_mode != OutputMode.HYBRID:
-            raise ValueError(
-                f"HybridSession requires output_mode=HYBRID, got {config.output_mode.value}"
-            )
+            raise ValueError(f"HybridSession requires output_mode=HYBRID, got {config.output_mode.value}")
 
         self._config = config
         self._tts_router = tts_router

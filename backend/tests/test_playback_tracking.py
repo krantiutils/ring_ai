@@ -12,7 +12,6 @@ from app.models.interaction import Interaction
 from app.services.campaigns import calculate_stats, generate_report_csv
 from app.services.telephony import AudioEntry, CallContext, audio_store, call_context_store
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -91,7 +90,9 @@ class TestInteractionPlaybackColumns:
         campaign = _make_campaign(db, org)
         contact = _make_contact(db, org)
         interaction = _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             audio_duration_seconds=45,
             playback_duration_seconds=30,
             playback_percentage=66.7,
@@ -295,7 +296,9 @@ class TestCampaignStatsPlayback:
         # 3 completed interactions with different playback percentages
         for pct, dur in [(100.0, 30), (50.0, 15), (75.0, 22)]:
             _make_interaction(
-                db, campaign, contact,
+                db,
+                campaign,
+                contact,
                 playback_percentage=pct,
                 playback_duration_seconds=dur,
                 audio_duration_seconds=30,
@@ -316,7 +319,9 @@ class TestCampaignStatsPlayback:
 
         # Pending interaction — no playback data
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             status="pending",
             playback_percentage=None,
             playback_duration_seconds=None,
@@ -335,14 +340,18 @@ class TestCampaignStatsPlayback:
 
         # Completed with 80%
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             status="completed",
             playback_percentage=80.0,
             playback_duration_seconds=24,
         )
         # Failed with 20% — should NOT count
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             status="failed",
             playback_percentage=20.0,
             playback_duration_seconds=6,
@@ -377,7 +386,9 @@ class TestReportCsvPlayback:
         campaign = _make_campaign(db, org)
         contact = _make_contact(db, org)
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             audio_duration_seconds=45,
             playback_duration_seconds=30,
             playback_percentage=66.7,
@@ -409,7 +420,9 @@ class TestReportCsvPlayback:
         campaign = _make_campaign(db, org)
         contact = _make_contact(db, org)
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             status="pending",
             audio_duration_seconds=None,
             playback_duration_seconds=None,
@@ -447,14 +460,18 @@ class TestCampaignPlaybackEndpoint:
         contact2 = _make_contact(db, org, phone="+9779842222222", name="Sita")
 
         _make_interaction(
-            db, campaign, contact1,
+            db,
+            campaign,
+            contact1,
             playback_percentage=80.0,
             playback_duration_seconds=24,
             audio_duration_seconds=30,
             duration_seconds=24,
         )
         _make_interaction(
-            db, campaign, contact2,
+            db,
+            campaign,
+            contact2,
             playback_percentage=40.0,
             playback_duration_seconds=12,
             audio_duration_seconds=30,
@@ -480,7 +497,9 @@ class TestCampaignPlaybackEndpoint:
         campaign = _make_campaign(db, org)
         contact = _make_contact(db, org)
         _make_interaction(
-            db, campaign, contact,
+            db,
+            campaign,
+            contact,
             status="pending",
             playback_percentage=None,
             playback_duration_seconds=None,
@@ -504,23 +523,23 @@ class TestPlaybackDistributionEndpoint:
         # Create interactions covering all 4 buckets
         for pct in [10.0, 20.0, 35.0, 60.0, 90.0, 100.0]:
             _make_interaction(
-                db, campaign, contact,
+                db,
+                campaign,
+                contact,
                 playback_percentage=pct,
                 playback_duration_seconds=int(pct * 0.3),
             )
         db.commit()
 
-        resp = client.get(
-            f"/api/v1/analytics/campaigns/{campaign.id}/playback/distribution"
-        )
+        resp = client.get(f"/api/v1/analytics/campaigns/{campaign.id}/playback/distribution")
         assert resp.status_code == 200
         data = resp.json()
 
         assert data["campaign_id"] == str(campaign.id)
         buckets = {b["bucket"]: b["count"] for b in data["buckets"]}
-        assert buckets["0-25%"] == 2    # 10%, 20%
-        assert buckets["26-50%"] == 1   # 35%
-        assert buckets["51-75%"] == 1   # 60%
+        assert buckets["0-25%"] == 2  # 10%, 20%
+        assert buckets["26-50%"] == 1  # 35%
+        assert buckets["51-75%"] == 1  # 60%
         assert buckets["76-100%"] == 2  # 90%, 100%
 
     def test_distribution_empty_campaign(self, client, db, org):
@@ -528,18 +547,14 @@ class TestPlaybackDistributionEndpoint:
         campaign = _make_campaign(db, org)
         db.commit()
 
-        resp = client.get(
-            f"/api/v1/analytics/campaigns/{campaign.id}/playback/distribution"
-        )
+        resp = client.get(f"/api/v1/analytics/campaigns/{campaign.id}/playback/distribution")
         assert resp.status_code == 200
         data = resp.json()
         for b in data["buckets"]:
             assert b["count"] == 0
 
     def test_distribution_not_found(self, client):
-        resp = client.get(
-            f"/api/v1/analytics/campaigns/{uuid.uuid4()}/playback/distribution"
-        )
+        resp = client.get(f"/api/v1/analytics/campaigns/{uuid.uuid4()}/playback/distribution")
         assert resp.status_code == 404
 
 
@@ -551,15 +566,15 @@ class TestDashboardPlaybackEndpoint:
 
         for pct in [25.0, 50.0, 75.0, 100.0]:
             _make_interaction(
-                db, campaign, contact,
+                db,
+                campaign,
+                contact,
                 playback_percentage=pct,
                 playback_duration_seconds=int(pct * 0.3),
             )
         db.commit()
 
-        resp = client.get(
-            f"/api/v1/analytics/dashboard/playback?org_id={org.id}"
-        )
+        resp = client.get(f"/api/v1/analytics/dashboard/playback?org_id={org.id}")
         assert resp.status_code == 200
         data = resp.json()
 
@@ -574,9 +589,7 @@ class TestDashboardPlaybackEndpoint:
 
     def test_dashboard_no_data(self, client, db, org):
         """Dashboard with no campaigns/interactions — None average, 0 counts."""
-        resp = client.get(
-            f"/api/v1/analytics/dashboard/playback?org_id={org.id}"
-        )
+        resp = client.get(f"/api/v1/analytics/dashboard/playback?org_id={org.id}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["avg_playback_percentage"] is None

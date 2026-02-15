@@ -337,18 +337,22 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, mock_session = self._make_mock_call_manager()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
         # Simulate: receive CALL_CONNECTED, then disconnect
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -372,23 +376,29 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, mock_session = self._make_mock_call_manager()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
-        end_msg = json.dumps({
-            "type": "CALL_ENDED",
-            "call_id": "call-1",
-            "reason": "hangup",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
+        end_msg = json.dumps(
+            {
+                "type": "CALL_ENDED",
+                "call_id": "call-1",
+                "reason": "hangup",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.receive", "text": end_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.receive", "text": end_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -402,19 +412,23 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, mock_session = self._make_mock_call_manager()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
         pcm_data = b"\x00\x01" * 160  # 320 bytes of PCM
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.receive", "bytes": pcm_data},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.receive", "bytes": pcm_data},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -432,10 +446,12 @@ class TestGatewayBridge:
 
         pcm_data = b"\x00\x01" * 160
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "bytes": pcm_data},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "bytes": pcm_data},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -451,17 +467,21 @@ class TestGatewayBridge:
         mgr, _ = self._make_mock_call_manager()
         mgr.create_session = AsyncMock(side_effect=Exception("pool exhausted"))
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()
@@ -478,10 +498,12 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, _ = self._make_mock_call_manager()
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": "not valid json{{{"},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": "not valid json{{{"},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()  # should not raise
@@ -493,10 +515,12 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, _ = self._make_mock_call_manager()
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": json.dumps({"type": "UNKNOWN_TYPE"})},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": json.dumps({"type": "UNKNOWN_TYPE"})},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()  # should not raise
@@ -508,17 +532,21 @@ class TestGatewayBridge:
         ws = self._make_mock_ws()
         mgr, _ = self._make_mock_call_manager()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
-        ws.receive = AsyncMock(side_effect=[
-            {"type": "websocket.receive", "text": call_msg},
-            {"type": "websocket.disconnect"},
-        ])
+        ws.receive = AsyncMock(
+            side_effect=[
+                {"type": "websocket.receive", "text": call_msg},
+                {"type": "websocket.disconnect"},
+            ]
+        )
 
         bridge = GatewayBridge(websocket=ws, call_manager=mgr)
         await bridge.run()

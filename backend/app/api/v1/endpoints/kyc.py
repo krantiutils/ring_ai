@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, Form, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_admin_user, get_current_user
@@ -55,13 +55,9 @@ async def kyc_submit(
     except KYCAlreadySubmittedError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except KYCFileValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     except KYCError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     return KYCSubmitResponse(id=kyc.id, status=kyc.status)
 
@@ -107,9 +103,7 @@ def admin_kyc_verify(
     except KYCInvalidStateError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except KYCError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     action_msg = "approved" if body.action == "approve" else "rejected"
     return KYCAdminVerifyResponse(

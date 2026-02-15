@@ -27,12 +27,8 @@ class Form(Base):
         Index("ix_forms_org_status", "org_id", "status"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     questions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
@@ -42,17 +38,11 @@ class Form(Base):
         server_default="draft",
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     organization: Mapped["Organization"] = relationship(back_populates="forms")
-    responses: Mapped[list["FormResponse"]] = relationship(
-        back_populates="form", cascade="all, delete-orphan"
-    )
-    campaigns: Mapped[list["Campaign"]] = relationship(
-        back_populates="form", foreign_keys="Campaign.form_id"
-    )
+    responses: Mapped[list["FormResponse"]] = relationship(back_populates="form", cascade="all, delete-orphan")
+    campaigns: Mapped[list["Campaign"]] = relationship(back_populates="form", foreign_keys="Campaign.form_id")
 
     def __repr__(self) -> str:
         return f"<Form {self.title} ({self.status})>"

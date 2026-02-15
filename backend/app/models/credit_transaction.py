@@ -19,15 +19,9 @@ class CreditTransaction(Base):
         Index("ix_credit_transactions_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
-    credit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("credits.id"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    credit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("credits.id"), nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     type: Mapped[str] = mapped_column(
         Enum("purchase", "consume", "refund", name="credit_transaction_type"),

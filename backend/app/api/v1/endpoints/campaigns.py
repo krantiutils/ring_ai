@@ -324,9 +324,7 @@ def retry_campaign_endpoint(
 
     # If immediate (no backoff), kick off background executor
     if scheduled_at is None:
-        background_tasks.add_task(
-            execute_campaign_batch, campaign.id, SessionLocal
-        )
+        background_tasks.add_task(execute_campaign_batch, campaign.id, SessionLocal)
 
     return RetryResponse(
         campaign_id=campaign.id,
@@ -407,8 +405,7 @@ async def upload_audio(
     if file.content_type not in ALLOWED_AUDIO_CONTENT_TYPES:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported audio format: {file.content_type}. "
-            f"Accepted formats: MP3, WAV",
+            detail=f"Unsupported audio format: {file.content_type}. Accepted formats: MP3, WAV",
         )
 
     audio_bytes = await file.read()

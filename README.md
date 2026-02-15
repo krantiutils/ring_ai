@@ -59,6 +59,28 @@ docker compose up -d
 make test
 ```
 
+## Product Screenshots
+
+Core flows captured from E2E validation runs:
+
+### Dashboard Overview
+![Dashboard Overview](e2e/feature_parity_validation/dashboard/overview.png)
+
+### Campaign List
+![Campaign List](e2e/feature_parity_validation/campaigns/list-page.png)
+
+### Analytics Overview
+![Analytics Overview](e2e/feature_parity_validation/analytics/overview.png)
+
+### Template Management
+![Template List](e2e/feature_parity_validation/templates/list-page.png)
+
+### OTP Send Flow
+![OTP Send Form](e2e/feature_parity_validation/otp/send-form.png)
+
+### Settings and KYC
+![KYC Section](e2e/feature_parity_validation/settings/kyc-section.png)
+
 ## API Endpoints
 
 | Prefix | Purpose |

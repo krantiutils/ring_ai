@@ -266,20 +266,21 @@ def _compute_topic_clusters(
 ) -> list[TopicCluster]:
     """Group conversations by detected intent / topic."""
     metadata_rows = db.execute(
-        select(Interaction.metadata_, Interaction.sentiment_score, Interaction.transcript)
-        .where(
+        select(Interaction.metadata_, Interaction.sentiment_score, Interaction.transcript).where(
             Interaction.campaign_id == campaign_id,
             Interaction.status == "completed",
             Interaction.metadata_.isnot(None),
         )
     ).all()
 
-    clusters: dict[str, dict] = defaultdict(lambda: {
-        "count": 0,
-        "sentiment_sum": 0.0,
-        "sentiment_count": 0,
-        "samples": [],
-    })
+    clusters: dict[str, dict] = defaultdict(
+        lambda: {
+            "count": 0,
+            "sentiment_sum": 0.0,
+            "sentiment_count": 0,
+            "samples": [],
+        }
+    )
 
     for meta, sentiment, transcript in metadata_rows:
         if not meta or "detected_intent" not in meta:
@@ -316,8 +317,7 @@ def _compute_sentiment_trend(
 ) -> list[SentimentTrendPoint]:
     """Compute daily sentiment averages over time."""
     rows = db.execute(
-        select(Interaction.created_at, Interaction.sentiment_score)
-        .where(
+        select(Interaction.created_at, Interaction.sentiment_score).where(
             Interaction.campaign_id == campaign_id,
             Interaction.status == "completed",
             Interaction.sentiment_score.isnot(None),
@@ -348,8 +348,7 @@ def _compute_intent_trend(
 ) -> list[IntentTrendPoint]:
     """Compute daily intent distributions over time."""
     rows = db.execute(
-        select(Interaction.created_at, Interaction.metadata_)
-        .where(
+        select(Interaction.created_at, Interaction.metadata_).where(
             Interaction.campaign_id == campaign_id,
             Interaction.status == "completed",
             Interaction.metadata_.isnot(None),
@@ -365,10 +364,7 @@ def _compute_intent_trend(
             day = str(created_at.date()) if isinstance(created_at, datetime) else str(created_at)[:10]
             daily[day][meta["detected_intent"]] += 1
 
-    return [
-        IntentTrendPoint(date=day, intents=dict(intents))
-        for day, intents in sorted(daily.items())
-    ]
+    return [IntentTrendPoint(date=day, intents=dict(intents)) for day, intents in sorted(daily.items())]
 
 
 def _build_export_data(
@@ -456,21 +452,23 @@ async def generate_campaign_insights(
 
     # Compute topic clusters (also gives us top intents)
     topic_clusters = _compute_topic_clusters(db, campaign_id)
-    top_intents_str = ", ".join(
-        f"{c.topic} ({c.count})" for c in topic_clusters[:5]
-    ) or "none detected"
+    top_intents_str = ", ".join(f"{c.topic} ({c.count})" for c in topic_clusters[:5]) or "none detected"
 
     # Sample transcripts for LLM
-    sample_transcripts = db.execute(
-        select(Interaction.transcript)
-        .where(
-            Interaction.campaign_id == campaign_id,
-            Interaction.status == "completed",
-            Interaction.transcript.isnot(None),
-            Interaction.transcript != "",
+    sample_transcripts = (
+        db.execute(
+            select(Interaction.transcript)
+            .where(
+                Interaction.campaign_id == campaign_id,
+                Interaction.status == "completed",
+                Interaction.transcript.isnot(None),
+                Interaction.transcript != "",
+            )
+            .limit(5)
         )
-        .limit(5)
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     stats = {
         "total_interactions": total,
@@ -484,14 +482,11 @@ async def generate_campaign_insights(
 
     # --- LLM summary ---
     try:
-        summary, common_themes = await _generate_llm_summary(
-            campaign.name, stats, sample_transcripts
-        )
+        summary, common_themes = await _generate_llm_summary(campaign.name, stats, sample_transcripts)
     except InsightsError:
         logger.exception("LLM summary generation failed for campaign %s", campaign_id)
         summary = (
-            f"Campaign '{campaign.name}' processed {total} interactions "
-            f"with a {completion_rate:.0%} completion rate."
+            f"Campaign '{campaign.name}' processed {total} interactions with a {completion_rate:.0%} completion rate."
         )
         common_themes = ["Summary generation failed — showing raw stats only"]
 

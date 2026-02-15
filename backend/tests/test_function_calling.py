@@ -32,7 +32,6 @@ from app.services.interactive_agent.tools import (
     build_tools,
 )
 
-
 # ---------------------------------------------------------------------------
 # Tool declarations unit tests
 # ---------------------------------------------------------------------------
@@ -265,18 +264,14 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_lookup_no_db(self):
         executor = ToolExecutor()
-        result = await executor.execute(
-            "lookup_account", {"phone_number": "+977123"}, call_id="fc-1"
-        )
+        result = await executor.execute("lookup_account", {"phone_number": "+977123"}, call_id="fc-1")
         assert "error" in result.result
         assert "Database not available" in result.result["error"]
 
     @pytest.mark.asyncio
     async def test_execute_check_balance_no_db(self):
         executor = ToolExecutor()
-        result = await executor.execute(
-            "check_balance", {"org_id": str(uuid.uuid4())}, call_id="fc-1"
-        )
+        result = await executor.execute("check_balance", {"org_id": str(uuid.uuid4())}, call_id="fc-1")
         assert "error" in result.result
 
     @pytest.mark.asyncio
@@ -304,9 +299,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_check_balance_invalid_uuid(self):
         executor = ToolExecutor(db_session_factory=MagicMock())
-        result = await executor.execute(
-            "check_balance", {"org_id": "not-a-uuid"}, call_id="fc-1"
-        )
+        result = await executor.execute("check_balance", {"org_id": "not-a-uuid"}, call_id="fc-1")
         assert "error" in result.result
         assert "Invalid org_id" in result.result["error"]
 
@@ -322,9 +315,7 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_execute_payment_zero_amount(self):
         executor = ToolExecutor(db_session_factory=MagicMock())
-        result = await executor.execute(
-            "initiate_payment", {"org_id": str(uuid.uuid4()), "amount": 0}, call_id="fc-1"
-        )
+        result = await executor.execute("initiate_payment", {"org_id": str(uuid.uuid4()), "amount": 0}, call_id="fc-1")
         assert "error" in result.result
         assert "amount must be positive" in result.result["error"]
 
@@ -339,9 +330,7 @@ class TestToolExecutor:
 
         executor._lookup_account = _boom
 
-        result = await executor.execute(
-            "lookup_account", {"phone_number": "+977123"}, call_id="fc-1"
-        )
+        result = await executor.execute("lookup_account", {"phone_number": "+977123"}, call_id="fc-1")
         assert "error" in result.result
         assert "Tool execution failed" in result.result["error"]
 
@@ -363,9 +352,7 @@ class TestToolExecutor:
         mock_db.execute.return_value = mock_result
 
         executor = ToolExecutor(db_session_factory=lambda: mock_db)
-        result = await executor.execute(
-            "lookup_account", {"phone_number": "+9771234567"}, call_id="fc-1"
-        )
+        result = await executor.execute("lookup_account", {"phone_number": "+9771234567"}, call_id="fc-1")
 
         assert result.result["found"] is True
         assert result.result["name"] == "Test User"
@@ -384,9 +371,7 @@ class TestToolExecutor:
         mock_db.execute.return_value = mock_result
 
         executor = ToolExecutor(db_session_factory=lambda: mock_db)
-        result = await executor.execute(
-            "lookup_account", {"phone_number": "+977999"}, call_id="fc-1"
-        )
+        result = await executor.execute("lookup_account", {"phone_number": "+977999"}, call_id="fc-1")
 
         assert result.result["found"] is False
         mock_db.close.assert_called_once()
@@ -406,9 +391,7 @@ class TestToolExecutor:
 
         with patch("app.services.credits.get_balance", return_value=mock_credit):
             executor = ToolExecutor(db_session_factory=lambda: mock_db)
-            result = await executor.execute(
-                "check_balance", {"org_id": str(org_id)}, call_id="fc-1"
-            )
+            result = await executor.execute("check_balance", {"org_id": str(org_id)}, call_id="fc-1")
 
         assert result.result["balance"] == 500.0
         assert result.result["total_purchased"] == 1000.0
@@ -800,12 +783,14 @@ class TestGatewayBridgeToolCalls:
         # Create a tool executor
         tool_executor = ToolExecutor()
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
         # Use an event to delay disconnect until relay processes
         relay_done = asyncio.Event()
@@ -881,12 +866,14 @@ class TestGatewayBridgeToolCalls:
 
         mock_session.send_tool_response = AsyncMock(side_effect=_send_and_signal)
 
-        call_msg = json.dumps({
-            "type": "CALL_CONNECTED",
-            "call_id": "call-1",
-            "caller_number": "+977123",
-            "gateway_id": "gw-1",
-        })
+        call_msg = json.dumps(
+            {
+                "type": "CALL_CONNECTED",
+                "call_id": "call-1",
+                "caller_number": "+977123",
+                "gateway_id": "gw-1",
+            }
+        )
 
         call_count = 0
 
