@@ -52,11 +52,17 @@ jobs:
 
       - name: Prepare database schema
         working-directory: backend
-        run: >-
-          PYTHONPATH=. uv run python -c
-          "import app.models; from sqlalchemy import text; from app.core.database import Base, engine; 
-          with engine.begin() as conn: conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector')); 
-          Base.metadata.create_all(bind=engine)"
+        run: |
+          PYTHONPATH=. uv run python <<'PY'
+          import app.models
+          from sqlalchemy import text
+          from app.core.database import Base, engine
+
+          with engine.begin() as conn:
+              conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+
+          Base.metadata.create_all(bind=engine)
+          PY
 
       - name: Seed database with test data
         working-directory: backend
