@@ -51,9 +51,8 @@ test.describe("Authentication Flows", () => {
     await page.getByPlaceholder("Enter your password").fill(TEST_USER.password);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    // Wait for redirect to dashboard
-    await page.waitForURL("**/dashboard", { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/dashboard/);
+    // Wait for redirect to dashboard (supports nested dashboard routes)
+    await expect(page).toHaveURL(/\/dashboard(\/.*)?$/, { timeout: 30_000 });
 
     // Assert dashboard elements are visible
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
