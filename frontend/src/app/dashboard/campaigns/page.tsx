@@ -116,7 +116,7 @@ export default function CampaignsPage() {
         </Link>
       </div>
       <p className="text-xs text-[#2D2D2D]/50">
-        Campaign creation wizard is being finalized. Use <Link href="/dashboard/get-started" className="text-[#FF6B6B] hover:underline">Get Started</Link> for the recommended setup order.
+        Use <Link href="/dashboard/get-started" className="text-[#FF6B6B] hover:underline">Get Started</Link> to create SMS or Phone campaigns in a guided 4-step flow.
       </p>
 
       {/* Table */}
