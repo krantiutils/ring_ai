@@ -81,6 +81,37 @@ Core flows captured from E2E validation runs:
 ### Settings and KYC
 ![KYC Section](e2e/feature_parity_validation/settings/kyc-section.png)
 
+## Production Deploy (agentshakti.xyz)
+
+This app currently runs on an Ubuntu server behind nginx + PM2.
+
+### Frontend PM2 target
+
+Use Next standalone server path:
+
+```bash
+cd /home/ubuntu/ring_ai/frontend
+pm2 delete ring-ai-frontend || true
+pm2 start .next/standalone/frontend/server.js --name ring-ai-frontend --cwd /home/ubuntu/ring_ai/frontend
+pm2 save
+```
+
+### Safe deploy sequence
+
+```bash
+cd /home/ubuntu/ring_ai
+git pull
+cd frontend
+npm ci
+npm run build
+cd ..
+./scripts/fix_next_standalone_assets.sh frontend
+pm2 restart ring-ai-frontend
+./scripts/post_deploy_asset_check.sh https://agentshakti.xyz
+```
+
+If the last command reports `BAD > 0`, do not consider deployment complete.
+
 ## API Endpoints
 
 | Prefix | Purpose |
