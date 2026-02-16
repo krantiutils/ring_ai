@@ -265,6 +265,47 @@ export const api = {
       charsConsumed: parseInt(res.headers.get("X-TTS-Chars-Consumed") || "0", 10),
     };
   },
+
+  // Landing demo voice call
+  sendDemoCallOtp: (data: {
+    name: string;
+    phone: string;
+    message: string;
+    from_number?: string;
+    tts_config?: {
+      provider?: string;
+      voice?: string;
+      rate?: string;
+      pitch?: string;
+      fallback_provider?: string;
+    };
+  }) =>
+    request<{ request_id: string; status: string; expires_in_seconds: number }>("/voice/demo-call/otp/send", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyDemoCallOtp: (data: { request_id: string; otp: string }) =>
+    request<{ call_id: string; status: string }>("/voice/demo-call/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  initiateDemoCall: (data: {
+    name: string;
+    phone: string;
+    message: string;
+    from_number?: string;
+    tts_config?: {
+      provider?: string;
+      voice?: string;
+      rate?: string;
+      pitch?: string;
+      fallback_provider?: string;
+    };
+  }) =>
+    request<{ call_id: string; status: string }>("/voice/demo-call", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export { ApiError };
