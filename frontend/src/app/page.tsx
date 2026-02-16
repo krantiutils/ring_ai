@@ -1,6 +1,7 @@
 "use client";
 
 import ExperienceCenter from "@/components/sections/ExperienceCenter";
+import TerminalSignalIllustration from "@/components/illustrations/TerminalSignalIllustration";
 
 const tickerItems = [
   "[OK] VOICE ROUTING",
@@ -75,6 +76,9 @@ export default function Home() {
                 <p><span className="text-[#ffb000]">[OK]</span> DEMO API ONLINE</p>
                 <p><span className="text-[#ffb000]">[OK]</span> EDGE TTS ENABLED</p>
                 <p><span className="text-[#ffb000]">[OK]</span> OTP CONFIRM FLOW ACTIVE</p>
+              </div>
+              <div className="mt-5">
+                <TerminalSignalIllustration />
               </div>
               <div className="terminal-line mt-6 border-t pt-4 text-xs text-[#7bd96a]">
                 <p className="terminal-caps text-[#ffb000]">quick actions</p>

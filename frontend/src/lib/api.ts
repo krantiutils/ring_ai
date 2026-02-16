@@ -52,10 +52,27 @@ async function request<T>(
 
 export const api = {
   // Auth
+  register: (data: {
+    first_name: string;
+    last_name: string;
+    username: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }) =>
+    request<{ id: string; username: string; email: string; message: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    }),
+  googleLogin: (idToken: string) =>
+    request<{ access_token: string; token_type: string }>("/auth/google-login", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken }),
     }),
   getProfile: () => request<import("@/types/dashboard").UserProfile>("/auth/user-profile"),
   getApiKeys: () => request<import("@/types/dashboard").APIKeyInfo>("/auth/api-keys"),
