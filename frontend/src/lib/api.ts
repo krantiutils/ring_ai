@@ -1,6 +1,6 @@
 import { clearAccessToken, getAccessToken } from "@/lib/auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+const ORG_STORAGE_KEY = "org_id";
 
 class ApiError extends Error {
   constructor(
@@ -14,6 +14,23 @@ class ApiError extends Error {
 
 function getToken(): string | null {
   return getAccessToken();
+}
+
+function getStoredOrgId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ORG_STORAGE_KEY);
+}
+
+function storeOrgId(orgId?: string | null): void {
+  if (typeof window === "undefined" || !orgId) return;
+  localStorage.setItem(ORG_STORAGE_KEY, orgId);
+}
+
+function withOrgId(path: string, orgId?: string | null): string {
+  const resolvedOrgId = orgId || getStoredOrgId();
+  if (!resolvedOrgId) return path;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${path}${joiner}org_id=${encodeURIComponent(resolvedOrgId)}`;
 }
 
 async function request<T>(
@@ -83,19 +100,155 @@ export const api = {
   getKycStatus: () => request<import("@/types/dashboard").KYCStatus>("/auth/kyc/status"),
 
   // Campaigns
-  getCampaigns: (params?: string) =>
-    request<import("@/types/dashboard").CampaignListResponse>(`/campaigns/${params ? `?${params}` : ""}`),
+  getCampaigns: async (params?: string) => {
+    const raw = await request<{
+      items?: import("@/types/dashboard").Campaign[];
+      campaigns?: import("@/types/dashboard").Campaign[];
+      total?: number;
+      page?: number;
+      page_size?: number;
+      per_page?: number;
+    }>(`/campaigns/${params ? `?${params}` : ""}`);
+    const campaigns = raw.campaigns ?? raw.items ?? [];
+    const inferredOrgId = (campaigns[0] as { org_id?: string } | undefined)?.org_id;
+    storeOrgId(inferredOrgId);
+    return {
+      campaigns,
+      total: raw.total ?? campaigns.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? campaigns.length,
+    } as import("@/types/dashboard").CampaignListResponse;
+  },
   getCampaign: (id: string) => request<import("@/types/dashboard").Campaign>(`/campaigns/${id}`),
 
   // Analytics
-  getOverview: () => request<import("@/types/dashboard").OverviewAnalytics>("/analytics/overview"),
+  getOverview: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        total_campaigns: 0,
+        campaigns_by_status: {},
+        campaigns_by_category: {},
+        total_reach: 0,
+        delivery_rate: 0,
+        total_credits_consumed: 0,
+      } as import("@/types/dashboard").OverviewAnalytics;
+    }
+    try {
+      const raw = await request<{
+        campaigns_by_status?: Record<string, number>;
+        campaigns_by_category?: Record<string, number>;
+        total_campaigns?: number;
+        total_reach?: number;
+        total_contacts_reached?: number;
+        delivery_rate?: number | null;
+        overall_delivery_rate?: number | null;
+        total_credits_consumed?: number;
+        credits_consumed?: number;
+      }>(withOrgId("/analytics/overview", orgId));
+      return {
+        total_campaigns: raw.total_campaigns ?? 0,
+        campaigns_by_status: raw.campaigns_by_status ?? {},
+        campaigns_by_category: raw.campaigns_by_category ?? {},
+        total_reach: raw.total_reach ?? raw.total_contacts_reached ?? 0,
+        delivery_rate: raw.delivery_rate ?? raw.overall_delivery_rate ?? 0,
+        total_credits_consumed: raw.total_credits_consumed ?? raw.credits_consumed ?? 0,
+      } as import("@/types/dashboard").OverviewAnalytics;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return {
+          total_campaigns: 0,
+          campaigns_by_status: {},
+          campaigns_by_category: {},
+          total_reach: 0,
+          delivery_rate: 0,
+          total_credits_consumed: 0,
+        } as import("@/types/dashboard").OverviewAnalytics;
+      }
+      throw error;
+    }
+  },
   getCampaignAnalytics: (id: string) =>
     request<import("@/types/dashboard").CampaignAnalytics>(`/analytics/campaigns/${id}`),
-  getCarrierBreakdown: () => request<import("@/types/dashboard").CarrierStat[]>("/analytics/carrier-breakdown"),
+  getCarrierBreakdown: async () => {
+    const raw = await request<Array<{
+      carrier: string;
+      total: number;
+      success?: number;
+      successful?: number;
+      fail?: number;
+      failed?: number;
+      pickup_pct?: number;
+      pickup_rate?: number;
+    }>>("/analytics/carrier-breakdown");
+    return raw.map((item) => ({
+      carrier: item.carrier,
+      total: item.total,
+      successful: item.successful ?? item.success ?? 0,
+      failed: item.failed ?? item.fail ?? 0,
+      pickup_rate: item.pickup_rate ?? item.pickup_pct ?? 0,
+    })) as import("@/types/dashboard").CarrierStat[];
+  },
   getCategoryBreakdown: () =>
     request<import("@/types/dashboard").CategoryBreakdown[]>("/analytics/campaigns/by-category"),
-  getDashboardPlayback: () =>
-    request<import("@/types/dashboard").DashboardPlaybackWidget>("/analytics/dashboard/playback"),
+  getDashboardPlayback: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        average_playback_percentage: 0,
+        distribution: {
+          bucket_0_25: 0,
+          bucket_26_50: 0,
+          bucket_51_75: 0,
+          bucket_76_100: 0,
+        },
+      } as import("@/types/dashboard").DashboardPlaybackWidget;
+    }
+    try {
+      const raw = await request<{
+        average_playback_percentage?: number | null;
+        avg_playback_percentage?: number | null;
+        distribution?: Record<string, number> | Array<{ bucket: string; count: number }>;
+      }>(withOrgId("/analytics/dashboard/playback", orgId));
+      const distribution = raw.distribution;
+      const normalized = {
+        bucket_0_25: 0,
+        bucket_26_50: 0,
+        bucket_51_75: 0,
+        bucket_76_100: 0,
+      };
+      if (Array.isArray(distribution)) {
+        for (const entry of distribution) {
+          if (entry.bucket === "0-25") normalized.bucket_0_25 = entry.count;
+          if (entry.bucket === "26-50") normalized.bucket_26_50 = entry.count;
+          if (entry.bucket === "51-75") normalized.bucket_51_75 = entry.count;
+          if (entry.bucket === "76-100") normalized.bucket_76_100 = entry.count;
+        }
+      } else if (distribution && typeof distribution === "object") {
+        normalized.bucket_0_25 = distribution.bucket_0_25 ?? 0;
+        normalized.bucket_26_50 = distribution.bucket_26_50 ?? 0;
+        normalized.bucket_51_75 = distribution.bucket_51_75 ?? 0;
+        normalized.bucket_76_100 = distribution.bucket_76_100 ?? 0;
+      }
+      return {
+        average_playback_percentage: raw.average_playback_percentage ?? raw.avg_playback_percentage ?? 0,
+        distribution: normalized,
+      } as import("@/types/dashboard").DashboardPlaybackWidget;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return {
+          average_playback_percentage: 0,
+          distribution: {
+            bucket_0_25: 0,
+            bucket_26_50: 0,
+            bucket_51_75: 0,
+            bucket_76_100: 0,
+          },
+        } as import("@/types/dashboard").DashboardPlaybackWidget;
+      }
+      throw error;
+    }
+  },
   getIntentDistribution: (campaignId?: string) =>
     request<import("@/types/dashboard").IntentDistribution>(
       `/analytics/intents${campaignId ? `?campaign_id=${campaignId}` : ""}`,
@@ -104,13 +257,71 @@ export const api = {
     request<import("@/types/dashboard").CampaignIntentSummary>(`/analytics/campaigns/${id}/intents`),
 
   // Credits
-  getCreditBalance: () => request<import("@/types/dashboard").CreditBalance>("/credits/balance"),
-  getCreditHistory: (params?: string) =>
-    request<import("@/types/dashboard").CreditHistoryResponse>(`/credits/history${params ? `?${params}` : ""}`),
+  getCreditBalance: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return { balance: 0, total_purchased: 0, total_consumed: 0 } as import("@/types/dashboard").CreditBalance;
+    }
+    try {
+      const raw = await request<import("@/types/dashboard").CreditBalance & { org_id?: string }>(
+        withOrgId("/credits/balance", orgId),
+      );
+      storeOrgId(raw.org_id || orgId);
+      return raw;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return { balance: 0, total_purchased: 0, total_consumed: 0 } as import("@/types/dashboard").CreditBalance;
+      }
+      throw error;
+    }
+  },
+  getCreditHistory: async (params?: string) => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        transactions: [],
+        total: 0,
+        page: 1,
+        per_page: 20,
+      } as import("@/types/dashboard").CreditHistoryResponse;
+    }
+    const raw = await request<{
+      transactions?: import("@/types/dashboard").CreditTransaction[];
+      items?: import("@/types/dashboard").CreditTransaction[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(withOrgId(`/credits/history${params ? `?${params}` : ""}`, orgId));
+    const transactions = raw.transactions ?? raw.items ?? [];
+    return {
+      transactions,
+      total: raw.total ?? transactions.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? transactions.length,
+    } as import("@/types/dashboard").CreditHistoryResponse;
+  },
 
   // Templates
-  getTemplates: (params?: string) =>
-    request<import("@/types/dashboard").TemplateListResponse>(`/templates/${params ? `?${params}` : ""}`),
+  getTemplates: async (params?: string) => {
+    const raw = await request<{
+      templates?: import("@/types/dashboard").Template[];
+      items?: import("@/types/dashboard").Template[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(`/templates/${params ? `?${params}` : ""}`);
+    const templates = raw.templates ?? raw.items ?? [];
+    const inferredOrgId = (templates[0] as { org_id?: string } | undefined)?.org_id;
+    storeOrgId(inferredOrgId);
+    return {
+      templates,
+      total: raw.total ?? templates.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? templates.length,
+    } as import("@/types/dashboard").TemplateListResponse;
+  },
   createTemplate: (data: { name: string; type: string; content: string }) =>
     request<import("@/types/dashboard").Template>("/templates/", { method: "POST", body: JSON.stringify(data) }),
   updateTemplate: (id: string, data: { name?: string; content?: string }) =>
