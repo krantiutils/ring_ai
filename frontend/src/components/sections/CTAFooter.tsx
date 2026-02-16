@@ -97,16 +97,38 @@ export default function CTAFooter() {
                 Company
               </h4>
               <ul className="space-y-2.5">
-                {["About", "Careers", "Blog", "Contact"].map((item) => (
-                  <li key={item}>
-                    <a
-                      href="#"
-                      className="text-white/50 hover:text-white transition-colors text-sm"
-                    >
-                      {item}
-                    </a>
-                  </li>
-                ))}
+                <li>
+                  <a
+                    href="#hero"
+                    className="text-white/50 hover:text-white transition-colors text-sm"
+                  >
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#pricing"
+                    className="text-white/50 hover:text-white transition-colors text-sm"
+                  >
+                    Careers
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#use-cases"
+                    className="text-white/50 hover:text-white transition-colors text-sm"
+                  >
+                    Blog
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="mailto:hello@ring.ai"
+                    className="text-white/50 hover:text-white transition-colors text-sm"
+                  >
+                    Contact
+                  </a>
+                </li>
               </ul>
             </div>
 
@@ -128,10 +150,10 @@ export default function CTAFooter() {
               &copy; {new Date().getFullYear()} Ring AI. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-white/30">
-              <a href="#" className="hover:text-white/60 transition-colors">
+              <a href="mailto:hello@ring.ai" className="hover:text-white/60 transition-colors">
                 Privacy
               </a>
-              <a href="#" className="hover:text-white/60 transition-colors">
+              <a href="mailto:hello@ring.ai" className="hover:text-white/60 transition-colors">
                 Terms
               </a>
             </div>

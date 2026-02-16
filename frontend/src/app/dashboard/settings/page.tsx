@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { User, Shield, Key, Bell, Copy, Check, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
 import type { UserProfile, KYCStatus } from "@/types/dashboard";
@@ -71,7 +72,7 @@ export default function SettingsPage() {
             <div className="w-16 h-16 rounded-full bg-[#FF6B6B]/15 flex items-center justify-center">
               <User className="w-8 h-8 text-[#FF6B6B]" />
             </div>
-            <button className="text-sm text-[#FF6B6B] hover:text-[#ff5252] font-medium">
+            <button disabled className="text-sm text-[#FF6B6B]/60 font-medium cursor-not-allowed">
               Upload Picture
             </button>
           </div>
@@ -113,13 +114,17 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button className="bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+            <button disabled className="bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
               Update Profile
             </button>
-            <button className="border border-[#FF6B6B]/15 text-[#2D2D2D]/70 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#FFF8F0] transition-colors">
+            <button disabled className="border border-[#FF6B6B]/15 text-[#2D2D2D]/70 px-4 py-2 rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
               Set Password
             </button>
           </div>
+          <p className="text-xs text-[#2D2D2D]/50">
+            Profile editing will be enabled in dashboard soon. For API operations, go to{" "}
+            <Link href="/dashboard/integrations" className="text-[#FF6B6B] hover:underline">Integrations</Link>.
+          </p>
         </div>
       </div>
 
@@ -151,7 +156,7 @@ export default function SettingsPage() {
         </div>
 
         {(!kyc || kyc.status === "none" || kyc.status === "rejected") && (
-          <button className="bg-[#4ECDC4] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#45b8b0] transition-colors">
+          <button disabled className="bg-[#4ECDC4] text-white px-4 py-2 rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
             Verify KYC
           </button>
         )}

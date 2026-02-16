@@ -88,11 +88,15 @@ export default function AnalyticsPage() {
             className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
-        <button className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+        <button
+          disabled
+          className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+        >
           <FileDown className="w-4 h-4" />
           Export as PDF
         </button>
       </div>
+      <p className="text-xs text-[#2D2D2D]/50">PDF export will be enabled after filters are finalized.</p>
 
       {/* Call Status Breakdown Chart */}
       <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">

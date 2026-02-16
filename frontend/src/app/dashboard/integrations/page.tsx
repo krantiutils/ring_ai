@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Key, Copy, Phone, Globe, RefreshCw, Check, Plug } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
@@ -10,30 +10,44 @@ export default function IntegrationsPage() {
   const [apiKey, setApiKey] = useState<APIKeyInfo | null>(null);
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [keyData, phonesData] = await Promise.allSettled([
-          api.getApiKeys(),
-          api.getActivePhoneNumbers(),
-        ]);
-        if (keyData.status === "fulfilled") setApiKey(keyData.value);
-        if (phonesData.status === "fulfilled") setPhoneNumbers(phonesData.value);
-      } catch {
-        // fallback
-      } finally {
-        setLoading(false);
-      }
+  const loadData = useCallback(async () => {
+    try {
+      const [keyData, phonesData] = await Promise.allSettled([
+        api.getApiKeys(),
+        api.getActivePhoneNumbers(),
+      ]);
+      if (keyData.status === "fulfilled") setApiKey(keyData.value);
+      if (phonesData.status === "fulfilled") setPhoneNumbers(phonesData.value);
+    } catch {
+      // fallback
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleGenerateApiKey = async () => {
+    setGenerating(true);
+    try {
+      const data = await api.generateApiKey();
+      setGeneratedApiKey(data.api_key);
+      await loadData();
+    } finally {
+      setGenerating(false);
+    }
   };
 
   if (loading) {
@@ -82,10 +96,29 @@ export default function IntegrationsPage() {
               <Key className="w-6 h-6 text-[#FF6B6B]/40" />
             </div>
             <p className="text-sm text-[#2D2D2D]/50 mb-3">No API key generated yet</p>
-            <button className="inline-flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+            <button
+              onClick={handleGenerateApiKey}
+              disabled={generating}
+              className="inline-flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               <RefreshCw className="w-4 h-4" />
-              Generate API Key
+              {generating ? "Generating..." : "Generate API Key"}
             </button>
+          </div>
+        )}
+
+        {generatedApiKey && (
+          <div className="mt-4 rounded-lg border border-[#4ECDC4]/25 bg-[#4ECDC4]/10 p-3">
+            <p className="text-xs text-[#2D2D2D]/70 mb-1 font-medium">Copy this key now (shown once):</p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs text-[#2D2D2D]/80 break-all flex-1">{generatedApiKey}</code>
+              <button
+                onClick={() => copyToClipboard(generatedApiKey)}
+                className="p-2 rounded-lg hover:bg-[#4ECDC4]/20 text-[#2D2D2D]/50 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4 text-[#4ECDC4]" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -122,9 +155,13 @@ export default function IntegrationsPage() {
               ))}
             </div>
           </div>
-          <button className="bg-[#4ECDC4] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#45b8b0] transition-colors">
+          <button
+            disabled
+            className="bg-[#4ECDC4] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+          >
             Save Webhook
           </button>
+          <p className="text-xs text-[#2D2D2D]/50">Webhook persistence will be available in a follow-up release.</p>
         </div>
       </div>
 

@@ -9,6 +9,8 @@ const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/campaigns": "Campaigns",
   "/dashboard/analytics": "Analytics",
+  "/dashboard/roi": "ROI Analytics",
+  "/dashboard/get-started": "Get Started",
   "/dashboard/credit-purchase": "Credit Purchase History",
   "/dashboard/credit-usage": "Credit Usage History",
   "/dashboard/templates": "Message Templates",

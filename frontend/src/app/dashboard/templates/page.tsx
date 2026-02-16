@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Plus, Search, Pencil, Trash2, MessageSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Template } from "@/types/dashboard";
@@ -54,11 +55,20 @@ export default function TemplatesPage() {
             className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
-        <button className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+        <Link
+          href="/dashboard/integrations"
+          className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Create Message Template
-        </button>
+        </Link>
       </div>
+      <p className="text-xs text-[#2D2D2D]/50">
+        Template create/edit UI is being finalized. For now, use API access from{" "}
+        <Link href="/dashboard/integrations" className="text-[#FF6B6B] hover:underline">
+          Integrations
+        </Link>.
+      </p>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
@@ -91,10 +101,13 @@ export default function TemplatesPage() {
                       <p className="text-sm font-medium text-[#2D2D2D]/60">No templates yet</p>
                       <p className="text-xs text-[#2D2D2D]/40 mt-1">Create a message template to get started</p>
                     </div>
-                    <button className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+                    <Link
+                      href="/dashboard/integrations"
+                      className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                       Create Template
-                    </button>
+                    </Link>
                   </div>
                 </td>
               </tr>
@@ -110,9 +123,13 @@ export default function TemplatesPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-1.5 rounded-lg hover:bg-[#FFF8F0] text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors">
+                      <Link
+                        href="/dashboard/integrations"
+                        className="p-1.5 rounded-lg hover:bg-[#FFF8F0] text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors"
+                        title="Template editing will be available in-dashboard soon"
+                      >
                         <Pencil className="w-4 h-4" />
-                      </button>
+                      </Link>
                       <button
                         onClick={() => handleDelete(template.id)}
                         className="p-1.5 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors"

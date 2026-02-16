@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Search, Calendar, CreditCard, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
@@ -46,7 +47,10 @@ export default function CreditPurchasePage() {
             className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
           />
         </div>
-        <button className="flex items-center gap-1 border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white hover:bg-[#FFF8F0]">
+        <button
+          disabled
+          className="flex items-center gap-1 border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white disabled:opacity-60"
+        >
           <Calendar className="w-4 h-4 text-[#2D2D2D]/40" />
           Date
         </button>
@@ -85,10 +89,13 @@ export default function CreditPurchasePage() {
                       <p className="text-sm font-medium text-[#2D2D2D]/60">No purchase history yet</p>
                       <p className="text-xs text-[#2D2D2D]/40 mt-1">Your credit purchases will appear here</p>
                     </div>
-                    <button className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+                    <Link
+                      href="/dashboard/integrations"
+                      className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                       Buy Credits
-                    </button>
+                    </Link>
                   </div>
                 </td>
               </tr>

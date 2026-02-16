@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Plus, Search, Filter, ArrowUpDown, Calendar, Megaphone } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn, formatDate } from "@/lib/utils";
@@ -86,7 +87,10 @@ export default function CampaignsPage() {
 
         <div className="flex items-center gap-1 text-sm">
           <ArrowUpDown className="w-4 h-4 text-[#2D2D2D]/40" />
-          <select className="border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40">
+          <select
+            disabled
+            className="border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 disabled:opacity-60"
+          >
             <option>Sort: All</option>
             <option>Name A-Z</option>
             <option>Name Z-A</option>
@@ -95,16 +99,25 @@ export default function CampaignsPage() {
           </select>
         </div>
 
-        <button className="flex items-center gap-1 border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white hover:bg-[#FFF8F0]">
+        <button
+          disabled
+          className="flex items-center gap-1 border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white disabled:opacity-60"
+        >
           <Calendar className="w-4 h-4 text-[#2D2D2D]/40" />
           Date
         </button>
 
-        <button className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+        <Link
+          href="/dashboard/get-started"
+          className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Add New Campaign
-        </button>
+        </Link>
       </div>
+      <p className="text-xs text-[#2D2D2D]/50">
+        Campaign creation wizard is being finalized. Use <Link href="/dashboard/get-started" className="text-[#FF6B6B] hover:underline">Get Started</Link> for the recommended setup order.
+      </p>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
@@ -139,10 +152,13 @@ export default function CampaignsPage() {
                       <p className="text-sm font-medium text-[#2D2D2D]/60">No campaigns yet</p>
                       <p className="text-xs text-[#2D2D2D]/40 mt-1">Create your first campaign to get started</p>
                     </div>
-                    <button className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors">
+                    <Link
+                      href="/dashboard/get-started"
+                      className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                       Add New Campaign
-                    </button>
+                    </Link>
                   </div>
                 </td>
               </tr>
