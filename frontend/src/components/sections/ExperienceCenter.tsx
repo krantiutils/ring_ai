@@ -110,54 +110,57 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
   const content = (
     <>
       <div className="mb-6">
-        <p className="font-data text-xs uppercase tracking-[0.2em] text-[#525252]">Try Ring AI on Index</p>
-        <h2 className="font-display mt-3 text-4xl lg:text-5xl leading-tight">Run Demo Before Signup</h2>
-        <p className="mt-3 text-sm lg:text-base text-[#404040]">
-          Type message, preview voice, request OTP, verify, and trigger demo call handoff in one flow.
+        <p className="terminal-caps text-[11px] text-[#ffb000]">root@ring-ai:~$ ./run-demo --index</p>
+        <h2 className="terminal-display mt-3 text-4xl uppercase leading-tight lg:text-5xl">INTERACTIVE DEMO FLOW</h2>
+        <p className="mt-3 text-sm text-[#7bd96a] lg:text-base">
+          Input text, synthesize voice, request OTP, verify, and queue a controlled call without leaving the index page.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 border-l border-t border-[#111111]">
-        <article className="border-r border-b border-[#111111] p-5 lg:p-6">
+      <div className="grid grid-cols-1 border border-[#1f521f] xl:grid-cols-2">
+        <article className="terminal-pane border-b border-[#1f521f] p-5 lg:border-r lg:border-b-0 lg:p-6">
+          <div className="terminal-titlebar sharp-corners -mx-5 -mt-5 mb-4 px-5 py-2 text-[11px] terminal-caps lg:-mx-6 lg:-mt-6 lg:px-6">
+            +-- TTS WINDOW --+
+          </div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-10 w-10 border border-[#111111] flex items-center justify-center sharp-corners">
+            <div className="h-10 w-10 border border-[#1f521f] flex items-center justify-center sharp-corners text-[#ffb000]">
               <Volume2 className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-data text-[11px] uppercase tracking-[0.2em] text-[#525252]">Audio Lane</p>
-              <h3 className="font-display text-2xl">Text to Speech</h3>
+              <p className="terminal-caps text-[11px] text-[#ffb000]">lane_a</p>
+              <h3 className="terminal-display text-2xl uppercase">text_to_speech</h3>
             </div>
           </div>
 
-          <label className="font-ui text-xs uppercase tracking-[0.2em] block mb-2">Message</label>
+          <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">prompt_text</label>
           <textarea
             value={demoText}
             onChange={(e) => setDemoText(e.target.value)}
             rows={7}
-            className="w-full sharp-corners border border-[#111111] bg-transparent px-3 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2"
+            className="terminal-input sharp-corners w-full px-3 py-3 text-sm"
           />
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               onClick={handleSpeak}
               disabled={!canSpeak || ttsLoading}
-              className="min-h-[44px] sharp-corners inline-flex items-center gap-2 px-4 border border-[#111111] bg-[#111111] text-[#F9F9F7] font-ui text-xs uppercase tracking-[0.2em] hover:bg-[#F9F9F7] hover:text-[#111111] transition-all disabled:opacity-60"
+              className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center gap-2 px-4 text-xs disabled:opacity-60"
             >
               {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {ttsLoading ? "Working" : "Speak"}
+              {ttsLoading ? "[ running ]" : "[ speak ]"}
             </button>
             <a
               href="/login"
-              className="min-h-[44px] sharp-corners inline-flex items-center px-4 border border-[#111111] font-ui text-xs uppercase tracking-[0.2em] hover:bg-[#111111] hover:text-[#F9F9F7] transition-all"
+              className="terminal-btn terminal-btn-secondary sharp-corners inline-flex min-h-[44px] items-center px-4 text-xs"
             >
-              Login
+              [ login ]
             </a>
           </div>
 
-          {ttsError && <p className="mt-3 text-xs font-ui text-[#CC0000] uppercase tracking-[0.1em]">{ttsError}</p>}
+          {ttsError && <p className="terminal-caps mt-3 text-[11px] text-[#ff3333]">[err] {ttsError}</p>}
 
           {audioUrl && (
-            <div className="mt-4 border border-[#111111] p-3">
+            <div className="mt-4 border border-[#1f521f] p-3">
               <audio controls autoPlay className="w-full sharp-corners">
                 <source src={audioUrl} type="audio/mpeg" />
               </audio>
@@ -165,52 +168,55 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
           )}
         </article>
 
-        <article className="border-b border-[#111111] p-5 lg:p-6">
+        <article className="terminal-pane p-5 lg:p-6">
+          <div className="terminal-titlebar sharp-corners -mx-5 -mt-5 mb-4 px-5 py-2 text-[11px] terminal-caps lg:-mx-6 lg:-mt-6 lg:px-6">
+            +-- CALL WINDOW --+
+          </div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-10 w-10 border border-[#111111] flex items-center justify-center sharp-corners">
+            <div className="h-10 w-10 border border-[#1f521f] flex items-center justify-center sharp-corners text-[#ffb000]">
               <PhoneCall className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-data text-[11px] uppercase tracking-[0.2em] text-[#525252]">Call Lane</p>
-              <h3 className="font-display text-2xl">OTP Confirmed Demo Call</h3>
+              <p className="terminal-caps text-[11px] text-[#ffb000]">lane_b</p>
+              <h3 className="terminal-display text-2xl uppercase">otp_confirmed_call</h3>
             </div>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="font-ui text-xs uppercase tracking-[0.2em] block mb-2">Name</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">name</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full sharp-corners border border-[#111111] bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2"
+                className="terminal-input sharp-corners w-full px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="font-ui text-xs uppercase tracking-[0.2em] block mb-2">Phone Number</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">phone_number</label>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full sharp-corners border border-[#111111] bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2"
+                className="terminal-input sharp-corners w-full px-3 py-2 text-sm"
                 placeholder="+97798XXXXXXXX"
               />
             </div>
             <div>
-              <label className="font-ui text-xs uppercase tracking-[0.2em] block mb-2">Call Message</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">call_message</label>
               <textarea
                 value={callMessage}
                 onChange={(e) => setCallMessage(e.target.value)}
                 rows={4}
-                className="w-full sharp-corners border border-[#111111] bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2"
+                className="terminal-input sharp-corners w-full px-3 py-2 text-sm"
               />
             </div>
 
             {otpRequestId && (
               <div>
-                <label className="font-ui text-xs uppercase tracking-[0.2em] block mb-2">OTP</label>
+                <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">otp_code</label>
                 <input
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value)}
-                  className="w-full sharp-corners border border-[#111111] bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2"
+                  className="terminal-input sharp-corners w-full px-3 py-2 text-sm"
                 />
               </div>
             )}
@@ -219,44 +225,44 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
               <button
                 onClick={handleCall}
                 disabled={!canCall || callLoading}
-                className="min-h-[44px] sharp-corners inline-flex items-center gap-2 px-4 border border-[#111111] bg-[#111111] text-[#F9F9F7] font-ui text-xs uppercase tracking-[0.2em] hover:bg-[#F9F9F7] hover:text-[#111111] transition-all disabled:opacity-60"
+                className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center gap-2 px-4 text-xs disabled:opacity-60"
               >
                 {callLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
-                {callLoading ? "Working" : "Send OTP"}
+                {callLoading ? "[ running ]" : "[ send otp ]"}
               </button>
             ) : (
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={handleVerifyAndCall}
                   disabled={!canVerifyOtp || callLoading}
-                  className="min-h-[44px] sharp-corners inline-flex items-center gap-2 px-4 border border-[#111111] bg-[#111111] text-[#F9F9F7] font-ui text-xs uppercase tracking-[0.2em] hover:bg-[#F9F9F7] hover:text-[#111111] transition-all disabled:opacity-60"
+                  className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center gap-2 px-4 text-xs disabled:opacity-60"
                 >
                   {callLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
-                  Verify OTP
+                  [ verify otp ]
                 </button>
                 <button
                   onClick={handleCall}
                   disabled={!canCall || callLoading}
-                  className="min-h-[44px] sharp-corners inline-flex items-center px-4 border border-[#111111] font-ui text-xs uppercase tracking-[0.2em] hover:bg-[#111111] hover:text-[#F9F9F7] transition-all disabled:opacity-60"
+                  className="terminal-btn terminal-btn-secondary sharp-corners inline-flex min-h-[44px] items-center px-4 text-xs disabled:opacity-60"
                 >
-                  Resend
+                  [ resend ]
                 </button>
               </div>
             )}
           </div>
 
-          {callError && <p className="mt-3 text-xs font-ui text-[#CC0000] uppercase tracking-[0.1em]">{callError}</p>}
+          {callError && <p className="terminal-caps mt-3 text-[11px] text-[#ff3333]">[err] {callError}</p>}
         </article>
       </div>
     </>
   );
 
   if (embedded) {
-    return <div id="experience-center">{content}</div>;
+    return <div id="experience-center" className="terminal-cursor">{content}</div>;
   }
 
   return (
-    <section id="experience-center" className="py-16 border-y border-[#111111]">
+    <section id="experience-center" className="border-y border-[#1f521f] py-16">
       <div className="mx-auto max-w-screen-xl px-4">{content}</div>
     </section>
   );

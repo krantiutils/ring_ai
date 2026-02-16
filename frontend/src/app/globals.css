@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=VT323&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -13,14 +13,13 @@
   --clay-shadow: rgba(120, 80, 60, 0.15);
   --clay-shadow-dark: rgba(120, 80, 60, 0.25);
 
-  --background: var(--clay-cream);
-  --foreground: #2D2D2D;
-
-  /* Newsprint system */
-  --news-bg: #F9F9F7;
-  --news-fg: #111111;
-  --news-muted: #E5E5E0;
-  --news-accent: #CC0000;
+  --background: #0a0a0a;
+  --foreground: #33ff00;
+  --terminal-bg: #0a0a0a;
+  --terminal-primary: #33ff00;
+  --terminal-secondary: #ffb000;
+  --terminal-muted: #1f521f;
+  --terminal-error: #ff3333;
 }
 
 @theme inline {
@@ -33,6 +32,11 @@
   --color-clay-teal: #4ECDC4;
   --color-clay-gold: #FFD93D;
   --color-clay-dark: #2D2D2D;
+  --color-terminal-bg: var(--terminal-bg);
+  --color-terminal-primary: var(--terminal-primary);
+  --color-terminal-secondary: var(--terminal-secondary);
+  --color-terminal-muted: var(--terminal-muted);
+  --color-terminal-error: var(--terminal-error);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -46,75 +50,152 @@ html {
 }
 
 body {
-  background: var(--news-bg);
-  color: var(--news-fg);
-  font-family: 'Lora', Georgia, serif;
+  background: var(--terminal-bg);
+  color: var(--terminal-primary);
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   overflow-x: hidden;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23111111' fill-opacity='0.04' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+  text-shadow: 0 0 5px rgba(51, 255, 0, 0.35);
 }
 
-.newsprint-texture {
-  position: relative;
-}
-
-.newsprint-texture::before {
+body::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.5;
-  background-image:
-    linear-gradient(0deg, transparent 98%, rgba(0, 0, 0, 0.02) 100%),
-    linear-gradient(90deg, transparent 98%, rgba(0, 0, 0, 0.02) 100%);
-  background-size: 3px 3px;
-  z-index: 1;
+  z-index: 9999;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  opacity: 0.12;
 }
 
-.font-display {
-  font-family: 'Playfair Display', 'Times New Roman', serif;
+.terminal-display {
+  font-family: "VT323", "JetBrains Mono", "Fira Code", monospace;
+  letter-spacing: 0.03em;
 }
 
-.font-body {
-  font-family: 'Lora', Georgia, serif;
+.terminal-caps {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
 
-.font-ui {
-  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+.terminal-pane {
+  border: 1px solid var(--terminal-muted);
+  background: rgba(10, 10, 10, 0.92);
 }
 
-.font-data {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
+.terminal-titlebar {
+  border-bottom: 1px solid var(--terminal-muted);
+  background: rgba(31, 82, 31, 0.16);
+}
+
+.terminal-input {
+  border: 1px solid var(--terminal-muted);
+  background: transparent;
+  border-radius: 0;
+  color: var(--terminal-primary);
+}
+
+.terminal-input:focus-visible {
+  outline: none;
+  border-color: var(--terminal-primary);
+  box-shadow: 0 0 0 1px var(--terminal-primary);
+}
+
+.terminal-btn {
+  border: 1px solid var(--terminal-primary);
+  background: transparent;
+  color: var(--terminal-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  transition: all 0.18s ease-out;
+}
+
+.terminal-btn:hover {
+  background: var(--terminal-primary);
+  color: var(--terminal-bg);
+}
+
+.terminal-btn-secondary {
+  border-color: var(--terminal-secondary);
+  color: var(--terminal-secondary);
+}
+
+.terminal-btn-secondary:hover {
+  background: var(--terminal-secondary);
+  color: var(--terminal-bg);
 }
 
 .sharp-corners {
   border-radius: 0 !important;
 }
 
-.news-divider {
-  border-color: var(--news-fg);
-  border-style: solid;
+.terminal-cursor::after {
+  content: "_";
+  margin-left: 0.18rem;
+  animation: blink 1s step-end infinite;
 }
 
-.hard-shadow-hover {
-  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+.terminal-line {
+  border-color: var(--terminal-muted);
+  border-style: dashed;
 }
 
-.hard-shadow-hover:hover {
-  box-shadow: 4px 4px 0 0 var(--news-fg);
-  transform: translate(-2px, -2px);
-}
-
-.ticker-track {
+.terminal-ticker-track {
   display: inline-flex;
   min-width: 100%;
-  animation: ticker-scroll 24s linear infinite;
+  animation: ticker-scroll 26s linear infinite;
+}
+
+.typing-demo {
+  display: inline-flex;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1ch solid var(--terminal-primary);
+  animation: typing 3.5s steps(36, end), blink 1s step-end infinite;
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 36ch;
+  }
 }
 
 @keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 a {
   text-underline-offset: 4px;
+  text-decoration-color: var(--terminal-secondary);
+}
+
+textarea,
+input,
+button {
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
 }

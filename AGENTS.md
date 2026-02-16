@@ -2,6 +2,8 @@
 
 ## UI Authority
 For all frontend/index/marketing design work in this repository, follow `UI.md` as the source of truth.
+The current enforced system is **Terminal CLI** (dark, monospace, scanline, shell-metaphor UI).
+Codex/Claude must not introduce styles that conflict with this system.
 
 Required behavior:
 1. Build a clear model of existing stack/tokens/component architecture before edits.
