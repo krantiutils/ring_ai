@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ClayButton from "@/components/ui/ClayButton";
 
 const navLinks = [
+  { label: "Experience Center", href: "#experience-center" },
   { label: "Products", href: "#products" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Use Cases", href: "#use-cases" },
@@ -49,8 +50,11 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          <ClayButton variant="outline" size="sm" href="/login">
+            Login
+          </ClayButton>
           <ClayButton variant="primary" size="sm" href="#pricing">
-            Get Started
+            Signup For Free
           </ClayButton>
         </div>
 
@@ -106,12 +110,20 @@ export default function Navbar() {
                 </a>
               ))}
               <ClayButton
+                variant="outline"
+                size="sm"
+                href="/login"
+                className="mt-2"
+              >
+                Login
+              </ClayButton>
+              <ClayButton
                 variant="primary"
                 size="sm"
                 href="#pricing"
-                className="mt-2"
+                className="mt-1"
               >
-                Get Started
+                Signup For Free
               </ClayButton>
             </div>
           </motion.div>

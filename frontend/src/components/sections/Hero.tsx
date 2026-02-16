@@ -42,11 +42,14 @@ export default function Hero() {
           </p>
 
           <div className="flex flex-wrap gap-4">
-            <ClayButton variant="primary" size="lg" href="#pricing">
-              Get Started
+            <ClayButton variant="primary" size="lg" href="/login">
+              Signup For Free
             </ClayButton>
             <ClayButton variant="outline" size="lg" href="#how-it-works">
               See How It Works
+            </ClayButton>
+            <ClayButton variant="outline" size="lg" href="/login">
+              Login
             </ClayButton>
           </div>
         </motion.div>
