@@ -15,6 +15,8 @@ from app.schemas.voice import (
     CallStatusResponse,
     CampaignCallRequest,
     CampaignCallResponse,
+    DemoCallRequest,
+    DemoCallResponse,
 )
 from app.services.telephony import (
     AudioEntry,
@@ -234,6 +236,102 @@ async def initiate_campaign_call(
         call_id=result.call_id,
         status=result.status,
         interaction_id=interaction_id,
+    )
+
+
+@router.post("/demo-call", response_model=DemoCallResponse, status_code=201)
+async def initiate_demo_call(payload: DemoCallRequest):
+    """Initiate a simple demo call from the homepage experience center.
+
+    This endpoint is intentionally lightweight:
+    - Synthesizes the message via TTS
+    - Places a Twilio call to the provided phone number
+    - Plays the synthesized message and hangs up
+    """
+    script_text = f"Namaste {payload.name}. {payload.message}"
+    tts_config = TTSConfig(
+        provider=TTSProvider(payload.tts_config.provider),
+        voice=payload.tts_config.voice,
+        rate=payload.tts_config.rate,
+        pitch=payload.tts_config.pitch,
+        fallback_provider=(
+            TTSProvider(payload.tts_config.fallback_provider) if payload.tts_config.fallback_provider else None
+        ),
+    )
+
+    try:
+        tts_result = await tts_router.synthesize(script_text, tts_config)
+    except TTSError as exc:
+        logger.error("TTS synthesis failed for demo call: %s", exc)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
+
+    audio_id = str(uuid.uuid4())
+    audio_store.put(
+        audio_id,
+        AudioEntry(
+            audio_bytes=tts_result.audio_bytes,
+            content_type="audio/mpeg",
+        ),
+    )
+
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        audio_store.delete(audio_id)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    from_number = payload.from_number or provider.default_from_number
+    if not from_number:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=422,
+            detail="No from_number provided and no default Twilio number configured",
+        )
+
+    base_url = settings.TWILIO_BASE_URL
+    if not base_url:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=503,
+            detail="TWILIO_BASE_URL not configured. Set a publicly reachable URL for Twilio callbacks.",
+        )
+
+    temp_call_id = str(uuid.uuid4())
+    call_context_store.put(
+        temp_call_id,
+        CallContext(
+            call_id=temp_call_id,
+            audio_id=audio_id,
+            dtmf_routes=[],
+            record=False,
+            record_consent_text=None,
+        ),
+    )
+
+    twiml_url = f"{base_url}/api/v1/voice/twiml/{temp_call_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    try:
+        result = await provider.initiate_call(
+            to=payload.phone,
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError as exc:
+        logger.error("Twilio demo call initiation failed: %s", exc)
+        audio_store.delete(audio_id)
+        call_context_store.delete(temp_call_id)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    context = call_context_store.get(temp_call_id)
+    if context is not None:
+        context.call_id = result.call_id
+        call_context_store.put(result.call_id, context)
+
+    return DemoCallResponse(
+        call_id=result.call_id,
+        status=result.status,
     )
 
 

@@ -43,6 +43,23 @@ class CampaignCallResponse(BaseModel):
     interaction_id: uuid.UUID | None = None
 
 
+class DemoCallRequest(BaseModel):
+    """POST /api/v1/voice/demo-call request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    message: str = Field(..., min_length=1, max_length=400)
+    from_number: str | None = None
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
+class DemoCallResponse(BaseModel):
+    """POST /api/v1/voice/demo-call response."""
+
+    call_id: str
+    status: CallStatus
+
+
 class CallStatusResponse(BaseModel):
     """GET /api/v1/voice/calls/{call_id} response."""
 

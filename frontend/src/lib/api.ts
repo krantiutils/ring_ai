@@ -247,6 +247,25 @@ export const api = {
       charsConsumed: parseInt(res.headers.get("X-TTS-Chars-Consumed") || "0", 10),
     };
   },
+
+  // Landing demo voice call
+  initiateDemoCall: (data: {
+    name: string;
+    phone: string;
+    message: string;
+    from_number?: string;
+    tts_config?: {
+      provider?: string;
+      voice?: string;
+      rate?: string;
+      pitch?: string;
+      fallback_provider?: string;
+    };
+  }) =>
+    request<{ call_id: string; status: string }>("/voice/demo-call", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export { ApiError };
