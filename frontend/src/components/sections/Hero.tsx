@@ -16,9 +16,6 @@ const copy = {
     body: "Ring AI unifies outbound voice calls, two-way SMS, and agent handoff into one operational timeline. Teams execute faster, with full context and measurable outcomes.",
     primaryCta: "Try Live Demo",
     secondaryCta: "Go to Login",
-    statA: "98.4% Delivery",
-    statB: "3x Faster Follow-up",
-    statC: "24/7 Automation",
   },
   ne: {
     label: "कम्युनिकेशन OS",
@@ -28,9 +25,6 @@ const copy = {
     body: "Ring AI ले आउटबाउन्ड कल, दुई-तर्फी SMS र एजेन्ट ह्यान्डअफलाई एउटै अपरेसन टाइमलाइनमा जोड्छ। टिमले छिटो काम गर्छ, सन्दर्भ हराउँदैन, र नतिजा मापन गर्न सक्छ।",
     primaryCta: "लाइभ डेमो हेर्नुहोस्",
     secondaryCta: "लगइनमा जानुहोस्",
-    statA: "98.4% डेलिभरी",
-    statB: "3x छिटो फलो-अप",
-    statC: "24/7 अटोमेसन",
   },
 };
 
@@ -74,14 +68,6 @@ export default function Hero({ language }: HeroProps) {
             <a href="/login" className="btn-outline-modern inline-flex h-12 items-center px-6 text-sm font-semibold">
               {t.secondaryCta}
             </a>
-          </div>
-
-          <div className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
-            {[t.statA, t.statB, t.statC].map((item) => (
-              <div key={item} className="surface-card rounded-xl px-4 py-3 text-sm text-[#334155]">
-                {item}
-              </div>
-            ))}
           </div>
         </motion.div>
 
