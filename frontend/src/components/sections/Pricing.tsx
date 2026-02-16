@@ -1,58 +1,76 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { LandingLanguage } from "@/app/page";
 
 type PricingProps = {
   language: LandingLanguage;
 };
 
-const plans = {
+const pricing = {
   en: {
-    title: "PRICING PLANS",
-    subtitle: "Choose based on monthly communication volume.",
-    data: [
-      ["STARTER", "NPR 5,000/mo", "500 call minutes, 2,000 SMS, basic dashboard"],
-      ["BUSINESS", "NPR 25,000/mo", "5,000 call minutes, 20,000 SMS, advanced analytics"],
-      ["ENTERPRISE", "Custom", "Dedicated routing, SLA, custom integrations"],
+    label: "Pricing",
+    title: "Simple Pricing, Scales with Volume",
+    subtitle: "No hidden fees. Upgrade only when your conversation load grows.",
+    plans: [
+      ["Starter", "NPR 5,000/mo", "500 call minutes · 2,000 SMS · basic analytics"],
+      ["Business", "NPR 25,000/mo", "5,000 call minutes · 20,000 SMS · advanced analytics"],
+      ["Enterprise", "Custom", "Unlimited scale · dedicated support · custom integrations"],
     ],
-    cta: "[ open account ]",
   },
   ne: {
-    title: "मूल्य योजना",
-    subtitle: "मासिक कम्युनिकेशन भोल्युम अनुसार योजना छान्नुहोस्।",
-    data: [
-      ["STARTER", "NPR 5,000/महिना", "500 कल मिनेट, 2,000 SMS, आधारभूत ड्यासबोर्ड"],
-      ["BUSINESS", "NPR 25,000/महिना", "5,000 कल मिनेट, 20,000 SMS, advanced analytics"],
-      ["ENTERPRISE", "Custom", "Dedicated routing, SLA, custom integration"],
+    label: "मूल्य",
+    title: "साधारण मूल्य, भोल्युम अनुसार स्केल",
+    subtitle: "लुकेका शुल्क छैनन्। संवादको भोल्युम बढेपछि मात्रै अपग्रेड गर्नुहोस्।",
+    plans: [
+      ["Starter", "NPR 5,000/महिना", "500 कल मिनेट · 2,000 SMS · आधारभूत analytics"],
+      ["Business", "NPR 25,000/महिना", "5,000 कल मिनेट · 20,000 SMS · advanced analytics"],
+      ["Enterprise", "Custom", "असीमित scale · dedicated support · custom integrations"],
     ],
-    cta: "[ खाता खोल्नुहोस् ]",
   },
 };
 
 export default function Pricing({ language }: PricingProps) {
-  const t = plans[language];
-
+  const t = pricing[language];
   return (
-    <section id="pricing" className="border-b border-[#1f521f] py-10">
-      <div className="mx-auto max-w-screen-xl px-4">
-        <p className="terminal-caps text-[11px] text-[#ffb000]">plans --monthly</p>
-        <h2 className="terminal-display mt-3 text-4xl uppercase lg:text-5xl">{t.title}</h2>
-        <p className="mt-3 text-sm text-[#7bd96a]">{t.subtitle}</p>
+    <section id="pricing" className="py-24 md:py-32">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <div className="label-badge">
+          <span className="pulse-dot" />
+          {t.label}
+        </div>
+        <h2 className="font-display mt-5 text-4xl leading-tight md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-[#64748B]">{t.subtitle}</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {t.data.map(([name, price, desc], idx) => (
-            <article
-              key={name}
-              className={`terminal-pane p-5 ${idx === 1 ? "border-[#33ff00]" : ""}`}
-            >
-              <p className="terminal-caps text-[11px] text-[#ffb000]">{name}</p>
-              <p className="terminal-display mt-2 text-3xl">{price}</p>
-              <p className="mt-3 text-sm text-[#7bd96a]">{desc}</p>
-              <a href="/login" className="terminal-btn sharp-corners mt-5 inline-flex min-h-[42px] items-center px-4 text-xs">
-                {t.cta}
-              </a>
-            </article>
-          ))}
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {t.plans.map(([name, amount, detail], i) => {
+            const featured = i === 1;
+            return (
+              <motion.article
+                key={name}
+                className={featured ? "rounded-2xl accent-gradient p-[2px] md:-mt-4" : ""}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.6, delay: i * 0.08 }}
+              >
+                <div className={`h-full rounded-2xl p-6 ${featured ? "bg-white shadow-xl" : "surface-card"}`}>
+                  {featured && (
+                    <span className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">Most Popular</span>
+                  )}
+                  <h3 className="mt-2 text-xl font-semibold text-[#0F172A]">{name}</h3>
+                  <p className="mt-1 text-3xl font-semibold text-[#0F172A]">{amount}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-[#64748B]">{detail}</p>
+                  <a
+                    href="/login"
+                    className={`mt-6 inline-flex h-11 items-center px-5 text-sm font-semibold ${featured ? "btn-primary-modern" : "btn-outline-modern"}`}
+                  >
+                    Get Started
+                  </a>
+                </div>
+              </motion.article>
+            );
+          })}
         </div>
       </div>
     </section>

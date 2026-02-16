@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { LandingLanguage } from "@/app/page";
 
 type ProductsProps = {
@@ -8,44 +9,40 @@ type ProductsProps = {
 
 const content = {
   en: {
-    heading: "WHAT RING AI ACTUALLY DOES",
-    sub: "Ring AI is not just a chatbot. It is an operations layer for business communication across calls, SMS, and human escalation.",
-    cards: [
+    label: "Core Products",
+    title: "Everything Needed for Business Communication",
+    subtitle: "Voice, text, and handoff are built as one system, not disconnected tools.",
+    items: [
       {
-        id: "VOICE_NODE",
-        title: "VOICE CAMPAIGNS",
-        desc: "Launch outbound campaigns with Nepali and English TTS voices. Track pickup, duration, and completion in real time.",
+        title: "Voice Automation",
+        description: "Run outbound call campaigns in Nepali and English with configurable scripts, TTS, and tracking.",
       },
       {
-        id: "SMS_NODE",
-        title: "SMS CONTINUITY",
-        desc: "When calls are missed, Ring AI can follow up with contextual messages so the same customer journey continues.",
+        title: "SMS Continuity",
+        description: "Auto-follow up missed calls or intents through contextual SMS to maintain customer momentum.",
       },
       {
-        id: "HUMAN_NODE",
-        title: "UNIFIED HANDOFF",
-        desc: "Escalate to live agents when needed and preserve full transcript context so teams do not restart conversations.",
+        title: "Unified Handoff",
+        description: "Escalate to human agents with complete transcript and intent context preserved.",
       },
     ],
   },
   ne: {
-    heading: "RING AI ले के गर्छ?",
-    sub: "Ring AI केवल च्याटबट होइन। यो कल, एसएमएस र मानव एस्कलेसनलाई एउटै अपरेशन तहमा ल्याउने कम्युनिकेशन प्लेटफर्म हो।",
-    cards: [
+    label: "मुख्य उत्पादन",
+    title: "व्यवसायिक कम्युनिकेशनका लागि आवश्यक सबै कुरा",
+    subtitle: "Voice, text र handoff छुट्टाछुट्टै टुल होइन, एउटै प्रणालीको रूपमा बनाइएको छ।",
+    items: [
       {
-        id: "VOICE_NODE",
-        title: "VOICE CAMPAIGNS",
-        desc: "नेपाली र अंग्रेजी TTS प्रयोग गरेर आउटबाउन्ड कल अभियान चलाउनुहोस्। पिकअप, अवधि र नतिजा रियल-टाइममा हेर्नुहोस्।",
+        title: "Voice Automation",
+        description: "नेपाली र अंग्रेजीमा स्क्रिप्ट, TTS र ट्र्याकिङ सहित आउटबाउन्ड कल अभियान चलाउनुहोस्।",
       },
       {
-        id: "SMS_NODE",
-        title: "SMS CONTINUITY",
-        desc: "कल मिस भएमा सन्दर्भसहित SMS फलो-अप पठाएर ग्राहक यात्रालाई निरन्तर राख्नुहोस्।",
+        title: "SMS Continuity",
+        description: "मिस कल वा intent पछि सन्दर्भयुक्त SMS पठाएर ग्राहक प्रवाह जारी राख्नुहोस्।",
       },
       {
-        id: "HUMAN_NODE",
-        title: "UNIFIED HANDOFF",
-        desc: "आवश्यक परे लाइभ एजेन्टमा एस्कलेट गर्नुहोस् र पूरा ट्रान्सक्रिप्ट सन्दर्भ सुरक्षित राख्नुहोस्।",
+        title: "Unified Handoff",
+        description: "पूर्ण ट्रान्सक्रिप्ट र intent सँगै मानव एजेन्टमा एस्कलेट गर्नुहोस्।",
       },
     ],
   },
@@ -53,21 +50,33 @@ const content = {
 
 export default function Products({ language }: ProductsProps) {
   const t = content[language];
-
   return (
-    <section id="products" className="border-b border-[#1f521f] py-10">
-      <div className="mx-auto max-w-screen-xl px-4">
-        <p className="terminal-caps text-[11px] text-[#ffb000]">module --explain</p>
-        <h2 className="terminal-display mt-3 text-4xl uppercase lg:text-5xl">{t.heading}</h2>
-        <p className="mt-3 max-w-4xl text-sm text-[#7bd96a] lg:text-base">{t.sub}</p>
+    <section id="products" className="py-24 md:py-32">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <div className="label-badge">
+          <span className="pulse-dot" />
+          {t.label}
+        </div>
+        <h2 className="font-display mt-5 text-4xl leading-tight md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-[#64748B]">{t.subtitle}</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {t.cards.map((card) => (
-            <article key={card.id} className="terminal-pane pulse-panel p-5">
-              <p className="terminal-caps text-[11px] text-[#ffb000]">{card.id}</p>
-              <h3 className="terminal-display mt-3 text-3xl uppercase">{card.title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-[#7bd96a]">{card.desc}</p>
-            </article>
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {t.items.map((item, i) => (
+            <motion.article
+              key={item.title}
+              className="surface-card rounded-2xl p-6"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.6, delay: i * 0.08 }}
+              whileHover={{ y: -4 }}
+            >
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl accent-gradient text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,82,255,0.28)]">
+                0{i + 1}
+              </div>
+              <h3 className="mt-4 text-xl font-semibold text-[#0F172A]">{item.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-[#64748B]">{item.description}</p>
+            </motion.article>
           ))}
         </div>
       </div>

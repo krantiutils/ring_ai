@@ -33,28 +33,26 @@ declare global {
   }
 }
 
-const text = {
+const copy = {
   en: {
-    title: "AUTH TERMINAL",
-    tagline: "Create account with mobile number or continue with Google.",
-    signIn: "sign in",
-    create: "create account",
-    loginBtn: "[ sign in ]",
-    createBtn: "[ create account ]",
-    googleMissing: "Set NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google login.",
-    back: "[ back to index ]",
-    lang: "नेपाली",
+    title: "Access Ring AI",
+    subtitle: "Create account with mobile number or continue with Google.",
+    login: "Sign In",
+    create: "Create Account",
+    loginBtn: "Sign In",
+    createBtn: "Create Account",
+    back: "Back to Home",
+    language: "नेपाली",
   },
   ne: {
-    title: "AUTH TERMINAL",
-    tagline: "मोबाइल नम्बर सहित खाता बनाउनुहोस् वा Google बाट जारी राख्नुहोस्।",
-    signIn: "लगइन",
+    title: "Ring AI पहुँच",
+    subtitle: "मोबाइल नम्बर सहित खाता बनाउनुहोस् वा Google बाट जारी राख्नुहोस्।",
+    login: "लगइन",
     create: "खाता बनाउनुहोस्",
-    loginBtn: "[ लगइन ]",
-    createBtn: "[ खाता बनाउनुहोस् ]",
-    googleMissing: "Google लगइन सक्षम गर्न NEXT_PUBLIC_GOOGLE_CLIENT_ID राख्नुहोस्।",
-    back: "[ index मा फर्कनुहोस् ]",
-    lang: "English",
+    loginBtn: "लगइन",
+    createBtn: "खाता बनाउनुहोस्",
+    back: "होममा फर्कनुहोस्",
+    language: "English",
   },
 };
 
@@ -113,16 +111,15 @@ export default function LoginPage() {
         setLoading(false);
       }
     };
-
     window.google.accounts.id.initialize({ client_id: googleClientId, callback });
     googleButtonRef.current.innerHTML = "";
     window.google.accounts.id.renderButton(googleButtonRef.current, {
       theme: "outline",
       size: "large",
       text: "continue_with",
-      width: 320,
+      width: 360,
     });
-  }, [scriptLoaded, googleClientId, router]);
+  }, [googleClientId, router, scriptLoaded]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,70 +167,98 @@ export default function LoginPage() {
     }
   };
 
-  const t = text[lang];
+  const t = copy[lang];
 
   return (
     <>
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setScriptLoaded(true)} />
-      <main className="min-h-screen bg-[#0a0a0a] px-4 py-10 text-[#33ff00]">
-        <div className="mx-auto max-w-3xl">
-          <div className="terminal-pane sharp-corners overflow-hidden">
-            <div className="terminal-titlebar flex items-center justify-between px-4 py-3 text-xs terminal-caps">
-              <span>+-- {t.title} --+</span>
-              <button type="button" onClick={() => setLang((v) => (v === "en" ? "ne" : "en"))} className="terminal-btn-secondary sharp-corners terminal-btn inline-flex min-h-[32px] items-center px-2 text-[10px]">
-                {t.lang}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-5">
-              <aside className="border-b border-[#1f521f] p-5 lg:col-span-2 lg:border-r lg:border-b-0">
-                <p className="terminal-caps text-[11px] text-[#ffb000]">session info</p>
-                <h1 className="terminal-display mt-3 text-4xl uppercase leading-[0.9]">RING AI ACCESS</h1>
-                <p className="mt-4 text-sm text-[#7bd96a]">{t.tagline}</p>
-                <div className="terminal-line mt-5 border-t pt-4 text-xs text-[#7bd96a]">
-                  <p>$ mode --{mode}</p>
-                  <p className="mt-2">$ status --{loading ? "busy" : "ready"}</p>
+      <main className="min-h-screen bg-[#FAFAFA] px-4 py-12">
+        <div className="mx-auto max-w-5xl">
+          <div className="relative overflow-hidden rounded-3xl border border-[#E2E8F0] bg-white shadow-xl">
+            <div className="soft-glow -right-20 top-10 h-72 w-72 bg-[#4D7CFF]/25" />
+            <div className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]">
+              <aside className="border-b border-[#E2E8F0] bg-[#F8FAFC] p-8 lg:border-r lg:border-b-0">
+                <div className="label-badge">
+                  <span className="pulse-dot" />
+                  Auth
                 </div>
-                <a href="/" className="terminal-btn terminal-btn-secondary sharp-corners mt-5 inline-flex min-h-[44px] items-center px-4 text-xs">
-                  {t.back}
-                </a>
+                <h1 className="font-display mt-5 text-5xl leading-tight text-[#0F172A]">{t.title}</h1>
+                <p className="mt-4 text-[#64748B]">{t.subtitle}</p>
+                <div className="mt-6 flex gap-2">
+                  <button onClick={() => setLang((v) => (v === "en" ? "ne" : "en"))} className="btn-outline-modern inline-flex h-10 items-center px-4 text-sm font-medium">
+                    {t.language}
+                  </button>
+                  <a href="/" className="btn-outline-modern inline-flex h-10 items-center px-4 text-sm font-medium">
+                    {t.back}
+                  </a>
+                </div>
               </aside>
 
-              <section className="p-5 lg:col-span-3 lg:p-6">
+              <section className="p-8">
                 <div className="mb-5 flex gap-2">
-                  <button type="button" onClick={() => setMode("login")} className={`sharp-corners min-h-[44px] px-4 text-xs terminal-caps border ${mode === "login" ? "border-[#33ff00] bg-[#33ff00] text-[#0a0a0a]" : "border-[#1f521f] text-[#33ff00] hover:border-[#33ff00]"}`}>
-                    {t.signIn}
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className={`inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold transition ${mode === "login" ? "btn-primary-modern" : "btn-outline-modern"}`}
+                  >
+                    {t.login}
                   </button>
-                  <button type="button" onClick={() => setMode("create")} className={`sharp-corners min-h-[44px] px-4 text-xs terminal-caps border ${mode === "create" ? "border-[#33ff00] bg-[#33ff00] text-[#0a0a0a]" : "border-[#1f521f] text-[#33ff00] hover:border-[#33ff00]"}`}>
+                  <button
+                    type="button"
+                    onClick={() => setMode("create")}
+                    className={`inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold transition ${mode === "create" ? "btn-primary-modern" : "btn-outline-modern"}`}
+                  >
                     {t.create}
                   </button>
                 </div>
 
-                {error && <div className="mb-4 border border-[#ff3333] bg-[#190909] px-3 py-2 text-xs terminal-caps text-[#ff3333]">[err] {error}</div>}
+                {error && <div className="mb-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">{error}</div>}
 
                 {mode === "login" ? (
                   <form onSubmit={handleLogin} className="space-y-3">
-                    <label className="block"><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">email</span><input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label className="block"><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">password</span><input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <button type="submit" disabled={loading} className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center px-4 text-xs disabled:opacity-60">{loading ? "[ signing in ]" : t.loginBtn}</button>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      placeholder="Email"
+                      className="input-modern h-12 w-full px-4 text-sm"
+                    />
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      placeholder="Password"
+                      className="input-modern h-12 w-full px-4 text-sm"
+                    />
+                    <button type="submit" disabled={loading} className="btn-primary-modern inline-flex h-12 items-center px-6 text-sm font-semibold disabled:opacity-60">
+                      {loading ? "Signing in..." : t.loginBtn}
+                    </button>
                   </form>
                 ) : (
                   <form onSubmit={handleCreate} className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">first_name</span><input value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">last_name</span><input value={lastName} onChange={(e) => setLastName(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">username</span><input value={username} onChange={(e) => setUsername(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">email</span><input type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">mobile_number</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+97798XXXXXXXX" className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
-                    <label><span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">password</span><input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} required className="terminal-input sharp-corners w-full px-3 py-2 text-sm" /></label>
+                    <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required placeholder="First Name" className="input-modern h-12 px-4 text-sm" />
+                    <input value={lastName} onChange={(e) => setLastName(e.target.value)} required placeholder="Last Name" className="input-modern h-12 px-4 text-sm" />
+                    <input value={username} onChange={(e) => setUsername(e.target.value)} required placeholder="Username" className="input-modern h-12 px-4 text-sm" />
+                    <input type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} required placeholder="Email" className="input-modern h-12 px-4 text-sm" />
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+97798XXXXXXXX" className="input-modern h-12 px-4 text-sm" />
+                    <input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} required placeholder="Password" className="input-modern h-12 px-4 text-sm" />
                     <div className="md:col-span-2">
-                      <button type="submit" disabled={loading || !canCreate} className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center px-4 text-xs disabled:opacity-60">{loading ? "[ creating ]" : t.createBtn}</button>
+                      <button type="submit" disabled={loading || !canCreate} className="btn-primary-modern inline-flex h-12 items-center px-6 text-sm font-semibold disabled:opacity-60">
+                        {loading ? "Creating..." : t.createBtn}
+                      </button>
                     </div>
                   </form>
                 )}
 
-                <div className="terminal-line mt-6 border-t pt-4">
-                  <p className="terminal-caps text-[11px] text-[#ffb000] mb-3">google_signin</p>
-                  {googleClientId ? <div ref={googleButtonRef} className="min-h-[44px]" /> : <p className="text-xs text-[#7bd96a]">{t.googleMissing}</p>}
+                <div className="mt-6 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA] p-4">
+                  <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">Continue with Google</p>
+                  {googleClientId ? (
+                    <div ref={googleButtonRef} className="mt-3 min-h-[44px]" />
+                  ) : (
+                    <p className="mt-3 text-sm text-[#64748B]">Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to enable Google login.</p>
+                  )}
                 </div>
               </section>
             </div>

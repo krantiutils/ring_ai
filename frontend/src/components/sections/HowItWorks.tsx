@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { LandingLanguage } from "@/app/page";
 
 type HowItWorksProps = {
@@ -8,54 +9,59 @@ type HowItWorksProps = {
 
 const content = {
   en: {
-    title: "HOW THE FLOW WORKS",
-    intro: "Each conversation follows one deterministic path so teams can monitor, audit, and improve outcomes.",
+    label: "Workflow",
+    title: "How Ring AI Operates End to End",
+    intro: "The flow is designed for clarity: trigger, automate, escalate, and measure.",
     steps: [
-      ["01", "Inbound/Outbound trigger enters queue"],
-      ["02", "AI handles intent and response"],
-      ["03", "SMS or call follow-up runs automatically"],
-      ["04", "Human handoff happens with full transcript"],
-      ["05", "Analytics closes the loop for teams"],
+      ["Connect channels and upload campaign context"],
+      ["AI handles first response via call or SMS"],
+      ["Rule-based follow-up keeps conversations active"],
+      ["Complex cases hand off to human agents"],
+      ["Dashboard closes loop with insights and outcomes"],
     ],
   },
   ne: {
-    title: "FLOW कसरी काम गर्छ",
-    intro: "प्रत्येक संवाद एउटै स्पष्ट मार्गबाट जान्छ, जसले टिमलाई अनुगमन, अडिट र सुधार गर्न सजिलो बनाउँछ।",
+    label: "कार्यप्रवाह",
+    title: "Ring AI को end-to-end सञ्चालन",
+    intro: "Flow स्पष्ट छ: trigger, automate, escalate, अनि measure।",
     steps: [
-      ["01", "इनबाउन्ड/आउटबाउन्ड ट्रिगर क्युमार्फत जान्छ"],
-      ["02", "AI ले इन्टेन्ट र प्रतिक्रिया ह्यान्डल गर्छ"],
-      ["03", "SMS वा कल फलो-अप स्वचालित हुन्छ"],
-      ["04", "पूर्ण ट्रान्सक्रिप्ट सहित मानव ह्यान्डअफ हुन्छ"],
-      ["05", "एनालिटिक्सले परिणाम मापन गर्छ"],
+      ["च्यानल जोड्नुहोस् र अभियान सन्दर्भ राख्नुहोस्"],
+      ["AI ले कल वा SMS बाट पहिलो प्रतिक्रिया दिन्छ"],
+      ["Rule-based follow-up ले संवाद सक्रिय राख्छ"],
+      ["जटिल केस मानव एजेन्टमा handoff हुन्छ"],
+      ["ड्यासबोर्डले नतिजा र insights देखाउँछ"],
     ],
   },
 };
 
 export default function HowItWorks({ language }: HowItWorksProps) {
   const t = content[language];
-
   return (
-    <section id="how-it-works" className="border-b border-[#1f521f] bg-[#081108] py-10">
-      <div className="mx-auto max-w-screen-xl px-4">
-        <p className="terminal-caps text-[11px] text-[#ffb000]">pipeline --status</p>
-        <h2 className="terminal-display mt-3 text-4xl uppercase lg:text-5xl">{t.title}</h2>
-        <p className="mt-3 max-w-3xl text-sm text-[#7bd96a] lg:text-base">{t.intro}</p>
+    <section id="how-it-works" className="relative overflow-hidden bg-[#0F172A] py-28 text-white">
+      <div className="absolute inset-0 dot-grid-dark" />
+      <div className="soft-glow -right-24 top-10 h-64 w-64 bg-[#4D7CFF]/25" />
+      <div className="mx-auto relative max-w-6xl px-4 md:px-6">
+        <div className="label-badge bg-[#1E293B]/70 border-[#4D7CFF]/40 text-[#93C5FD]">
+          <span className="pulse-dot" />
+          {t.label}
+        </div>
+        <h2 className="font-display mt-5 text-4xl leading-tight md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-white/75">{t.intro}</p>
 
-        <div className="mt-8 terminal-pane p-5">
-          <div className="terminal-titlebar sharp-corners -mx-5 -mt-5 px-5 py-2 text-[11px] terminal-caps">
-            +-- EXECUTION TIMELINE --+
-          </div>
-          <div className="mt-5 space-y-3">
-            {t.steps.map(([num, step], idx) => (
-              <div key={num} className="flex items-start gap-3">
-                <p className="terminal-caps min-w-[38px] text-[11px] text-[#ffb000]">{num}</p>
-                <p className="text-sm text-[#7bd96a]">{step}</p>
-                <p className="ml-auto hidden text-xs text-[#33ff00] md:block">
-                  [{`${"|".repeat(idx + 3)}${".".repeat(8 - idx)}`}]
-                </p>
-              </div>
-            ))}
-          </div>
+        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-5">
+          {t.steps.map((step, i) => (
+            <motion.div
+              key={step[0]}
+              className="rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ delay: i * 0.08 }}
+            >
+              <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#93C5FD]">Step 0{i + 1}</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/90">{step[0]}</p>
+            </motion.div>
+          ))}
         </div>
       </div>
     </section>

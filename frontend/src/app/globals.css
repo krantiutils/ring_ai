@@ -1,14 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=VT323&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Calistoga&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #33ff00;
-  --terminal-bg: #0a0a0a;
-  --terminal-primary: #33ff00;
-  --terminal-secondary: #ffb000;
-  --terminal-muted: #1f521f;
-  --terminal-error: #ff3333;
+  --background: #fafafa;
+  --foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #0052ff;
+  --accent-secondary: #4d7cff;
+  --accent-foreground: #ffffff;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --ring: #0052ff;
 
   --clay-cream: #fff8f0;
   --clay-lavender: #f0e6ff;
@@ -22,13 +25,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-terminal-bg: var(--terminal-bg);
-  --color-terminal-primary: var(--terminal-primary);
-  --color-terminal-secondary: var(--terminal-secondary);
-  --color-terminal-muted: var(--terminal-muted);
-  --color-terminal-error: var(--terminal-error);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-clay-cream: var(--clay-cream);
+  --color-clay-lavender: var(--clay-lavender);
+  --color-clay-mint: var(--clay-mint);
+  --color-clay-coral: var(--clay-coral);
+  --color-clay-teal: var(--clay-teal);
+  --color-clay-gold: var(--clay-gold);
+  --color-clay-dark: var(--clay-dark);
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 * {
@@ -40,165 +45,183 @@ html {
 }
 
 body {
-  background: var(--terminal-bg);
-  color: var(--terminal-primary);
-  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
-  overflow-x: hidden;
-  text-shadow: 0 0 5px rgba(51, 255, 0, 0.3);
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", system-ui, sans-serif;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
+.font-display {
+  font-family: "Calistoga", Georgia, serif;
+}
+
+.font-mono-label {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.accent-gradient {
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+}
+
+.surface-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+}
+
+.label-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 82, 255, 0.3);
+  background: rgba(0, 82, 255, 0.05);
+  padding: 0.45rem 0.9rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.pulse-dot {
+  height: 0.45rem;
+  width: 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.glass-border {
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.dot-grid-dark {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.06;
+}
+
+.soft-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(150px);
   pointer-events: none;
-  z-index: 9999;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.035) 0,
-    rgba(255, 255, 255, 0.035) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-  opacity: 0.12;
 }
 
-.terminal-display {
-  font-family: "VT323", "JetBrains Mono", "Fira Code", monospace;
-  letter-spacing: 0.03em;
-}
-
-.terminal-caps {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-
-.terminal-pane {
-  border: 1px solid var(--terminal-muted);
-  background: rgba(10, 10, 10, 0.93);
-}
-
-.terminal-titlebar {
-  border-bottom: 1px solid var(--terminal-muted);
-  background: rgba(31, 82, 31, 0.16);
-}
-
-.terminal-line {
-  border-color: var(--terminal-muted);
-  border-style: dashed;
-}
-
-.terminal-input {
-  border: 1px solid var(--terminal-muted);
-  background: transparent;
-  border-radius: 0;
-  color: var(--terminal-primary);
-}
-
-.terminal-input:focus-visible {
-  outline: none;
-  border-color: var(--terminal-primary);
-  box-shadow: 0 0 0 1px var(--terminal-primary);
-}
-
-.terminal-btn {
-  border: 1px solid var(--terminal-primary);
-  background: transparent;
-  color: var(--terminal-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+.btn-primary-modern {
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  color: var(--accent-foreground);
+  box-shadow: 0 4px 14px rgba(0, 82, 255, 0.25);
   transition: all 0.2s ease-out;
 }
 
-.terminal-btn:hover {
-  background: var(--terminal-primary);
-  color: var(--terminal-bg);
+.btn-primary-modern:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 24px rgba(0, 82, 255, 0.35);
 }
 
-.terminal-btn-secondary {
-  border-color: var(--terminal-secondary);
-  color: var(--terminal-secondary);
+.btn-outline-modern {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--foreground);
+  transition: all 0.2s ease-out;
 }
 
-.terminal-btn-secondary:hover {
-  background: var(--terminal-secondary);
-  color: var(--terminal-bg);
+.btn-outline-modern:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 82, 255, 0.3);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
 }
 
-.sharp-corners {
-  border-radius: 0 !important;
+.input-modern {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: white;
+  color: var(--foreground);
 }
 
-.terminal-cursor::after {
-  content: "_";
-  margin-left: 0.2rem;
-  animation: blink 1s step-end infinite;
+.input-modern:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px rgba(0, 82, 255, 0.15);
 }
 
-.terminal-ticker-track {
-  display: inline-flex;
-  min-width: 100%;
-  animation: ticker-scroll 26s linear infinite;
+.hero-ring-spin {
+  animation: hero-ring-spin 60s linear infinite;
 }
 
-.typing-demo {
-  display: inline-flex;
-  overflow: hidden;
-  white-space: nowrap;
-  border-right: 1ch solid var(--terminal-primary);
-  animation: typing 3.5s steps(40, end), blink 1s step-end infinite;
+.hero-float-a {
+  animation: hero-float-a 5s ease-in-out infinite;
 }
 
-.pulse-panel {
-  animation: pulse-panel 2.2s ease-in-out infinite;
+.hero-float-b {
+  animation: hero-float-b 4.2s ease-in-out infinite;
 }
 
-@keyframes typing {
-  from {
-    width: 0;
-  }
-  to {
-    width: 40ch;
-  }
+.rise-in {
+  animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes ticker-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes pulse-panel {
+@keyframes pulse-dot {
   0%,
   100% {
-    box-shadow: 0 0 0 rgba(51, 255, 0, 0);
-  }
-  50% {
-    box-shadow: 0 0 16px rgba(51, 255, 0, 0.12);
-  }
-}
-
-@keyframes blink {
-  0%,
-  49% {
+    transform: scale(1);
     opacity: 1;
   }
-  50%,
-  100% {
-    opacity: 0;
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
   }
 }
 
-a {
-  text-underline-offset: 4px;
-  text-decoration-color: var(--terminal-secondary);
+@keyframes hero-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-textarea,
-input,
-button {
-  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+@keyframes hero-float-a {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes hero-float-b {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
