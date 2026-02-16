@@ -1,7 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap');
 @import "tailwindcss";
 
 :root {
-  /* Clay palette */
+  /* Legacy clay palette (kept for existing dashboard/components) */
   --clay-cream: #FFF8F0;
   --clay-lavender: #F0E6FF;
   --clay-mint: #E8F5E9;
@@ -14,6 +15,12 @@
 
   --background: var(--clay-cream);
   --foreground: #2D2D2D;
+
+  /* Newsprint system */
+  --news-bg: #F9F9F7;
+  --news-fg: #111111;
+  --news-muted: #E5E5E0;
+  --news-accent: #CC0000;
 }
 
 @theme inline {
@@ -39,52 +46,75 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--news-bg);
+  color: var(--news-fg);
+  font-family: 'Lora', Georgia, serif;
   overflow-x: hidden;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23111111' fill-opacity='0.04' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
 }
 
-/* Clay noise texture overlay — applied to sections */
-.clay-texture {
+.newsprint-texture {
   position: relative;
 }
 
-.clay-texture::after {
+.newsprint-texture::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-size: 256px 256px;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(0deg, transparent 98%, rgba(0, 0, 0, 0.02) 100%),
+    linear-gradient(90deg, transparent 98%, rgba(0, 0, 0, 0.02) 100%);
+  background-size: 3px 3px;
   z-index: 1;
 }
 
-/* Clay card base style */
-.clay-surface {
-  background: white;
-  border-radius: 24px;
-  box-shadow:
-    0 4px 16px var(--clay-shadow),
-    0 1px 3px var(--clay-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+.font-display {
+  font-family: 'Playfair Display', 'Times New Roman', serif;
 }
 
-/* Squish button keyframes */
-@keyframes squish {
-  0% { transform: scale(1); }
-  50% { transform: scale(0.93, 1.04); }
-  100% { transform: scale(1); }
+.font-body {
+  font-family: 'Lora', Georgia, serif;
 }
 
-/* Gentle float for 3D elements */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+.font-ui {
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
 }
 
-/* Section spacing */
-section {
-  position: relative;
+.font-data {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.sharp-corners {
+  border-radius: 0 !important;
+}
+
+.news-divider {
+  border-color: var(--news-fg);
+  border-style: solid;
+}
+
+.hard-shadow-hover {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.hard-shadow-hover:hover {
+  box-shadow: 4px 4px 0 0 var(--news-fg);
+  transform: translate(-2px, -2px);
+}
+
+.ticker-track {
+  display: inline-flex;
+  min-width: 100%;
+  animation: ticker-scroll 24s linear infinite;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+a {
+  text-underline-offset: 4px;
 }
