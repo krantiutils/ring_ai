@@ -1,141 +1,59 @@
 "use client";
 
-import { motion } from "framer-motion";
-import ClayButton from "@/components/ui/ClayButton";
+import type { LandingLanguage } from "@/app/page";
 
-export default function CTAFooter() {
+type CTAFooterProps = {
+  language: LandingLanguage;
+};
+
+const content = {
+  en: {
+    title: "READY TO RUN COMMUNICATION OPS IN ONE PLACE?",
+    body: "Start with login, run campaigns, and monitor conversation outcomes from one dashboard.",
+    cta: "[ open dashboard ]",
+    routes: "CONNECTED ROUTES",
+  },
+  ne: {
+    title: "सबै कम्युनिकेशन अप्स एउटै ठाउँबाट चलाउन तयार?",
+    body: "लगइनबाट सुरु गर्नुहोस्, अभियान चलाउनुहोस्, र एउटै ड्यासबोर्डबाट नतिजा हेर्नुहोस्।",
+    cta: "[ ड्यासबोर्ड खोल्नुहोस् ]",
+    routes: "CONNECTED ROUTES",
+  },
+};
+
+export default function CTAFooter({ language }: CTAFooterProps) {
+  const t = content[language];
+
   return (
     <>
-      {/* CTA Section */}
-      <section className="bg-clay-coral clay-texture py-24 md:py-32">
-        <div className="mx-auto max-w-4xl px-6 md:px-8 text-center">
-          <motion.h2
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            Ready to Transform Your
-            <br />
-            Business Communication?
-          </motion.h2>
-          <motion.p
-            className="text-white/80 text-lg mb-10 max-w-xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-          >
-            Join hundreds of Nepali businesses already using Ring AI to talk to
-            their customers smarter, faster, and in their own language.
-          </motion.p>
-          <motion.div
-            className="flex flex-wrap gap-4 justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            <ClayButton
-              variant="secondary"
-              size="lg"
-              className="bg-white text-clay-coral shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
-            >
-              Start Building
-            </ClayButton>
-            <ClayButton
-              variant="outline"
-              size="lg"
-              className="border-white/30 text-white bg-transparent hover:bg-white/10"
-            >
-              Talk to Sales
-            </ClayButton>
-          </motion.div>
+      <section className="border-b border-[#1f521f] bg-[#081108] py-12">
+        <div className="mx-auto grid max-w-screen-xl grid-cols-12 gap-4 px-4">
+          <div className="col-span-12 lg:col-span-8">
+            <p className="terminal-caps text-[11px] text-[#ffb000]">root@ring-ai:~$ next-step</p>
+            <h2 className="terminal-display mt-3 text-4xl uppercase leading-tight lg:text-5xl">{t.title}</h2>
+            <p className="mt-3 max-w-3xl text-sm text-[#7bd96a]">{t.body}</p>
+          </div>
+          <div className="terminal-pane col-span-12 p-5 lg:col-span-4">
+            <a href="/login" className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center px-4 text-xs">
+              {t.cta}
+            </a>
+            <div className="terminal-line mt-5 border-t pt-3 text-xs text-[#7bd96a]">
+              <p className="terminal-caps text-[#ffb000]">{t.routes}</p>
+              <div className="mt-2 flex flex-col gap-1">
+                <a href="/login" className="hover:text-[#ffb000]">$ /login</a>
+                <a href="/dashboard" className="hover:text-[#ffb000]">$ /dashboard</a>
+                <a href="/dashboard/campaigns" className="hover:text-[#ffb000]">$ /dashboard/campaigns</a>
+                <a href="/dashboard/analytics" className="hover:text-[#ffb000]">$ /dashboard/analytics</a>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-clay-dark py-16">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-            {/* Brand */}
-            <div className="md:col-span-1">
-              <div className="text-2xl font-bold text-white mb-3">
-                <span className="text-clay-coral">Ring</span> AI
-              </div>
-              <p className="text-white/50 text-sm leading-relaxed mb-4">
-                AI-powered business communication platform.
-                <br />
-                Powered by AI, spoken in नेपाली.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Product
-              </h4>
-              <ul className="space-y-2.5">
-                {["Voice AI", "SMS Platform", "Smart Surveys", "Analytics"].map(
-                  (item) => (
-                    <li key={item}>
-                      <a
-                        href="#products"
-                        className="text-white/50 hover:text-white transition-colors text-sm"
-                      >
-                        {item}
-                      </a>
-                    </li>
-                  )
-                )}
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Company
-              </h4>
-              <ul className="space-y-2.5">
-                {["About", "Careers", "Blog", "Contact"].map((item) => (
-                  <li key={item}>
-                    <a
-                      href="#"
-                      className="text-white/50 hover:text-white transition-colors text-sm"
-                    >
-                      {item}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Contact
-              </h4>
-              <ul className="space-y-2.5 text-sm text-white/50">
-                <li>hello@ring.ai</li>
-                <li>+977 1-XXXXXXX</li>
-                <li>Kathmandu, Nepal</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-white/30 text-sm">
-              &copy; {new Date().getFullYear()} Ring AI. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm text-white/30">
-              <a href="#" className="hover:text-white/60 transition-colors">
-                Privacy
-              </a>
-              <a href="#" className="hover:text-white/60 transition-colors">
-                Terms
-              </a>
-            </div>
-          </div>
+      <footer className="py-6">
+        <div className="mx-auto flex max-w-screen-xl flex-col gap-2 px-4 text-[11px] md:flex-row md:items-center md:justify-between">
+          <p className="terminal-caps text-[#7bd96a]">ring ai cli interface | node: kathmandu</p>
+          <p className="terminal-caps text-[#ffb000]">build: v1.1 | shell: production</p>
         </div>
       </footer>
     </>

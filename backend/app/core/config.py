@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 1 day
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    GOOGLE_CLIENT_ID: str = ""
 
     # TTS
     AZURE_TTS_KEY: str = ""

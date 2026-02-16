@@ -21,6 +21,7 @@ REFRESH_URL = "/api/v1/auth/refresh"
 API_KEYS_GEN_URL = "/api/v1/auth/api-keys/generate"
 API_KEYS_URL = "/api/v1/auth/api-keys"
 PROFILE_URL = "/api/v1/auth/user-profile"
+GOOGLE_LOGIN_URL = "/api/v1/auth/google-login"
 
 
 def _register_payload(**overrides):
@@ -159,6 +160,43 @@ class TestLogin:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         assert payload["sub"] == str(user.id)
         assert payload["type"] == "access"
+
+    def test_google_login_success_creates_user(self, client: TestClient, db, monkeypatch):
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "google-client-id-123")
+
+        def _fake_tokeninfo(_id_token: str):
+            return {
+                "aud": "google-client-id-123",
+                "email": "googleuser@example.com",
+                "email_verified": "true",
+                "given_name": "Google",
+                "family_name": "User",
+            }
+
+        monkeypatch.setattr("app.api.v1.endpoints.auth._fetch_google_tokeninfo", _fake_tokeninfo)
+
+        resp = client.post(GOOGLE_LOGIN_URL, json={"id_token": "fake-id-token"})
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
+        assert "refresh_token" in resp.cookies
+        created = db.query(User).filter(User.email == "googleuser@example.com").first()
+        assert created is not None
+        assert created.first_name == "Google"
+
+    def test_google_login_audience_mismatch(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "expected-client-id")
+
+        def _fake_tokeninfo(_id_token: str):
+            return {
+                "aud": "wrong-client-id",
+                "email": "x@example.com",
+                "email_verified": "true",
+            }
+
+        monkeypatch.setattr("app.api.v1.endpoints.auth._fetch_google_tokeninfo", _fake_tokeninfo)
+
+        resp = client.post(GOOGLE_LOGIN_URL, json={"id_token": "fake-id-token"})
+        assert resp.status_code == 401
 
 
 # ===========================================================================

@@ -1,3 +1,5 @@
+import { clearAccessToken, getAccessToken } from "@/lib/auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 class ApiError extends Error {
@@ -11,8 +13,7 @@ class ApiError extends Error {
 }
 
 function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("access_token");
+  return getAccessToken();
 }
 
 async function request<T>(
@@ -36,7 +37,7 @@ async function request<T>(
 
   if (res.status === 401) {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("access_token");
+      clearAccessToken();
       window.location.href = "/login";
     }
     throw new ApiError(401, "Unauthorized");
@@ -52,10 +53,27 @@ async function request<T>(
 
 export const api = {
   // Auth
+  register: (data: {
+    first_name: string;
+    last_name: string;
+    username: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }) =>
+    request<{ id: string; username: string; email: string; message: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    }),
+  googleLogin: (idToken: string) =>
+    request<{ access_token: string; token_type: string }>("/auth/google-login", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken }),
     }),
   getProfile: () => request<import("@/types/dashboard").UserProfile>("/auth/user-profile"),
   getApiKeys: () => request<import("@/types/dashboard").APIKeyInfo>("/auth/api-keys"),

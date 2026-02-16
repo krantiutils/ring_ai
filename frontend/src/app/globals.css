@@ -1,31 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=VT323&display=swap");
 @import "tailwindcss";
 
 :root {
-  /* Clay palette */
-  --clay-cream: #FFF8F0;
-  --clay-lavender: #F0E6FF;
-  --clay-mint: #E8F5E9;
-  --clay-coral: #FF6B6B;
-  --clay-teal: #4ECDC4;
-  --clay-gold: #FFD93D;
-  --clay-dark: #2D2D2D;
-  --clay-shadow: rgba(120, 80, 60, 0.15);
-  --clay-shadow-dark: rgba(120, 80, 60, 0.25);
+  --background: #0a0a0a;
+  --foreground: #33ff00;
+  --terminal-bg: #0a0a0a;
+  --terminal-primary: #33ff00;
+  --terminal-secondary: #ffb000;
+  --terminal-muted: #1f521f;
+  --terminal-error: #ff3333;
 
-  --background: var(--clay-cream);
-  --foreground: #2D2D2D;
+  --clay-cream: #fff8f0;
+  --clay-lavender: #f0e6ff;
+  --clay-mint: #e8f5e9;
+  --clay-coral: #ff6b6b;
+  --clay-teal: #4ecdc4;
+  --clay-gold: #ffd93d;
+  --clay-dark: #2d2d2d;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-clay-cream: #FFF8F0;
-  --color-clay-lavender: #F0E6FF;
-  --color-clay-mint: #E8F5E9;
-  --color-clay-coral: #FF6B6B;
-  --color-clay-teal: #4ECDC4;
-  --color-clay-gold: #FFD93D;
-  --color-clay-dark: #2D2D2D;
+  --color-terminal-bg: var(--terminal-bg);
+  --color-terminal-primary: var(--terminal-primary);
+  --color-terminal-secondary: var(--terminal-secondary);
+  --color-terminal-muted: var(--terminal-muted);
+  --color-terminal-error: var(--terminal-error);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -39,52 +40,165 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--terminal-bg);
+  color: var(--terminal-primary);
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   overflow-x: hidden;
+  text-shadow: 0 0 5px rgba(51, 255, 0, 0.3);
 }
 
-/* Clay noise texture overlay — applied to sections */
-.clay-texture {
-  position: relative;
-}
-
-.clay-texture::after {
+body::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-size: 256px 256px;
-  z-index: 1;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.035) 0,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 0.12;
 }
 
-/* Clay card base style */
-.clay-surface {
-  background: white;
-  border-radius: 24px;
-  box-shadow:
-    0 4px 16px var(--clay-shadow),
-    0 1px 3px var(--clay-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+.terminal-display {
+  font-family: "VT323", "JetBrains Mono", "Fira Code", monospace;
+  letter-spacing: 0.03em;
 }
 
-/* Squish button keyframes */
-@keyframes squish {
-  0% { transform: scale(1); }
-  50% { transform: scale(0.93, 1.04); }
-  100% { transform: scale(1); }
+.terminal-caps {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
 
-/* Gentle float for 3D elements */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+.terminal-pane {
+  border: 1px solid var(--terminal-muted);
+  background: rgba(10, 10, 10, 0.93);
 }
 
-/* Section spacing */
-section {
-  position: relative;
+.terminal-titlebar {
+  border-bottom: 1px solid var(--terminal-muted);
+  background: rgba(31, 82, 31, 0.16);
+}
+
+.terminal-line {
+  border-color: var(--terminal-muted);
+  border-style: dashed;
+}
+
+.terminal-input {
+  border: 1px solid var(--terminal-muted);
+  background: transparent;
+  border-radius: 0;
+  color: var(--terminal-primary);
+}
+
+.terminal-input:focus-visible {
+  outline: none;
+  border-color: var(--terminal-primary);
+  box-shadow: 0 0 0 1px var(--terminal-primary);
+}
+
+.terminal-btn {
+  border: 1px solid var(--terminal-primary);
+  background: transparent;
+  color: var(--terminal-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  transition: all 0.2s ease-out;
+}
+
+.terminal-btn:hover {
+  background: var(--terminal-primary);
+  color: var(--terminal-bg);
+}
+
+.terminal-btn-secondary {
+  border-color: var(--terminal-secondary);
+  color: var(--terminal-secondary);
+}
+
+.terminal-btn-secondary:hover {
+  background: var(--terminal-secondary);
+  color: var(--terminal-bg);
+}
+
+.sharp-corners {
+  border-radius: 0 !important;
+}
+
+.terminal-cursor::after {
+  content: "_";
+  margin-left: 0.2rem;
+  animation: blink 1s step-end infinite;
+}
+
+.terminal-ticker-track {
+  display: inline-flex;
+  min-width: 100%;
+  animation: ticker-scroll 26s linear infinite;
+}
+
+.typing-demo {
+  display: inline-flex;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1ch solid var(--terminal-primary);
+  animation: typing 3.5s steps(40, end), blink 1s step-end infinite;
+}
+
+.pulse-panel {
+  animation: pulse-panel 2.2s ease-in-out infinite;
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 40ch;
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-panel {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(51, 255, 0, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(51, 255, 0, 0.12);
+  }
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+a {
+  text-underline-offset: 4px;
+  text-decoration-color: var(--terminal-secondary);
+}
+
+textarea,
+input,
+button {
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
 }
