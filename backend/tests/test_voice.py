@@ -643,6 +643,23 @@ class TestDemoCallOtpFlow:
         assert data["request_id"] in _DEMO_CALL_OTP_STORE
         mock_send_sms.assert_awaited_once()
 
+    @patch("app.api.v1.endpoints.voice.generate_otp", return_value="123456")
+    @patch("app.api.v1.endpoints.voice._send_demo_call_otp_sms", new_callable=AsyncMock)
+    def test_send_demo_call_otp_non_nepal_uses_master_path(self, mock_send_sms, mock_generate_otp, client):
+        response = client.post(
+            "/api/v1/voice/demo-call/otp/send",
+            json={
+                "name": "Alex",
+                "phone": "+12025550123",
+                "message": "Demo call message",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == "master_otp_only"
+        assert data["request_id"] in _DEMO_CALL_OTP_STORE
+        mock_send_sms.assert_not_awaited()
+
     @patch("app.api.v1.endpoints.voice._place_demo_call", new_callable=AsyncMock)
     def test_verify_demo_call_otp_success(self, mock_place_call, client):
         from datetime import datetime, timedelta, timezone
@@ -664,6 +681,29 @@ class TestDemoCallOtpFlow:
         assert response.status_code == 201
         assert response.json()["call_id"] == "CA-demo-1"
         assert "req-1" not in _DEMO_CALL_OTP_STORE
+        mock_place_call.assert_awaited_once()
+
+    @patch("app.api.v1.endpoints.voice._place_demo_call", new_callable=AsyncMock)
+    def test_verify_demo_call_master_otp_success(self, mock_place_call, client):
+        from datetime import datetime, timedelta, timezone
+
+        from app.api.v1.endpoints.voice import DemoCallOtpState, DemoCallRequest
+
+        mock_place_call.return_value = {"call_id": "CA-demo-master", "status": "queued"}
+        _DEMO_CALL_OTP_STORE["req-master"] = DemoCallOtpState(
+            otp="999999",
+            payload=DemoCallRequest(name="Master", phone="+12025550123", message="demo"),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            attempts=0,
+        )
+
+        response = client.post(
+            "/api/v1/voice/demo-call/otp/verify",
+            json={"request_id": "req-master", "otp": "34026"},
+        )
+        assert response.status_code == 201
+        assert response.json()["call_id"] == "CA-demo-master"
+        assert "req-master" not in _DEMO_CALL_OTP_STORE
         mock_place_call.assert_awaited_once()
 
     def test_verify_demo_call_otp_invalid(self, client):

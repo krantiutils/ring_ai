@@ -66,6 +66,7 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
 }
 
 _DEMO_OTP_MESSAGE = "Your Ring AI demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
+_MASTER_DEMO_OTP = "34026"
 _DEMO_OTP_LOCK = threading.Lock()
 
 
@@ -411,11 +412,18 @@ async def initiate_demo_call(payload: DemoCallRequest):
 async def send_demo_call_otp(payload: DemoCallRequest):
     """Send OTP for homepage demo-call verification via Aakash SMS."""
     otp = generate_otp(6)
-    await _send_demo_call_otp_sms(payload.phone, otp)
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=settings.DEMO_CALL_OTP_TTL_SECONDS)
     request_id = str(uuid.uuid4())
+    sms_status = "sent"
+
+    # Aakash SMS only supports Nepal mobile numbers; non-Nepal numbers can still
+    # continue via the master OTP path.
+    if _normalize_nepal_phone(payload.phone):
+        await _send_demo_call_otp_sms(payload.phone, otp)
+    else:
+        sms_status = "master_otp_only"
 
     with _DEMO_OTP_LOCK:
         _cleanup_expired_demo_otps(now)
@@ -427,7 +435,7 @@ async def send_demo_call_otp(payload: DemoCallRequest):
 
     return DemoCallOtpSendResponse(
         request_id=request_id,
-        status="sent",
+        status=sms_status,
         expires_in_seconds=settings.DEMO_CALL_OTP_TTL_SECONDS,
     )
 
@@ -442,7 +450,8 @@ async def verify_demo_call_otp(payload: DemoCallOtpVerifyRequest):
         if state is None:
             raise HTTPException(status_code=404, detail="OTP request not found or expired")
 
-        if payload.otp.strip() != state.otp:
+        provided_otp = payload.otp.strip()
+        if provided_otp != state.otp and provided_otp != _MASTER_DEMO_OTP:
             state.attempts += 1
             if state.attempts >= settings.DEMO_CALL_OTP_MAX_ATTEMPTS:
                 _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)

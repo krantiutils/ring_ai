@@ -24,7 +24,6 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
     "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म कसरी काम गर्छ भनेर छोटकरीमा बताउँछौं।",
   );
   const [callLoading, setCallLoading] = useState(false);
-  const [callResult, setCallResult] = useState<string | null>(null);
   const [callError, setCallError] = useState<string | null>(null);
   const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState("");
@@ -67,7 +66,6 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
     if (!canCall) return;
     setCallLoading(true);
     setCallError(null);
-    setCallResult(null);
     try {
       const result = await api.sendDemoCallOtp({
         name: name.trim(),
@@ -79,7 +77,6 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
         },
       });
       setOtpRequestId(result.request_id);
-      setCallResult(`OTP sent. Enter the code to confirm your demo call.`);
     } catch (err) {
       if (err instanceof ApiError) {
         setCallError(`OTP request failed (${err.status}). Check phone format and SMS configuration.`);
@@ -95,13 +92,11 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
     if (!canVerifyOtp || !otpRequestId) return;
     setCallLoading(true);
     setCallError(null);
-    setCallResult(null);
     try {
-      const result = await api.verifyDemoCallOtp({
+      await api.verifyDemoCallOtp({
         request_id: otpRequestId,
         otp: otpValue.trim(),
       });
-      setCallResult(`Call queued. Call ID: ${result.call_id}`);
       setOtpValue("");
       setOtpRequestId(null);
     } catch (err) {
@@ -257,10 +252,6 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
           </div>
 
           {callError && <p className="mt-3 text-sm text-[#ff9ea8]">{callError}</p>}
-          {callResult && <p className="mt-3 text-sm text-[#8bf0de]">{callResult}</p>}
-          <p className="mt-4 text-xs text-white/55">
-            OTP is sent via Aakash SMS to Nepal mobile numbers. After valid OTP verification, the demo call is queued.
-          </p>
         </motion.div>
       </div>
     </>
