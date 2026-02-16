@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     # SMS
     SMS_PROVIDER_API_KEY: str = ""
+    AAKASH_SMS_TOKEN: str = ""
+    AAKASH_SMS_API_URL: str = "https://sms.aakashsms.com/sms/v3/send"
 
     # Campaign executor
     CAMPAIGN_BATCH_SIZE: int = 50

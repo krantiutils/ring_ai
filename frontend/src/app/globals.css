@@ -66,6 +66,17 @@ body {
   color: transparent;
 }
 
+.gradient-underline {
+  position: absolute;
+  left: 0;
+  bottom: -0.35rem;
+  height: 0.85rem;
+  width: 100%;
+  border-radius: 0.2rem;
+  background: linear-gradient(to right, rgba(0, 82, 255, 0.15), rgba(77, 124, 255, 0.1));
+  pointer-events: none;
+}
+
 .accent-gradient {
   background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
 }
@@ -74,6 +85,13 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+  transition: transform 0.25s ease-out, box-shadow 0.25s ease-out, border-color 0.25s ease-out;
+}
+
+.surface-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 82, 255, 0.2);
+  box-shadow: 0 20px 28px rgba(15, 23, 42, 0.1);
 }
 
 .label-badge {
@@ -109,6 +127,26 @@ body {
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
   background-size: 32px 32px;
   opacity: 0.06;
+}
+
+.section-divider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(to right, transparent, rgba(0, 82, 255, 0.25), transparent);
+}
+
+.timeline-connector {
+  position: relative;
+}
+
+.timeline-connector::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 25px;
+  bottom: -14px;
+  width: 1px;
+  background: linear-gradient(to bottom, rgba(0, 82, 255, 0.35), transparent);
 }
 
 .soft-glow {
@@ -170,6 +208,10 @@ body {
   animation: hero-float-b 4.2s ease-in-out infinite;
 }
 
+.hero-float-c {
+  animation: hero-float-c 6s ease-in-out infinite;
+}
+
 .rise-in {
   animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -212,6 +254,16 @@ body {
   }
   50% {
     transform: translateY(10px);
+  }
+}
+
+@keyframes hero-float-c {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(1.2deg);
   }
 }
 
