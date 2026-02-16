@@ -29,6 +29,7 @@ out/
 e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
+e2e/.auth/
 
 # IDE
 .vscode/
