@@ -53,6 +53,21 @@ class DemoCallRequest(BaseModel):
     tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
 
 
+class DemoCallOtpSendResponse(BaseModel):
+    """POST /api/v1/voice/demo-call/otp/send response."""
+
+    request_id: str
+    status: str
+    expires_in_seconds: int
+
+
+class DemoCallOtpVerifyRequest(BaseModel):
+    """POST /api/v1/voice/demo-call/otp/verify request body."""
+
+    request_id: str = Field(..., min_length=1)
+    otp: str = Field(..., min_length=4, max_length=10)
+
+
 class DemoCallResponse(BaseModel):
     """POST /api/v1/voice/demo-call response."""
 

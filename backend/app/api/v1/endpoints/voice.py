@@ -1,8 +1,12 @@
 """Voice call API endpoints — outbound campaign calls via Twilio."""
 
 import logging
+import threading
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
@@ -15,9 +19,12 @@ from app.schemas.voice import (
     CallStatusResponse,
     CampaignCallRequest,
     CampaignCallResponse,
+    DemoCallOtpSendResponse,
+    DemoCallOtpVerifyRequest,
     DemoCallRequest,
     DemoCallResponse,
 )
+from app.services.otp import generate_otp
 from app.services.telephony import (
     AudioEntry,
     CallContext,
@@ -58,6 +65,67 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
     CallStatus.FAILED: "failed",
 }
 
+_DEMO_OTP_MESSAGE = "Your Ring AI demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
+_DEMO_OTP_LOCK = threading.Lock()
+
+
+@dataclass
+class DemoCallOtpState:
+    otp: str
+    payload: DemoCallRequest
+    expires_at: datetime
+    attempts: int = 0
+
+
+_DEMO_CALL_OTP_STORE: dict[str, DemoCallOtpState] = {}
+
+
+def _normalize_nepal_phone(phone: str) -> str | None:
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if digits.startswith("977") and len(digits) == 13:
+        digits = digits[3:]
+    if len(digits) == 10 and digits.startswith("9"):
+        return digits
+    return None
+
+
+def _cleanup_expired_demo_otps(now: datetime) -> None:
+    expired_ids = [req_id for req_id, state in _DEMO_CALL_OTP_STORE.items() if state.expires_at <= now]
+    for req_id in expired_ids:
+        _DEMO_CALL_OTP_STORE.pop(req_id, None)
+
+
+async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
+    token = settings.AAKASH_SMS_TOKEN
+    if not token:
+        raise HTTPException(status_code=503, detail="AAKASH_SMS_TOKEN not configured")
+
+    normalized = _normalize_nepal_phone(phone)
+    if not normalized:
+        raise HTTPException(status_code=422, detail="Phone must be a valid Nepal mobile number")
+
+    payload = {
+        "auth_token": token,
+        "to": normalized,
+        "text": _DEMO_OTP_MESSAGE.format(otp=otp),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(settings.AAKASH_SMS_API_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS provider returned invalid JSON: {exc}") from exc
+
+    if data.get("error"):
+        msg = data.get("message", "Aakash SMS rejected request")
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {msg}")
+    invalid = (data.get("data") or {}).get("invalid") or []
+    if invalid:
+        raise HTTPException(status_code=422, detail="OTP SMS delivery failed: invalid phone number")
+
 
 async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
     """Background task: analyze sentiment for a completed interaction."""
@@ -71,6 +139,94 @@ async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
         logger.exception("Background sentiment analysis failed for %s", interaction_id)
     finally:
         db.close()
+
+
+async def _place_demo_call(payload: DemoCallRequest) -> DemoCallResponse:
+    script_text = f"Namaste {payload.name}. {payload.message}"
+    tts_config = TTSConfig(
+        provider=TTSProvider(payload.tts_config.provider),
+        voice=payload.tts_config.voice,
+        rate=payload.tts_config.rate,
+        pitch=payload.tts_config.pitch,
+        fallback_provider=(
+            TTSProvider(payload.tts_config.fallback_provider) if payload.tts_config.fallback_provider else None
+        ),
+    )
+
+    try:
+        tts_result = await tts_router.synthesize(script_text, tts_config)
+    except TTSError as exc:
+        logger.error("TTS synthesis failed for demo call: %s", exc)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
+
+    audio_id = str(uuid.uuid4())
+    audio_store.put(
+        audio_id,
+        AudioEntry(
+            audio_bytes=tts_result.audio_bytes,
+            content_type="audio/mpeg",
+        ),
+    )
+
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        audio_store.delete(audio_id)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    from_number = payload.from_number or provider.default_from_number
+    if not from_number:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=422,
+            detail="No from_number provided and no default Twilio number configured",
+        )
+
+    base_url = settings.TWILIO_BASE_URL
+    if not base_url:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=503,
+            detail="TWILIO_BASE_URL not configured. Set a publicly reachable URL for Twilio callbacks.",
+        )
+
+    temp_call_id = str(uuid.uuid4())
+    call_context_store.put(
+        temp_call_id,
+        CallContext(
+            call_id=temp_call_id,
+            audio_id=audio_id,
+            dtmf_routes=[],
+            record=False,
+            record_consent_text=None,
+        ),
+    )
+
+    twiml_url = f"{base_url}/api/v1/voice/twiml/{temp_call_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    try:
+        result = await provider.initiate_call(
+            to=payload.phone,
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError as exc:
+        logger.error("Twilio demo call initiation failed: %s", exc)
+        audio_store.delete(audio_id)
+        call_context_store.delete(temp_call_id)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    context = call_context_store.get(temp_call_id)
+    if context is not None:
+        context.call_id = result.call_id
+        call_context_store.put(result.call_id, context)
+
+    return DemoCallResponse(
+        call_id=result.call_id,
+        status=result.status,
+    )
 
 
 @router.post("/campaign-call", response_model=CampaignCallResponse, status_code=201)
@@ -248,91 +404,55 @@ async def initiate_demo_call(payload: DemoCallRequest):
     - Places a Twilio call to the provided phone number
     - Plays the synthesized message and hangs up
     """
-    script_text = f"Namaste {payload.name}. {payload.message}"
-    tts_config = TTSConfig(
-        provider=TTSProvider(payload.tts_config.provider),
-        voice=payload.tts_config.voice,
-        rate=payload.tts_config.rate,
-        pitch=payload.tts_config.pitch,
-        fallback_provider=(
-            TTSProvider(payload.tts_config.fallback_provider) if payload.tts_config.fallback_provider else None
-        ),
-    )
+    return await _place_demo_call(payload)
 
-    try:
-        tts_result = await tts_router.synthesize(script_text, tts_config)
-    except TTSError as exc:
-        logger.error("TTS synthesis failed for demo call: %s", exc)
-        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
 
-    audio_id = str(uuid.uuid4())
-    audio_store.put(
-        audio_id,
-        AudioEntry(
-            audio_bytes=tts_result.audio_bytes,
-            content_type="audio/mpeg",
-        ),
-    )
+@router.post("/demo-call/otp/send", response_model=DemoCallOtpSendResponse, status_code=201)
+async def send_demo_call_otp(payload: DemoCallRequest):
+    """Send OTP for homepage demo-call verification via Aakash SMS."""
+    otp = generate_otp(6)
+    await _send_demo_call_otp_sms(payload.phone, otp)
 
-    try:
-        provider = get_twilio_provider()
-    except TelephonyConfigurationError as exc:
-        audio_store.delete(audio_id)
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=settings.DEMO_CALL_OTP_TTL_SECONDS)
+    request_id = str(uuid.uuid4())
 
-    from_number = payload.from_number or provider.default_from_number
-    if not from_number:
-        audio_store.delete(audio_id)
-        raise HTTPException(
-            status_code=422,
-            detail="No from_number provided and no default Twilio number configured",
+    with _DEMO_OTP_LOCK:
+        _cleanup_expired_demo_otps(now)
+        _DEMO_CALL_OTP_STORE[request_id] = DemoCallOtpState(
+            otp=otp,
+            payload=payload,
+            expires_at=expires_at,
         )
 
-    base_url = settings.TWILIO_BASE_URL
-    if not base_url:
-        audio_store.delete(audio_id)
-        raise HTTPException(
-            status_code=503,
-            detail="TWILIO_BASE_URL not configured. Set a publicly reachable URL for Twilio callbacks.",
-        )
-
-    temp_call_id = str(uuid.uuid4())
-    call_context_store.put(
-        temp_call_id,
-        CallContext(
-            call_id=temp_call_id,
-            audio_id=audio_id,
-            dtmf_routes=[],
-            record=False,
-            record_consent_text=None,
-        ),
+    return DemoCallOtpSendResponse(
+        request_id=request_id,
+        status="sent",
+        expires_in_seconds=settings.DEMO_CALL_OTP_TTL_SECONDS,
     )
 
-    twiml_url = f"{base_url}/api/v1/voice/twiml/{temp_call_id}"
-    webhook_url = f"{base_url}/api/v1/voice/webhook"
 
-    try:
-        result = await provider.initiate_call(
-            to=payload.phone,
-            from_number=from_number,
-            twiml_url=twiml_url,
-            status_callback_url=webhook_url,
-        )
-    except TelephonyProviderError as exc:
-        logger.error("Twilio demo call initiation failed: %s", exc)
-        audio_store.delete(audio_id)
-        call_context_store.delete(temp_call_id)
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+@router.post("/demo-call/otp/verify", response_model=DemoCallResponse, status_code=201)
+async def verify_demo_call_otp(payload: DemoCallOtpVerifyRequest):
+    """Verify OTP then place the homepage demo call."""
+    now = datetime.now(timezone.utc)
+    with _DEMO_OTP_LOCK:
+        _cleanup_expired_demo_otps(now)
+        state = _DEMO_CALL_OTP_STORE.get(payload.request_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="OTP request not found or expired")
 
-    context = call_context_store.get(temp_call_id)
-    if context is not None:
-        context.call_id = result.call_id
-        call_context_store.put(result.call_id, context)
+        if payload.otp.strip() != state.otp:
+            state.attempts += 1
+            if state.attempts >= settings.DEMO_CALL_OTP_MAX_ATTEMPTS:
+                _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+                raise HTTPException(status_code=429, detail="OTP attempts exceeded, request a new code")
+            raise HTTPException(status_code=422, detail="Invalid OTP")
 
-    return DemoCallResponse(
-        call_id=result.call_id,
-        status=result.status,
-    )
+        _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+        call_payload = state.payload
+
+    return await _place_demo_call(call_payload)
 
 
 @router.post("/twiml/{call_id}")

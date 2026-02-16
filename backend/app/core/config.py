@@ -28,6 +28,12 @@ class Settings(BaseSettings):
 
     # SMS
     SMS_PROVIDER_API_KEY: str = ""
+    AAKASH_SMS_TOKEN: str = ""
+    AAKASH_SMS_API_URL: str = "https://sms.aakashsms.com/sms/v3/send"
+
+    # Landing page demo OTP flow
+    DEMO_CALL_OTP_TTL_SECONDS: int = 300
+    DEMO_CALL_OTP_MAX_ATTEMPTS: int = 5
 
     # Campaign executor
     CAMPAIGN_BATCH_SIZE: int = 50

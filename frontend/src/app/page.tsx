@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Navbar from "@/components/sections/Navbar";
 import Hero from "@/components/sections/Hero";
-import ExperienceCenter from "@/components/sections/ExperienceCenter";
 import CTAFooter from "@/components/sections/CTAFooter";
 
 const Products = dynamic(() => import("@/components/sections/Products"), {
@@ -25,7 +24,6 @@ export default function Home() {
       <Navbar />
       <main>
         <Hero />
-        <ExperienceCenter />
         <Products />
         <HowItWorks />
         <UseCases />
