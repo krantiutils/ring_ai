@@ -120,6 +120,51 @@ export const api = {
     } as import("@/types/dashboard").CampaignListResponse;
   },
   getCampaign: (id: string) => request<import("@/types/dashboard").Campaign>(`/campaigns/${id}`),
+  createCampaign: async (data: {
+    name: string;
+    type: "voice" | "text";
+    category?: "voice" | "text" | "survey" | "combined";
+    template_id?: string | null;
+    schedule_config?: Record<string, unknown> | null;
+  }) => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      throw new ApiError(422, "Missing org_id. Open Campaigns once so organization context can be loaded.");
+    }
+    return request<import("@/types/dashboard").Campaign>("/campaigns/", {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        type: data.type,
+        category: data.category ?? (data.type === "voice" ? "voice" : "text"),
+        org_id: orgId,
+        template_id: data.template_id ?? null,
+        schedule_config: data.schedule_config ?? null,
+      }),
+    });
+  },
+  uploadCampaignContacts: async (campaignId: string, file: File) => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/campaigns/${campaignId}/contacts`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ApiError(res.status, body);
+    }
+    return res.json() as Promise<{ created: number; skipped: number; errors: string[] }>;
+  },
+  startCampaign: (campaignId: string, schedule?: string) =>
+    request<import("@/types/dashboard").Campaign>(`/campaigns/${campaignId}/start`, {
+      method: "POST",
+      body: JSON.stringify(schedule ? { schedule } : {}),
+    }),
 
   // Analytics
   getOverview: async () => {
