@@ -5,11 +5,11 @@ import { Brain } from "lucide-react";
 import type { IntentBucket } from "@/types/dashboard";
 
 const INTENT_COLORS: Record<string, string> = {
-  payment: "#4ECDC4",
-  complaint: "#FF6B6B",
-  inquiry: "#FFD93D",
+  payment: "#4D7CFF",
+  complaint: "#0052FF",
+  inquiry: "#1D4ED8",
   confirmation: "#45B7D1",
-  "opt-out": "#ff8787",
+  "opt-out": "#4D7CFF",
   "transfer-request": "#96CEB4",
   greeting: "#FFEAA7",
   "follow-up": "#DDA0DD",
@@ -37,15 +37,15 @@ export default function IntentDistributionChart({ buckets, totalClassified }: In
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-        <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Intent Distribution</h3>
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+        <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Intent Distribution</h3>
         <div className="h-[250px] flex flex-col items-center justify-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#FFF8F0] flex items-center justify-center">
-            <Brain className="w-6 h-6 text-[#FF6B6B]/40" />
+          <div className="w-12 h-12 rounded-full bg-[#FAFAFA] flex items-center justify-center">
+            <Brain className="w-6 h-6 text-[#0052FF]/40" />
           </div>
           <div className="text-center">
-            <p className="text-sm font-medium text-[#2D2D2D]/60">No intent data yet</p>
-            <p className="text-xs text-[#2D2D2D]/40 mt-1">Run intent backfill to classify caller intents</p>
+            <p className="text-sm font-medium text-[#0F172A]/60">No intent data yet</p>
+            <p className="text-xs text-[#0F172A]/40 mt-1">Run intent backfill to classify caller intents</p>
           </div>
         </div>
       </div>
@@ -53,17 +53,17 @@ export default function IntentDistributionChart({ buckets, totalClassified }: In
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+    <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-[#2D2D2D]">Intent Distribution</h3>
-        <span className="text-xs text-[#2D2D2D]/50">{totalClassified} classified</span>
+        <h3 className="text-sm font-semibold text-[#0F172A]">Intent Distribution</h3>
+        <span className="text-xs text-[#0F172A]/50">{totalClassified} classified</span>
       </div>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={chartData} barSize={36}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} angle={-25} textAnchor="end" height={60} />
           <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #FF6B6B26", fontSize: "13px" }} />
+          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #0052FF26", fontSize: "13px" }} />
           <Bar dataKey="count" radius={[4, 4, 0, 0]}>
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={INTENT_COLORS[entry.intent] || "#94a3b8"} />

@@ -29,25 +29,25 @@ export default function TopBar() {
   }, []);
 
   return (
-    <header className="h-16 bg-[#FFF8F0] border-b border-[#FF6B6B]/15 flex items-center justify-between px-6 sticky top-0 z-40">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[#E2E8F0] bg-[#FAFAFA]/95 px-4 backdrop-blur-sm md:px-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#2D2D2D]">{title}</h1>
+        <h1 className="text-lg font-semibold text-[#0F172A] md:text-xl">{title}</h1>
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 text-sm border border-[#FF6B6B]/15">
-          <Coins className="w-4 h-4 text-[#FFD93D]" />
-          <span className="font-medium text-[#2D2D2D]">
+        <div className="hidden items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm md:flex">
+          <Coins className="h-4 w-4 text-[#0052FF]" />
+          <span className="font-mono-label text-[11px] uppercase tracking-[0.12em] text-[#0F172A]">
             {credits ? `${credits.balance} | ${credits.total_purchased} Credits` : "0 Credits"}
           </span>
         </div>
 
-        <button className="relative p-2 rounded-lg hover:bg-[#FF6B6B]/10 transition-colors">
-          <Bell className="w-5 h-5 text-[#2D2D2D]/50" />
+        <button className="relative rounded-xl p-2 transition-colors hover:bg-[#F1F5F9]">
+          <Bell className="h-5 w-5 text-[#0F172A]/50" />
         </button>
 
-        <div className="w-8 h-8 rounded-full bg-[#FF6B6B]/15 flex items-center justify-center">
-          <User className="w-4 h-4 text-[#FF6B6B]" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0052FF]/15">
+          <User className="h-4 w-4 text-[#0052FF]" />
         </div>
       </div>
     </header>

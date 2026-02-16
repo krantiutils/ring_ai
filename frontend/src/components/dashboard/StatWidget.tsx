@@ -17,21 +17,21 @@ export default function StatWidget({
   value,
   subtitle,
   icon: Icon,
-  iconColor = "text-[#FF6B6B]",
+  iconColor = "text-[#0052FF]",
   className,
 }: StatWidgetProps) {
   return (
-    <div className={cn("bg-white rounded-xl border border-[#FF6B6B]/15 p-5", className)}>
+    <div className={cn("surface-card rounded-2xl border border-[#E2E8F0] bg-white p-5", className)}>
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-sm text-[#2D2D2D]/60 font-medium">{title}</p>
-          <p className="text-2xl font-bold text-[#2D2D2D]">{value}</p>
+          <p className="font-mono-label text-[11px] uppercase tracking-[0.12em] text-[#64748B]">{title}</p>
+          <p className="text-2xl font-semibold text-[#0F172A]">{value}</p>
           {subtitle && (
-            <p className="text-xs text-[#2D2D2D]/40">{subtitle}</p>
+            <p className="text-xs text-[#64748B]">{subtitle}</p>
           )}
         </div>
         {Icon && (
-          <div className={cn("p-2 rounded-lg bg-[#FFF8F0]", iconColor)}>
+          <div className={cn("rounded-xl bg-[#F8FAFC] p-2.5", iconColor)}>
             <Icon className="w-5 h-5" />
           </div>
         )}

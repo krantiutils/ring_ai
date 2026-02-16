@@ -57,7 +57,7 @@ export default function TTSProvidersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0052FF]" />
       </div>
     );
   }
@@ -65,8 +65,8 @@ export default function TTSProvidersPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-3">
-        <AlertCircle className="w-8 h-8 text-[#FF6B6B]/60" />
-        <p className="text-sm text-[#2D2D2D]/60">{error}</p>
+        <AlertCircle className="w-8 h-8 text-[#0052FF]/60" />
+        <p className="text-sm text-[#0F172A]/60">{error}</p>
       </div>
     );
   }
@@ -81,7 +81,7 @@ export default function TTSProvidersPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-white rounded-xl border border-[#FF6B6B]/15 p-1">
+      <div className="flex gap-1 bg-white rounded-xl border border-[#0052FF]/15 p-1">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -91,8 +91,8 @@ export default function TTSProvidersPage() {
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 justify-center",
                 activeTab === tab.id
-                  ? "bg-[#FF6B6B] text-white"
-                  : "text-[#2D2D2D]/60 hover:bg-[#FF6B6B]/10",
+                  ? "bg-[#0052FF] text-white"
+                  : "text-[#0F172A]/60 hover:bg-[#0052FF]/10",
               )}
             >
               <Icon className="w-4 h-4" />
@@ -118,24 +118,24 @@ export default function TTSProvidersPage() {
 function ProviderCard({ provider }: { provider: ProviderInfo }) {
   const isFree = provider.pricing.cost_per_million_chars === 0;
   return (
-    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+    <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className={cn("p-2 rounded-lg", isFree ? "bg-[#4ECDC4]/10" : "bg-[#FFD93D]/15")}>
+          <div className={cn("p-2 rounded-lg", isFree ? "bg-[#4D7CFF]/10" : "bg-[#1D4ED8]/15")}>
             {isFree ? (
-              <Zap className="w-5 h-5 text-[#4ECDC4]" />
+              <Zap className="w-5 h-5 text-[#4D7CFF]" />
             ) : (
-              <Shield className="w-5 h-5 text-[#FFD93D]" />
+              <Shield className="w-5 h-5 text-[#1D4ED8]" />
             )}
           </div>
           <div>
-            <h3 className="text-base font-semibold text-[#2D2D2D]">{provider.display_name}</h3>
-            <p className="text-xs text-[#2D2D2D]/50 mt-0.5">{provider.description}</p>
+            <h3 className="text-base font-semibold text-[#0F172A]">{provider.display_name}</h3>
+            <p className="text-xs text-[#0F172A]/50 mt-0.5">{provider.description}</p>
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-4 text-xs text-[#2D2D2D]/60">
-        <span className={cn("font-medium px-2 py-0.5 rounded-full", isFree ? "bg-[#4ECDC4]/15 text-[#4ECDC4]" : "bg-[#FFD93D]/15 text-[#b89a00]")}>
+      <div className="flex items-center gap-4 text-xs text-[#0F172A]/60">
+        <span className={cn("font-medium px-2 py-0.5 rounded-full", isFree ? "bg-[#4D7CFF]/15 text-[#4D7CFF]" : "bg-[#1D4ED8]/15 text-[#b89a00]")}>
           {isFree ? "Free" : `$${provider.pricing.cost_per_million_chars}/1M chars`}
         </span>
         <span>Formats: {provider.supported_formats.join(", ").toUpperCase()}</span>
@@ -200,7 +200,7 @@ function VoiceBrowserTab({ providers }: { providers: ProviderInfo[] }) {
   });
 
   return (
-    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">
         <ProviderSelect
@@ -210,13 +210,13 @@ function VoiceBrowserTab({ providers }: { providers: ProviderInfo[] }) {
         />
 
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/30" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/30" />
           <input
             type="text"
             placeholder="Search voices..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+            className="w-full pl-9 pr-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
           />
         </div>
 
@@ -238,25 +238,25 @@ function VoiceBrowserTab({ providers }: { providers: ProviderInfo[] }) {
       {/* Results */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-[#FF6B6B] animate-spin" />
+          <Loader2 className="w-6 h-6 text-[#0052FF] animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center">
-            <Mic className="w-7 h-7 text-[#FF6B6B]/40" />
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center">
+            <Mic className="w-7 h-7 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">No voices found</p>
-          <p className="text-xs text-[#2D2D2D]/40">Try adjusting your filters</p>
+          <p className="text-sm font-medium text-[#0F172A]/60">No voices found</p>
+          <p className="text-xs text-[#0F172A]/40">Try adjusting your filters</p>
         </div>
       ) : (
         <>
-          <p className="text-xs text-[#2D2D2D]/50">
+          <p className="text-xs text-[#0F172A]/50">
             Showing {filtered.length} of {voices.length} voices
           </p>
-          <div className="max-h-[500px] overflow-y-auto rounded-lg border border-[#FF6B6B]/10">
+          <div className="max-h-[500px] overflow-y-auto rounded-lg border border-[#0052FF]/10">
             <table className="w-full text-sm">
-              <thead className="bg-[#FFF8F0] sticky top-0">
-                <tr className="text-left text-xs font-medium text-[#2D2D2D]/50">
+              <thead className="bg-[#FAFAFA] sticky top-0">
+                <tr className="text-left text-xs font-medium text-[#0F172A]/50">
                   <th className="px-4 py-2.5">Voice</th>
                   <th className="px-4 py-2.5">ID</th>
                   <th className="px-4 py-2.5">Gender</th>
@@ -265,22 +265,22 @@ function VoiceBrowserTab({ providers }: { providers: ProviderInfo[] }) {
               </thead>
               <tbody>
                 {filtered.map((v) => (
-                  <tr key={v.voice_id} className="border-t border-[#FF6B6B]/5 hover:bg-[#FFF8F0]/60">
-                    <td className="px-4 py-2.5 font-medium text-[#2D2D2D]">{v.name}</td>
-                    <td className="px-4 py-2.5 font-mono text-[#2D2D2D]/60 text-xs">{v.voice_id}</td>
+                  <tr key={v.voice_id} className="border-t border-[#0052FF]/5 hover:bg-[#FAFAFA]/60">
+                    <td className="px-4 py-2.5 font-medium text-[#0F172A]">{v.name}</td>
+                    <td className="px-4 py-2.5 font-mono text-[#0F172A]/60 text-xs">{v.voice_id}</td>
                     <td className="px-4 py-2.5">
                       <span
                         className={cn(
                           "text-xs font-medium px-2 py-0.5 rounded-full",
                           v.gender === "Female"
                             ? "bg-[#F0E6FF] text-[#7c3aed]"
-                            : "bg-[#4ECDC4]/15 text-[#4ECDC4]",
+                            : "bg-[#4D7CFF]/15 text-[#4D7CFF]",
                         )}
                       >
                         {v.gender}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-[#2D2D2D]/60">{v.locale}</td>
+                    <td className="px-4 py-2.5 text-[#0F172A]/60">{v.locale}</td>
                   </tr>
                 ))}
               </tbody>
@@ -378,9 +378,9 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
   return (
     <div className="space-y-4">
       {/* Text input */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">
+          <label className="block text-sm font-medium text-[#0F172A]/70 mb-1">
             Text to synthesize
           </label>
           <textarea
@@ -388,14 +388,14 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Enter Nepali text to synthesize..."
-            className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 resize-none"
+            className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 resize-none"
           />
-          <p className="text-xs text-[#2D2D2D]/40 mt-1">{text.length} / 5000 characters</p>
+          <p className="text-xs text-[#0F172A]/40 mt-1">{text.length} / 5000 characters</p>
         </div>
 
         {/* Voice selection per provider */}
         {loadingVoices ? (
-          <div className="flex items-center gap-2 text-sm text-[#2D2D2D]/50">
+          <div className="flex items-center gap-2 text-sm text-[#0F172A]/50">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading voices...
           </div>
         ) : (
@@ -404,7 +404,7 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
               const providerVoices = voices[p.provider] || [];
               return (
                 <div key={p.provider}>
-                  <label className="block text-xs font-medium text-[#2D2D2D]/50 mb-1">
+                  <label className="block text-xs font-medium text-[#0F172A]/50 mb-1">
                     {p.display_name} voice
                   </label>
                   <select
@@ -412,7 +412,7 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
                     onChange={(e) =>
                       setSelectedVoices((prev) => ({ ...prev, [p.provider]: e.target.value }))
                     }
-                    className="w-full px-3 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+                    className="w-full px-3 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
                   >
                     {providerVoices.length === 0 && <option value="">No voices available</option>}
                     {providerVoices.map((v) => (
@@ -430,7 +430,7 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
         <button
           onClick={synthesizeAll}
           disabled={!text.trim() || loadingVoices}
-          className="inline-flex items-center gap-2 bg-[#FF6B6B] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 bg-[#0052FF] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Volume2 className="w-4 h-4" />
           Synthesize with all providers
@@ -443,16 +443,16 @@ function SamplePlaybackTab({ providers }: { providers: ProviderInfo[] }) {
           {results.map((r) => {
             const pInfo = providers.find((p) => p.provider === r.provider);
             return (
-              <div key={r.provider} className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-                <h4 className="text-sm font-semibold text-[#2D2D2D] mb-3">
+              <div key={r.provider} className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+                <h4 className="text-sm font-semibold text-[#0F172A] mb-3">
                   {pInfo?.display_name || r.provider}
                 </h4>
                 {r.loading ? (
-                  <div className="flex items-center gap-2 text-sm text-[#2D2D2D]/50 py-4">
+                  <div className="flex items-center gap-2 text-sm text-[#0F172A]/50 py-4">
                     <Loader2 className="w-4 h-4 animate-spin" /> Synthesizing...
                   </div>
                 ) : r.error ? (
-                  <div className="flex items-center gap-2 text-sm text-[#FF6B6B] py-4">
+                  <div className="flex items-center gap-2 text-sm text-[#0052FF] py-4">
                     <AlertCircle className="w-4 h-4" /> {r.error}
                   </div>
                 ) : r.audioUrl ? (
@@ -480,12 +480,12 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
   return (
     <div className="space-y-4">
       {/* Inputs */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-[#2D2D2D]">Estimate your monthly TTS costs</h3>
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-[#0F172A]">Estimate your monthly TTS costs</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-[#2D2D2D]/50 mb-1">
+            <label className="block text-xs font-medium text-[#0F172A]/50 mb-1">
               Monthly characters
             </label>
             <input
@@ -493,11 +493,11 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
               min={0}
               value={monthlyChars}
               onChange={(e) => setMonthlyChars(Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[#2D2D2D]/50 mb-1">
+            <label className="block text-xs font-medium text-[#0F172A]/50 mb-1">
               Avg characters per message
             </label>
             <input
@@ -505,12 +505,12 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
               min={1}
               value={avgMessageLength}
               onChange={(e) => setAvgMessageLength(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-[#2D2D2D]/50">
+        <div className="flex items-center gap-4 text-xs text-[#0F172A]/50">
           <span>{monthlyChars.toLocaleString()} chars/month</span>
           <span>~{monthlyMessages.toLocaleString()} messages/month</span>
         </div>
@@ -524,9 +524,9 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
             step={10000}
             value={monthlyChars}
             onChange={(e) => setMonthlyChars(parseInt(e.target.value))}
-            className="w-full accent-[#FF6B6B]"
+            className="w-full accent-[#0052FF]"
           />
-          <div className="flex justify-between text-xs text-[#2D2D2D]/30">
+          <div className="flex justify-between text-xs text-[#0F172A]/30">
             <span>10K</span>
             <span>10M</span>
           </div>
@@ -534,8 +534,8 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
       </div>
 
       {/* Cost comparison table */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-        <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Cost comparison</h3>
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+        <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Cost comparison</h3>
         <div className="space-y-3">
           {providers.map((p) => {
             const freeTier = p.pricing.free_tier_chars || 0;
@@ -546,15 +546,15 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
             return (
               <div
                 key={p.provider}
-                className="flex items-center justify-between p-4 rounded-lg bg-[#FFF8F0] border border-[#FF6B6B]/5"
+                className="flex items-center justify-between p-4 rounded-lg bg-[#FAFAFA] border border-[#0052FF]/5"
               >
                 <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-lg", isFree ? "bg-[#4ECDC4]/10" : "bg-[#FFD93D]/15")}>
-                    <DollarSign className={cn("w-4 h-4", isFree ? "text-[#4ECDC4]" : "text-[#FFD93D]")} />
+                  <div className={cn("p-2 rounded-lg", isFree ? "bg-[#4D7CFF]/10" : "bg-[#1D4ED8]/15")}>
+                    <DollarSign className={cn("w-4 h-4", isFree ? "text-[#4D7CFF]" : "text-[#1D4ED8]")} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-[#2D2D2D]">{p.display_name}</p>
-                    <p className="text-xs text-[#2D2D2D]/40">
+                    <p className="text-sm font-medium text-[#0F172A]">{p.display_name}</p>
+                    <p className="text-xs text-[#0F172A]/40">
                       {isFree
                         ? "Free — no per-character cost"
                         : `$${p.pricing.cost_per_million_chars}/1M chars`}
@@ -563,10 +563,10 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-semibold text-[#2D2D2D]">
+                  <p className="text-lg font-semibold text-[#0F172A]">
                     {isFree ? "Free" : `$${cost.toFixed(2)}`}
                   </p>
-                  <p className="text-xs text-[#2D2D2D]/40">/month</p>
+                  <p className="text-xs text-[#0F172A]/40">/month</p>
                 </div>
               </div>
             );
@@ -575,8 +575,8 @@ function CostCalculatorTab({ providers }: { providers: ProviderInfo[] }) {
 
         {/* Savings callout */}
         {providers.length >= 2 && (
-          <div className="mt-4 p-3 rounded-lg bg-[#4ECDC4]/10 border border-[#4ECDC4]/20">
-            <p className="text-xs text-[#2D2D2D]/70">
+          <div className="mt-4 p-3 rounded-lg bg-[#4D7CFF]/10 border border-[#4D7CFF]/20">
+            <p className="text-xs text-[#0F172A]/70">
               <strong>Tip:</strong> Edge TTS is free but may not be suitable for production at scale.
               Azure provides SLA-backed quality with 500K free characters per month. Consider using Edge
               TTS for development and Azure for production workloads.
@@ -607,14 +607,14 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
   return (
     <div className="space-y-4">
       {/* Default provider */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 rounded-lg bg-[#FF6B6B]/10">
-            <Settings2 className="w-5 h-5 text-[#FF6B6B]" />
+          <div className="p-2 rounded-lg bg-[#0052FF]/10">
+            <Settings2 className="w-5 h-5 text-[#0052FF]" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-[#2D2D2D]">Default Provider</h3>
-            <p className="text-sm text-[#2D2D2D]/50">Select which TTS provider to use by default</p>
+            <h3 className="text-base font-semibold text-[#0F172A]">Default Provider</h3>
+            <p className="text-sm text-[#0F172A]/50">Select which TTS provider to use by default</p>
           </div>
         </div>
 
@@ -625,8 +625,8 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
               className={cn(
                 "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
                 defaultProvider === p.provider
-                  ? "border-[#FF6B6B] bg-[#FF6B6B]/5"
-                  : "border-[#FF6B6B]/10 hover:bg-[#FFF8F0]",
+                  ? "border-[#0052FF] bg-[#0052FF]/5"
+                  : "border-[#0052FF]/10 hover:bg-[#FAFAFA]",
               )}
             >
               <input
@@ -635,18 +635,18 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
                 value={p.provider}
                 checked={defaultProvider === p.provider}
                 onChange={(e) => setDefaultProvider(e.target.value)}
-                className="accent-[#FF6B6B]"
+                className="accent-[#0052FF]"
               />
               <div className="flex-1">
-                <p className="text-sm font-medium text-[#2D2D2D]">{p.display_name}</p>
-                <p className="text-xs text-[#2D2D2D]/40">{p.description}</p>
+                <p className="text-sm font-medium text-[#0F172A]">{p.display_name}</p>
+                <p className="text-xs text-[#0F172A]/40">{p.description}</p>
               </div>
               {p.pricing.cost_per_million_chars === 0 ? (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#4ECDC4]/15 text-[#4ECDC4]">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#4D7CFF]/15 text-[#4D7CFF]">
                   Free
                 </span>
               ) : (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FFD93D]/15 text-[#b89a00]">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#1D4ED8]/15 text-[#b89a00]">
                   Paid
                 </span>
               )}
@@ -656,20 +656,20 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
       </div>
 
       {/* Azure credentials */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 rounded-lg bg-[#FFD93D]/15">
-            <Shield className="w-5 h-5 text-[#FFD93D]" />
+          <div className="p-2 rounded-lg bg-[#1D4ED8]/15">
+            <Shield className="w-5 h-5 text-[#1D4ED8]" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-[#2D2D2D]">Azure Credentials</h3>
-            <p className="text-sm text-[#2D2D2D]/50">Configure Azure Cognitive Services subscription key and region</p>
+            <h3 className="text-base font-semibold text-[#0F172A]">Azure Credentials</h3>
+            <p className="text-sm text-[#0F172A]/50">Configure Azure Cognitive Services subscription key and region</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">
+            <label className="block text-sm font-medium text-[#0F172A]/70 mb-1">
               Subscription Key
             </label>
             <input
@@ -677,17 +677,17 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
               placeholder="Enter your Azure TTS key"
               value={azureKey}
               onChange={(e) => setAzureKey(e.target.value)}
-              className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">
+            <label className="block text-sm font-medium text-[#0F172A]/70 mb-1">
               Region
             </label>
             <select
               value={azureRegion}
               onChange={(e) => setAzureRegion(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full px-3 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             >
               {["eastus", "westus", "westus2", "eastasia", "southeastasia", "westeurope", "northeurope"].map((r) => (
                 <option key={r} value={r}>
@@ -703,8 +703,8 @@ function ProviderConfigTab({ providers }: { providers: ProviderInfo[] }) {
           className={cn(
             "inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors",
             saved
-              ? "bg-[#4ECDC4] text-white"
-              : "bg-[#FF6B6B] text-white hover:bg-[#ff5252]",
+              ? "bg-[#4D7CFF] text-white"
+              : "bg-[#0052FF] text-white hover:bg-[#0048D9]",
           )}
         >
           {saved ? "Saved!" : "Save Configuration"}
@@ -780,26 +780,26 @@ function AudioPlayer({ src, durationMs }: { src: string; durationMs: number }) {
       <div className="flex items-center gap-3">
         <button
           onClick={toggle}
-          className="p-2 rounded-lg bg-[#FF6B6B] text-white hover:bg-[#ff5252] transition-colors"
+          className="p-2 rounded-lg bg-[#0052FF] text-white hover:bg-[#0048D9] transition-colors"
         >
           {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </button>
         <button
           onClick={stop}
-          className="p-2 rounded-lg bg-[#2D2D2D]/10 text-[#2D2D2D]/50 hover:bg-[#2D2D2D]/20 transition-colors"
+          className="p-2 rounded-lg bg-[#0F172A]/10 text-[#0F172A]/50 hover:bg-[#0F172A]/20 transition-colors"
         >
           <Square className="w-4 h-4" />
         </button>
 
         {/* Progress bar */}
-        <div className="flex-1 h-2 bg-[#FF6B6B]/10 rounded-full overflow-hidden">
+        <div className="flex-1 h-2 bg-[#0052FF]/10 rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#FF6B6B] rounded-full transition-all"
+            className="h-full bg-[#0052FF] rounded-full transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
 
-        <span className="text-xs font-mono text-[#2D2D2D]/50 w-[80px] text-right">
+        <span className="text-xs font-mono text-[#0F172A]/50 w-[80px] text-right">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
       </div>
@@ -822,11 +822,11 @@ function ProviderSelect({
 }) {
   return (
     <div className="relative">
-      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/30" />
+      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/30" />
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="pl-9 pr-8 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 appearance-none"
+        className="pl-9 pr-8 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 appearance-none"
       >
         {providers.map((p) => (
           <option key={p.provider} value={p.provider}>
@@ -834,7 +834,7 @@ function ProviderSelect({
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/30 pointer-events-none" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/30 pointer-events-none" />
     </div>
   );
 }
@@ -856,11 +856,11 @@ function SelectDropdown({
 }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#2D2D2D]/30">{icon}</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0F172A]/30">{icon}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="pl-9 pr-8 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 appearance-none"
+        className="pl-9 pr-8 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 appearance-none"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -868,7 +868,7 @@ function SelectDropdown({
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/30 pointer-events-none" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/30 pointer-events-none" />
     </div>
   );
 }

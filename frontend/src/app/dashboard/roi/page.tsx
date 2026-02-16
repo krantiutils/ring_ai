@@ -101,14 +101,14 @@ export default function ROIAnalyticsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-xl font-bold text-[#2D2D2D]">ROI Analytics</h1>
-        <p className="text-sm text-[#2D2D2D]/50 mt-1">
+        <h1 className="text-xl font-bold text-[#0F172A]">ROI Analytics</h1>
+        <p className="text-sm text-[#0F172A]/50 mt-1">
           Track campaign costs, compare performance, and calculate ROI
         </p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-white rounded-lg border border-[#FF6B6B]/15 p-1 w-fit">
+      <div className="flex gap-1 bg-white rounded-lg border border-[#0052FF]/15 p-1 w-fit">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -118,8 +118,8 @@ export default function ROIAnalyticsPage() {
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
                 activeTab === tab.key
-                  ? "bg-[#FF6B6B] text-white"
-                  : "text-[#2D2D2D]/50 hover:text-[#2D2D2D] hover:bg-[#FFF8F0]",
+                  ? "bg-[#0052FF] text-white"
+                  : "text-[#0F172A]/50 hover:text-[#0F172A] hover:bg-[#FAFAFA]",
               )}
             >
               <Icon className="w-4 h-4" />
@@ -132,7 +132,7 @@ export default function ROIAnalyticsPage() {
       {/* Tab content */}
       {loadingCampaigns ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#0052FF]" />
         </div>
       ) : (
         <>
@@ -177,16 +177,16 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
 
   const costPieData = roi
     ? [
-        { name: "TTS", value: roi.cost_breakdown.tts_cost, fill: "#FF6B6B" },
-        { name: "Telephony", value: roi.cost_breakdown.telephony_cost, fill: "#4ECDC4" },
-        { name: "Gemini", value: roi.cost_breakdown.gemini_cost, fill: "#FFD93D" },
+        { name: "TTS", value: roi.cost_breakdown.tts_cost, fill: "#0052FF" },
+        { name: "Telephony", value: roi.cost_breakdown.telephony_cost, fill: "#4D7CFF" },
+        { name: "Gemini", value: roi.cost_breakdown.gemini_cost, fill: "#1D4ED8" },
       ].filter((d) => d.value > 0)
     : [];
 
   const statusBarData = roi
     ? [
-        { name: "Completed", value: roi.completed_interactions, fill: "#4ECDC4" },
-        { name: "Failed", value: roi.failed_interactions, fill: "#FF6B6B" },
+        { name: "Completed", value: roi.completed_interactions, fill: "#4D7CFF" },
+        { name: "Failed", value: roi.failed_interactions, fill: "#0052FF" },
         {
           name: "Other",
           value: roi.total_interactions - roi.completed_interactions - roi.failed_interactions,
@@ -198,14 +198,14 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <div className="space-y-6">
       {/* Campaign selector */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-        <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+        <label className="block text-sm font-medium text-[#0F172A]/60 mb-2">
           Select Campaign
         </label>
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
-          className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+          className="w-full max-w-md border border-[#0052FF]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
         >
           <option value="">Choose a campaign...</option>
           {campaigns.map((c) => (
@@ -218,7 +218,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
 
       {loading && (
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#0052FF]" />
         </div>
       )}
 
@@ -236,35 +236,35 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
               title="Total Cost"
               value={formatCurrency(roi.total_cost)}
               icon={DollarSign}
-              iconColor="text-[#FF6B6B]"
+              iconColor="text-[#0052FF]"
             />
             <StatWidget
               title="Conversion Rate"
               value={formatPct(roi.conversion_rate)}
               subtitle={`${roi.completed_interactions} of ${roi.total_interactions}`}
               icon={TrendingUp}
-              iconColor="text-[#4ECDC4]"
+              iconColor="text-[#4D7CFF]"
             />
             <StatWidget
               title="Cost per Conversion"
               value={roi.cost_per_conversion !== null ? formatCurrency(roi.cost_per_conversion) : "N/A"}
               icon={Calculator}
-              iconColor="text-[#FFD93D]"
+              iconColor="text-[#1D4ED8]"
             />
             <StatWidget
               title="Avg Duration"
               value={formatDurationShort(roi.avg_duration_seconds)}
               subtitle={roi.avg_sentiment_score !== null ? `Sentiment: ${roi.avg_sentiment_score}` : undefined}
               icon={BarChart3}
-              iconColor="text-[#FF6B6B]"
+              iconColor="text-[#0052FF]"
             />
           </div>
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Cost breakdown pie */}
-            <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-              <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Cost Breakdown</h3>
+            <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+              <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Cost Breakdown</h3>
               {costPieData.length > 0 ? (
                 <div className="flex items-center gap-6">
                   <ResponsiveContainer width="50%" height={180}>
@@ -288,7 +288,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                         formatter={(value) => formatCurrency(Number(value))}
                         contentStyle={{
                           borderRadius: "8px",
-                          border: "1px solid #FF6B6B26",
+                          border: "1px solid #0052FF26",
                           fontSize: "13px",
                         }}
                       />
@@ -301,16 +301,16 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: entry.fill }}
                         />
-                        <span className="text-sm text-[#2D2D2D]/60">{entry.name}</span>
-                        <span className="text-sm font-medium text-[#2D2D2D] ml-auto">
+                        <span className="text-sm text-[#0F172A]/60">{entry.name}</span>
+                        <span className="text-sm font-medium text-[#0F172A] ml-auto">
                           {formatCurrency(entry.value)}
                         </span>
                       </div>
                     ))}
-                    <div className="pt-2 border-t border-[#FF6B6B]/10">
+                    <div className="pt-2 border-t border-[#0052FF]/10">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#2D2D2D]">Total</span>
-                        <span className="text-sm font-bold text-[#2D2D2D] ml-auto">
+                        <span className="text-sm font-medium text-[#0F172A]">Total</span>
+                        <span className="text-sm font-bold text-[#0F172A] ml-auto">
                           {formatCurrency(roi.total_cost)}
                         </span>
                       </div>
@@ -318,17 +318,17 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-[#2D2D2D]/40 text-center py-8">No cost data</p>
+                <p className="text-sm text-[#0F172A]/40 text-center py-8">No cost data</p>
               )}
             </div>
 
             {/* Interaction status bar */}
-            <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-              <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Interaction Outcomes</h3>
+            <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+              <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Interaction Outcomes</h3>
               {statusBarData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={statusBarData} barSize={48}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                     <XAxis
                       dataKey="name"
                       tick={{ fontSize: 12 }}
@@ -339,7 +339,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                     <Tooltip
                       contentStyle={{
                         borderRadius: "8px",
-                        border: "1px solid #FF6B6B26",
+                        border: "1px solid #0052FF26",
                         fontSize: "13px",
                       }}
                     />
@@ -351,7 +351,7 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-sm text-[#2D2D2D]/40 text-center py-8">
+                <p className="text-sm text-[#0F172A]/40 text-center py-8">
                   No interaction data
                 </p>
               )}
@@ -359,11 +359,11 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
           </div>
 
           {/* Detailed metrics table */}
-          <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#FF6B6B]/10">
-              <h3 className="text-sm font-semibold text-[#2D2D2D]">Detailed Metrics</h3>
+          <div className="bg-white rounded-xl border border-[#0052FF]/15 overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#0052FF]/10">
+              <h3 className="text-sm font-semibold text-[#0F172A]">Detailed Metrics</h3>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-[#FF6B6B]/10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-[#0052FF]/10">
               {[
                 { label: "Campaign Type", value: roi.campaign_type },
                 { label: "Status", value: roi.campaign_status },
@@ -382,8 +382,8 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
                 { label: "Avg Sentiment", value: roi.avg_sentiment_score !== null ? roi.avg_sentiment_score.toString() : "N/A" },
               ].map((item) => (
                 <div key={item.label} className="bg-white p-4">
-                  <p className="text-xs text-[#2D2D2D]/40 mb-1">{item.label}</p>
-                  <p className="text-sm font-semibold text-[#2D2D2D]">{item.value}</p>
+                  <p className="text-xs text-[#0F172A]/40 mb-1">{item.label}</p>
+                  <p className="text-sm font-semibold text-[#0F172A]">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -393,13 +393,13 @@ function CampaignROITab({ campaigns }: { campaigns: Campaign[] }) {
 
       {!selectedId && !loading && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center mb-4">
-            <TrendingUp className="w-7 h-7 text-[#FF6B6B]/40" />
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center mb-4">
+            <TrendingUp className="w-7 h-7 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">
+          <p className="text-sm font-medium text-[#0F172A]/60">
             Select a campaign to view ROI metrics
           </p>
-          <p className="text-xs text-[#2D2D2D]/40 mt-1">
+          <p className="text-xs text-[#0F172A]/40 mt-1">
             Cost breakdowns, conversion rates, and performance insights
           </p>
         </div>
@@ -472,11 +472,11 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <div className="space-y-6">
       {/* Campaign multi-select */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-[#2D2D2D]">Select Campaigns to Compare</h3>
-            <p className="text-xs text-[#2D2D2D]/40 mt-0.5">
+            <h3 className="text-sm font-semibold text-[#0F172A]">Select Campaigns to Compare</h3>
+            <p className="text-xs text-[#0F172A]/40 mt-0.5">
               Choose at least 2 campaigns ({selectedIds.size} selected)
             </p>
           </div>
@@ -486,8 +486,8 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
               selectedIds.size >= 2
-                ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
-                : "bg-[#FF6B6B]/20 text-[#FF6B6B]/40 cursor-not-allowed",
+                ? "bg-[#0052FF] text-white hover:bg-[#0048D9]"
+                : "bg-[#0052FF]/20 text-[#0052FF]/40 cursor-not-allowed",
             )}
           >
             {loading ? (
@@ -506,22 +506,22 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors border",
                 selectedIds.has(c.id)
-                  ? "border-[#FF6B6B] bg-[#FF6B6B]/5 text-[#2D2D2D]"
-                  : "border-[#FF6B6B]/10 hover:border-[#FF6B6B]/30 text-[#2D2D2D]/60",
+                  ? "border-[#0052FF] bg-[#0052FF]/5 text-[#0F172A]"
+                  : "border-[#0052FF]/10 hover:border-[#0052FF]/30 text-[#0F172A]/60",
               )}
             >
               <div
                 className={cn(
                   "w-4 h-4 rounded border flex items-center justify-center shrink-0",
                   selectedIds.has(c.id)
-                    ? "bg-[#FF6B6B] border-[#FF6B6B]"
-                    : "border-[#FF6B6B]/30",
+                    ? "bg-[#0052FF] border-[#0052FF]"
+                    : "border-[#0052FF]/30",
                 )}
               >
                 {selectedIds.has(c.id) && <Check className="w-3 h-3 text-white" />}
               </div>
               <span className="truncate">{c.name}</span>
-              <span className="text-xs text-[#2D2D2D]/30 ml-auto capitalize shrink-0">
+              <span className="text-xs text-[#0F172A]/30 ml-auto capitalize shrink-0">
                 {c.type}
               </span>
             </button>
@@ -539,13 +539,13 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
         <>
           {/* Comparison chart */}
           {comparisonBarData.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-              <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">
+            <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+              <h3 className="text-sm font-semibold text-[#0F172A] mb-4">
                 Conversion Rate Comparison
               </h3>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={comparisonBarData} barSize={40}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                   <XAxis
                     dataKey="name"
                     tick={{ fontSize: 11 }}
@@ -561,102 +561,102 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
                   <Tooltip
                     contentStyle={{
                       borderRadius: "8px",
-                      border: "1px solid #FF6B6B26",
+                      border: "1px solid #0052FF26",
                       fontSize: "13px",
                     }}
                     formatter={(value) => [`${Number(value)}%`, "Conversion"]}
                   />
-                  <Bar dataKey="conversion" fill="#FF6B6B" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="conversion" fill="#0052FF" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
 
           {/* Comparison table */}
-          <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#FF6B6B]/10">
-              <h3 className="text-sm font-semibold text-[#2D2D2D]">Side-by-Side Comparison</h3>
+          <div className="bg-white rounded-xl border border-[#0052FF]/15 overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#0052FF]/10">
+              <h3 className="text-sm font-semibold text-[#0F172A]">Side-by-Side Comparison</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
-                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                  <tr className="border-b border-[#0052FF]/10 bg-[#FAFAFA]/50">
+                    <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Campaign
                     </th>
-                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Type
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Interactions
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Completed
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Conv. Rate
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Total Cost
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Cost/Conv.
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Avg Duration
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Sentiment
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#FF6B6B]/10">
+                <tbody className="divide-y divide-[#0052FF]/10">
                   {comparison.campaigns.map((c) => {
                     const bestConv = bestValue(comparison.campaigns, "conversion_rate", true);
                     const bestCostConv = bestValue(comparison.campaigns, "cost_per_conversion", false);
                     return (
-                      <tr key={c.campaign_id} className="hover:bg-[#FFF8F0]/50">
-                        <td className="px-5 py-3 text-sm font-medium text-[#2D2D2D]">
+                      <tr key={c.campaign_id} className="hover:bg-[#FAFAFA]/50">
+                        <td className="px-5 py-3 text-sm font-medium text-[#0F172A]">
                           {c.campaign_name}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 capitalize">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 capitalize">
                           {c.campaign_type}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                           {c.total_interactions}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                           {c.completed}
                         </td>
                         <td
                           className={cn(
                             "px-5 py-3 text-sm text-right font-medium",
                             bestConv === c.campaign_id
-                              ? "text-[#4ECDC4]"
-                              : "text-[#2D2D2D]/60",
+                              ? "text-[#4D7CFF]"
+                              : "text-[#0F172A]/60",
                           )}
                         >
                           {formatPct(c.conversion_rate)}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                           {formatCurrency(c.total_cost)}
                         </td>
                         <td
                           className={cn(
                             "px-5 py-3 text-sm text-right font-medium",
                             bestCostConv === c.campaign_id
-                              ? "text-[#4ECDC4]"
-                              : "text-[#2D2D2D]/60",
+                              ? "text-[#4D7CFF]"
+                              : "text-[#0F172A]/60",
                           )}
                         >
                           {c.cost_per_conversion !== null
                             ? formatCurrency(c.cost_per_conversion)
                             : "N/A"}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                           {formatDurationShort(c.avg_duration_seconds)}
                         </td>
-                        <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                        <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                           {c.avg_sentiment_score !== null
                             ? c.avg_sentiment_score.toFixed(2)
                             : "N/A"}
@@ -673,13 +673,13 @@ function CompareTab({ campaigns }: { campaigns: Campaign[] }) {
 
       {!comparison && !loading && selectedIds.size < 2 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center mb-4">
-            <BarChart3 className="w-7 h-7 text-[#FF6B6B]/40" />
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center mb-4">
+            <BarChart3 className="w-7 h-7 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">
+          <p className="text-sm font-medium text-[#0F172A]/60">
             Select at least 2 campaigns to compare
           </p>
-          <p className="text-xs text-[#2D2D2D]/40 mt-1">
+          <p className="text-xs text-[#0F172A]/40 mt-1">
             See conversion rates, costs, and performance side by side
           </p>
         </div>
@@ -788,14 +788,14 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
       {/* Header with create button */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[#2D2D2D]">A/B Tests</h3>
-          <p className="text-xs text-[#2D2D2D]/40 mt-0.5">
+          <h3 className="text-sm font-semibold text-[#0F172A]">A/B Tests</h3>
+          <p className="text-xs text-[#0F172A]/40 mt-0.5">
             Split test campaigns and compare outcomes with statistical significance
           </p>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#FF6B6B] text-white hover:bg-[#ff5252] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#0052FF] text-white hover:bg-[#0048D9] transition-colors"
         >
           <FlaskConical className="w-4 h-4" />
           {showCreate ? "Cancel" : "New A/B Test"}
@@ -804,9 +804,9 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
 
       {/* Create form */}
       {showCreate && (
-        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 space-y-4">
+        <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-1">
+            <label className="block text-sm font-medium text-[#0F172A]/60 mb-1">
               Test Name
             </label>
             <input
@@ -814,11 +814,11 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               placeholder="e.g. Voice Provider Comparison Q1"
-              className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full max-w-md border border-[#0052FF]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-1">
+            <label className="block text-sm font-medium text-[#0F172A]/60 mb-1">
               Description (optional)
             </label>
             <input
@@ -826,11 +826,11 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
               value={createDesc}
               onChange={(e) => setCreateDesc(e.target.value)}
               placeholder="What are you testing?"
-              className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full max-w-md border border-[#0052FF]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+            <label className="block text-sm font-medium text-[#0F172A]/60 mb-2">
               Select Variant Campaigns (min 2) — {createCampaignIds.size} selected
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
@@ -841,22 +841,22 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors border",
                     createCampaignIds.has(c.id)
-                      ? "border-[#FF6B6B] bg-[#FF6B6B]/5 text-[#2D2D2D]"
-                      : "border-[#FF6B6B]/10 hover:border-[#FF6B6B]/30 text-[#2D2D2D]/60",
+                      ? "border-[#0052FF] bg-[#0052FF]/5 text-[#0F172A]"
+                      : "border-[#0052FF]/10 hover:border-[#0052FF]/30 text-[#0F172A]/60",
                   )}
                 >
                   <div
                     className={cn(
                       "w-4 h-4 rounded border flex items-center justify-center shrink-0",
                       createCampaignIds.has(c.id)
-                        ? "bg-[#FF6B6B] border-[#FF6B6B]"
-                        : "border-[#FF6B6B]/30",
+                        ? "bg-[#0052FF] border-[#0052FF]"
+                        : "border-[#0052FF]/30",
                     )}
                   >
                     {createCampaignIds.has(c.id) && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <span className="truncate">{c.name}</span>
-                  <span className="text-xs text-[#2D2D2D]/30 ml-auto capitalize shrink-0">
+                  <span className="text-xs text-[#0F172A]/30 ml-auto capitalize shrink-0">
                     {c.type}
                   </span>
                 </button>
@@ -869,8 +869,8 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
             className={cn(
               "flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors",
               createCampaignIds.size >= 2 && createName.trim()
-                ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
-                : "bg-[#FF6B6B]/20 text-[#FF6B6B]/40 cursor-not-allowed",
+                ? "bg-[#0052FF] text-white hover:bg-[#0048D9]"
+                : "bg-[#0052FF]/20 text-[#0052FF]/40 cursor-not-allowed",
             )}
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
@@ -887,14 +887,14 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
 
       {/* Test selector */}
       {abTests.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-          <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+        <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+          <label className="block text-sm font-medium text-[#0F172A]/60 mb-2">
             Select A/B Test
           </label>
           <select
             value={selectedTestId}
             onChange={(e) => setSelectedTestId(e.target.value)}
-            className="w-full max-w-md border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+            className="w-full max-w-md border border-[#0052FF]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
           >
             <option value="">Choose a test...</option>
             {abTests.map((t) => (
@@ -908,13 +908,13 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
 
       {loadingTests && (
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#0052FF]" />
         </div>
       )}
 
       {loadingResult && (
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 animate-spin text-[#FF6B6B]" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#0052FF]" />
         </div>
       )}
 
@@ -926,23 +926,23 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
             className={cn(
               "rounded-xl border p-5",
               testResult.is_significant
-                ? "bg-[#4ECDC4]/5 border-[#4ECDC4]/20"
-                : "bg-[#FFF8F0] border-[#FF6B6B]/15",
+                ? "bg-[#4D7CFF]/5 border-[#4D7CFF]/20"
+                : "bg-[#FAFAFA] border-[#0052FF]/15",
             )}
           >
             <div className="flex items-center gap-3">
               {testResult.is_significant ? (
-                <Check className="w-6 h-6 text-[#4ECDC4]" />
+                <Check className="w-6 h-6 text-[#4D7CFF]" />
               ) : (
-                <X className="w-6 h-6 text-[#FF6B6B]/50" />
+                <X className="w-6 h-6 text-[#0052FF]/50" />
               )}
               <div>
-                <p className="text-sm font-semibold text-[#2D2D2D]">
+                <p className="text-sm font-semibold text-[#0F172A]">
                   {testResult.is_significant
                     ? `Statistically significant — "${testResult.winner}" wins`
                     : "Not yet significant"}
                 </p>
-                <p className="text-xs text-[#2D2D2D]/50 mt-0.5">
+                <p className="text-xs text-[#0F172A]/50 mt-0.5">
                   Chi-squared: {testResult.chi_squared?.toFixed(4) ?? "N/A"} | p-value:{" "}
                   {testResult.p_value?.toFixed(6) ?? "N/A"}
                   {!testResult.is_significant && " (p > 0.05)"}
@@ -953,8 +953,8 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
 
           {/* Variant comparison chart */}
           {testResult.variants.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-              <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">
+            <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+              <h3 className="text-sm font-semibold text-[#0F172A] mb-4">
                 Conversion Rate by Variant
               </h3>
               <ResponsiveContainer width="100%" height={240}>
@@ -965,18 +965,18 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
                   }))}
                   barSize={48}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
-                    contentStyle={{ borderRadius: "8px", border: "1px solid #FF6B6B26", fontSize: "13px" }}
+                    contentStyle={{ borderRadius: "8px", border: "1px solid #0052FF26", fontSize: "13px" }}
                     formatter={(value) => [`${Number(value)}%`, "Conversion"]}
                   />
                   <Bar dataKey="conversion" radius={[4, 4, 0, 0]}>
                     {testResult.variants.map((v, i) => (
                       <Cell
                         key={i}
-                        fill={v.variant_name === bestVariant ? "#4ECDC4" : "#FF6B6B"}
+                        fill={v.variant_name === bestVariant ? "#4D7CFF" : "#0052FF"}
                       />
                     ))}
                   </Bar>
@@ -986,84 +986,84 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
           )}
 
           {/* Variant details table */}
-          <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#FF6B6B]/10">
-              <h3 className="text-sm font-semibold text-[#2D2D2D]">Variant Details</h3>
+          <div className="bg-white rounded-xl border border-[#0052FF]/15 overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#0052FF]/10">
+              <h3 className="text-sm font-semibold text-[#0F172A]">Variant Details</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
-                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                  <tr className="border-b border-[#0052FF]/10 bg-[#FAFAFA]/50">
+                    <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Variant
                     </th>
-                    <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Campaign
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Interactions
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Completed
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Conv. Rate
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Cost
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Cost/Conv.
                     </th>
-                    <th className="text-right text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-5 py-3">
+                    <th className="text-right text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-5 py-3">
                       Sentiment
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#FF6B6B]/10">
+                <tbody className="divide-y divide-[#0052FF]/10">
                   {testResult.variants.map((v) => (
                     <tr
                       key={v.variant_name}
                       className={cn(
-                        "hover:bg-[#FFF8F0]/50",
-                        v.variant_name === bestVariant && "bg-[#4ECDC4]/5",
+                        "hover:bg-[#FAFAFA]/50",
+                        v.variant_name === bestVariant && "bg-[#4D7CFF]/5",
                       )}
                     >
-                      <td className="px-5 py-3 text-sm font-medium text-[#2D2D2D]">
+                      <td className="px-5 py-3 text-sm font-medium text-[#0F172A]">
                         {v.variant_name}
                         {v.variant_name === bestVariant && (
-                          <span className="ml-2 text-xs font-medium text-[#4ECDC4]">WINNER</span>
+                          <span className="ml-2 text-xs font-medium text-[#4D7CFF]">WINNER</span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60">
                         {v.campaign_name}
                         {v.tts_provider && (
-                          <span className="block text-xs text-[#2D2D2D]/30 mt-0.5">
+                          <span className="block text-xs text-[#0F172A]/30 mt-0.5">
                             {v.tts_provider}{v.tts_voice ? ` — ${v.tts_voice}` : ""}
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                         {v.total_interactions}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                         {v.completed}
                       </td>
                       <td
                         className={cn(
                           "px-5 py-3 text-sm text-right font-medium",
-                          v.variant_name === bestVariant ? "text-[#4ECDC4]" : "text-[#2D2D2D]/60",
+                          v.variant_name === bestVariant ? "text-[#4D7CFF]" : "text-[#0F172A]/60",
                         )}
                       >
                         {formatPct(v.conversion_rate)}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                         {formatCurrency(v.total_cost)}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                         {v.cost_per_conversion !== null ? formatCurrency(v.cost_per_conversion) : "N/A"}
                       </td>
-                      <td className="px-5 py-3 text-sm text-[#2D2D2D]/60 text-right">
+                      <td className="px-5 py-3 text-sm text-[#0F172A]/60 text-right">
                         {v.avg_sentiment_score !== null ? v.avg_sentiment_score.toFixed(2) : "N/A"}
                       </td>
                     </tr>
@@ -1078,11 +1078,11 @@ function ABTestingTab({ campaigns }: { campaigns: Campaign[] }) {
       {/* Empty state */}
       {abTests.length === 0 && !loadingTests && !showCreate && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center mb-4">
-            <FlaskConical className="w-7 h-7 text-[#FF6B6B]/40" />
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center mb-4">
+            <FlaskConical className="w-7 h-7 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">No A/B tests yet</p>
-          <p className="text-xs text-[#2D2D2D]/40 mt-1">
+          <p className="text-sm font-medium text-[#0F172A]/60">No A/B tests yet</p>
+          <p className="text-xs text-[#0F172A]/40 mt-1">
             Create a test to compare campaign variants with statistical significance
           </p>
         </div>
@@ -1138,16 +1138,16 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <div className="space-y-6">
       {/* Input section */}
-      <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-        <h3 className="text-sm font-semibold text-[#2D2D2D] mb-1">ROI Calculator</h3>
-        <p className="text-xs text-[#2D2D2D]/40 mb-4">
+      <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+        <h3 className="text-sm font-semibold text-[#0F172A] mb-1">ROI Calculator</h3>
+        <p className="text-xs text-[#0F172A]/40 mb-4">
           Compare automated campaign costs against manual calling estimates
         </p>
 
         <div className="space-y-4">
           {/* Manual cost input */}
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-1">
+            <label className="block text-sm font-medium text-[#0F172A]/60 mb-1">
               Manual cost per call (NPR)
             </label>
             <input
@@ -1156,13 +1156,13 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
               onChange={(e) => setManualCost(e.target.value)}
               min="0"
               step="0.5"
-              className="w-full max-w-[200px] border border-[#FF6B6B]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+              className="w-full max-w-[200px] border border-[#0052FF]/15 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
             />
           </div>
 
           {/* Campaign select */}
           <div>
-            <label className="block text-sm font-medium text-[#2D2D2D]/60 mb-2">
+            <label className="block text-sm font-medium text-[#0F172A]/60 mb-2">
               Campaigns to analyze ({selectedIds.size} selected)
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
@@ -1173,22 +1173,22 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors border",
                     selectedIds.has(c.id)
-                      ? "border-[#FF6B6B] bg-[#FF6B6B]/5 text-[#2D2D2D]"
-                      : "border-[#FF6B6B]/10 hover:border-[#FF6B6B]/30 text-[#2D2D2D]/60",
+                      ? "border-[#0052FF] bg-[#0052FF]/5 text-[#0F172A]"
+                      : "border-[#0052FF]/10 hover:border-[#0052FF]/30 text-[#0F172A]/60",
                   )}
                 >
                   <div
                     className={cn(
                       "w-4 h-4 rounded border flex items-center justify-center shrink-0",
                       selectedIds.has(c.id)
-                        ? "bg-[#FF6B6B] border-[#FF6B6B]"
-                        : "border-[#FF6B6B]/30",
+                        ? "bg-[#0052FF] border-[#0052FF]"
+                        : "border-[#0052FF]/30",
                     )}
                   >
                     {selectedIds.has(c.id) && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <span className="truncate">{c.name}</span>
-                  <span className="text-xs text-[#2D2D2D]/30 ml-auto capitalize shrink-0">
+                  <span className="text-xs text-[#0F172A]/30 ml-auto capitalize shrink-0">
                     {c.type}
                   </span>
                 </button>
@@ -1202,8 +1202,8 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
             className={cn(
               "flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors",
               selectedIds.size > 0
-                ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
-                : "bg-[#FF6B6B]/20 text-[#FF6B6B]/40 cursor-not-allowed",
+                ? "bg-[#0052FF] text-white hover:bg-[#0048D9]"
+                : "bg-[#0052FF]/20 text-[#0052FF]/40 cursor-not-allowed",
             )}
           >
             {loading ? (
@@ -1229,24 +1229,24 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
             className={cn(
               "rounded-xl border p-6",
               savingsPositive
-                ? "bg-[#4ECDC4]/5 border-[#4ECDC4]/20"
-                : "bg-[#FF6B6B]/5 border-[#FF6B6B]/20",
+                ? "bg-[#4D7CFF]/5 border-[#4D7CFF]/20"
+                : "bg-[#0052FF]/5 border-[#0052FF]/20",
             )}
           >
             <div className="flex items-center gap-3 mb-2">
               {savingsPositive ? (
-                <ArrowUpRight className="w-6 h-6 text-[#4ECDC4]" />
+                <ArrowUpRight className="w-6 h-6 text-[#4D7CFF]" />
               ) : result.cost_savings < 0 ? (
-                <ArrowDownRight className="w-6 h-6 text-[#FF6B6B]" />
+                <ArrowDownRight className="w-6 h-6 text-[#0052FF]" />
               ) : (
                 <Minus className="w-6 h-6 text-[#94a3b8]" />
               )}
               <div>
-                <p className="text-sm font-medium text-[#2D2D2D]/60">Estimated Savings</p>
+                <p className="text-sm font-medium text-[#0F172A]/60">Estimated Savings</p>
                 <p
                   className={cn(
                     "text-2xl font-bold",
-                    savingsPositive ? "text-[#4ECDC4]" : "text-[#FF6B6B]",
+                    savingsPositive ? "text-[#4D7CFF]" : "text-[#0052FF]",
                   )}
                 >
                   {formatCurrency(result.cost_savings)}
@@ -1266,20 +1266,20 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
               title="Automated Cost"
               value={formatCurrency(result.total_automated_cost)}
               icon={DollarSign}
-              iconColor="text-[#4ECDC4]"
+              iconColor="text-[#4D7CFF]"
             />
             <StatWidget
               title="Manual Cost (Est.)"
               value={formatCurrency(result.total_manual_cost_estimate)}
               icon={DollarSign}
-              iconColor="text-[#FFD93D]"
+              iconColor="text-[#1D4ED8]"
             />
             <StatWidget
               title="Conversion Rate"
               value={formatPct(result.overall_conversion_rate)}
               subtitle={`${result.total_completed} of ${result.total_interactions}`}
               icon={TrendingUp}
-              iconColor="text-[#FF6B6B]"
+              iconColor="text-[#0052FF]"
             />
             <StatWidget
               title="Campaigns Analyzed"
@@ -1290,7 +1290,7 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
                   : undefined
               }
               icon={BarChart3}
-              iconColor="text-[#FF6B6B]"
+              iconColor="text-[#0052FF]"
             />
           </div>
         </>
@@ -1298,13 +1298,13 @@ function CalculatorTab({ campaigns }: { campaigns: Campaign[] }) {
 
       {!result && !loading && selectedIds.size === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center mb-4">
-            <Calculator className="w-7 h-7 text-[#FF6B6B]/40" />
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center mb-4">
+            <Calculator className="w-7 h-7 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">
+          <p className="text-sm font-medium text-[#0F172A]/60">
             Select campaigns and set manual cost to calculate ROI
           </p>
-          <p className="text-xs text-[#2D2D2D]/40 mt-1">
+          <p className="text-xs text-[#0F172A]/40 mt-1">
             See how much you save with automated calling vs manual outreach
           </p>
         </div>
