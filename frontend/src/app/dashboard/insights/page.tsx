@@ -36,14 +36,14 @@ import type {
 } from "@/types/dashboard";
 
 const REASON_LABELS: Record<string, { label: string; color: string; icon: typeof ThumbsUp }> = {
-  extremely_negative_sentiment: { label: "Negative Sentiment", color: "#FF6B6B", icon: ThumbsDown },
-  highly_positive_sentiment: { label: "Positive Sentiment", color: "#4ECDC4", icon: ThumbsUp },
-  unusually_long_duration: { label: "Long Duration", color: "#FFD93D", icon: Clock },
+  extremely_negative_sentiment: { label: "Negative Sentiment", color: "#0052FF", icon: ThumbsDown },
+  highly_positive_sentiment: { label: "Positive Sentiment", color: "#4D7CFF", icon: ThumbsUp },
+  unusually_long_duration: { label: "Long Duration", color: "#1D4ED8", icon: Clock },
   very_short_duration: { label: "Short Duration", color: "#94a3b8", icon: Zap },
 };
 
 const INTENT_COLORS = [
-  "#FF6B6B", "#4ECDC4", "#FFD93D", "#94a3b8", "#ff8787",
+  "#0052FF", "#4D7CFF", "#1D4ED8", "#94a3b8", "#4D7CFF",
   "#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899",
 ];
 
@@ -133,7 +133,7 @@ export default function InsightsPage() {
   if (loadingCampaigns) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0052FF]" />
       </div>
     );
   }
@@ -146,7 +146,7 @@ export default function InsightsPage() {
           <select
             value={selectedCampaignId}
             onChange={(e) => handleCampaignChange(e.target.value)}
-            className="w-full appearance-none px-4 py-2.5 pr-10 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
+            className="w-full appearance-none px-4 py-2.5 pr-10 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 focus:border-transparent"
           >
             <option value="">Select a campaign...</option>
             {campaigns.map((c) => (
@@ -155,12 +155,12 @@ export default function InsightsPage() {
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/40 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/40 pointer-events-none" />
         </div>
         {insights && (
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+            className="flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
           >
             <Download className="w-4 h-4" />
             Export CSV
@@ -172,25 +172,25 @@ export default function InsightsPage() {
       {loading && (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
-            <p className="text-sm text-[#2D2D2D]/60">Generating insights...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0052FF]" />
+            <p className="text-sm text-[#0F172A]/60">Generating insights...</p>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="bg-[#FF6B6B]/10 border border-[#FF6B6B]/20 rounded-lg p-4 text-sm text-[#FF6B6B]">
+        <div className="bg-[#0052FF]/10 border border-[#0052FF]/20 rounded-lg p-4 text-sm text-[#0052FF]">
           {error}
         </div>
       )}
 
       {!selectedCampaignId && !loading && (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <div className="w-16 h-16 rounded-full bg-[#FFF8F0] flex items-center justify-center">
-            <Lightbulb className="w-8 h-8 text-[#FF6B6B]/40" />
+          <div className="w-16 h-16 rounded-full bg-[#FAFAFA] flex items-center justify-center">
+            <Lightbulb className="w-8 h-8 text-[#0052FF]/40" />
           </div>
-          <p className="text-sm font-medium text-[#2D2D2D]/60">Select a campaign to view insights</p>
-          <p className="text-xs text-[#2D2D2D]/40">Deep analytics with LLM-generated summaries</p>
+          <p className="text-sm font-medium text-[#0F172A]/60">Select a campaign to view insights</p>
+          <p className="text-xs text-[#0F172A]/40">Deep analytics with LLM-generated summaries</p>
         </div>
       )}
 
@@ -198,7 +198,7 @@ export default function InsightsPage() {
       {insights && !loading && (
         <>
           {/* Tab Navigation */}
-          <div className="flex gap-1 bg-white rounded-lg border border-[#FF6B6B]/15 p-1">
+          <div className="flex gap-1 bg-white rounded-lg border border-[#0052FF]/15 p-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -207,8 +207,8 @@ export default function InsightsPage() {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === tab.key
-                      ? "bg-[#FF6B6B] text-white"
-                      : "text-[#2D2D2D]/60 hover:text-[#2D2D2D] hover:bg-[#FF6B6B]/10"
+                      ? "bg-[#0052FF] text-white"
+                      : "text-[#0F172A]/60 hover:text-[#0F172A] hover:bg-[#0052FF]/10"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -221,21 +221,21 @@ export default function InsightsPage() {
           {/* Summary Tab */}
           {activeTab === "summary" && (
             <div className="space-y-4">
-              <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-6">
+              <div className="bg-white rounded-xl border border-[#0052FF]/15 p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-[#FFD93D]" />
-                  <h3 className="text-sm font-semibold text-[#2D2D2D]">AI-Generated Summary</h3>
+                  <Sparkles className="w-5 h-5 text-[#1D4ED8]" />
+                  <h3 className="text-sm font-semibold text-[#0F172A]">AI-Generated Summary</h3>
                 </div>
-                <p className="text-sm text-[#2D2D2D]/80 leading-relaxed">{insights.summary}</p>
+                <p className="text-sm text-[#0F172A]/80 leading-relaxed">{insights.summary}</p>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-6">
-                <h3 className="text-sm font-semibold text-[#2D2D2D] mb-3">Common Themes</h3>
+              <div className="bg-white rounded-xl border border-[#0052FF]/15 p-6">
+                <h3 className="text-sm font-semibold text-[#0F172A] mb-3">Common Themes</h3>
                 <div className="flex flex-wrap gap-2">
                   {insights.common_themes.map((theme, i) => (
                     <span
                       key={i}
-                      className="px-3 py-1.5 bg-[#FF6B6B]/10 text-[#FF6B6B] rounded-full text-xs font-medium"
+                      className="px-3 py-1.5 bg-[#0052FF]/10 text-[#0052FF] rounded-full text-xs font-medium"
                     >
                       {theme}
                     </span>
@@ -245,21 +245,21 @@ export default function InsightsPage() {
 
               {/* Quick stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
-                  <p className="text-xs text-[#2D2D2D]/50 mb-1">Total Interactions</p>
-                  <p className="text-xl font-bold text-[#2D2D2D]">{insights.interactions.length}</p>
+                <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
+                  <p className="text-xs text-[#0F172A]/50 mb-1">Total Interactions</p>
+                  <p className="text-xl font-bold text-[#0F172A]">{insights.interactions.length}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
-                  <p className="text-xs text-[#2D2D2D]/50 mb-1">Highlights Found</p>
-                  <p className="text-xl font-bold text-[#FF6B6B]">{insights.highlights.length}</p>
+                <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
+                  <p className="text-xs text-[#0F172A]/50 mb-1">Highlights Found</p>
+                  <p className="text-xl font-bold text-[#0052FF]">{insights.highlights.length}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
-                  <p className="text-xs text-[#2D2D2D]/50 mb-1">Topic Clusters</p>
-                  <p className="text-xl font-bold text-[#4ECDC4]">{insights.topic_clusters.length}</p>
+                <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
+                  <p className="text-xs text-[#0F172A]/50 mb-1">Topic Clusters</p>
+                  <p className="text-xl font-bold text-[#4D7CFF]">{insights.topic_clusters.length}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
-                  <p className="text-xs text-[#2D2D2D]/50 mb-1">Trend Data Points</p>
-                  <p className="text-xl font-bold text-[#FFD93D]">{insights.sentiment_trend.length}</p>
+                <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
+                  <p className="text-xs text-[#0F172A]/50 mb-1">Trend Data Points</p>
+                  <p className="text-xl font-bold text-[#1D4ED8]">{insights.sentiment_trend.length}</p>
                 </div>
               </div>
             </div>
@@ -270,8 +270,8 @@ export default function InsightsPage() {
             <div className="space-y-3">
               {insights.highlights.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
-                  <AlertTriangle className="w-8 h-8 text-[#2D2D2D]/20" />
-                  <p className="text-sm text-[#2D2D2D]/50">No notable interactions detected</p>
+                  <AlertTriangle className="w-8 h-8 text-[#0F172A]/20" />
+                  <p className="text-sm text-[#0F172A]/50">No notable interactions detected</p>
                 </div>
               ) : (
                 insights.highlights.map((h) => (
@@ -286,24 +286,24 @@ export default function InsightsPage() {
             <div className="space-y-4">
               {insights.topic_clusters.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
-                  <MessageSquare className="w-8 h-8 text-[#2D2D2D]/20" />
-                  <p className="text-sm text-[#2D2D2D]/50">No topic clusters detected</p>
-                  <p className="text-xs text-[#2D2D2D]/40">Run intent backfill to classify conversations</p>
+                  <MessageSquare className="w-8 h-8 text-[#0F172A]/20" />
+                  <p className="text-sm text-[#0F172A]/50">No topic clusters detected</p>
+                  <p className="text-xs text-[#0F172A]/40">Run intent backfill to classify conversations</p>
                 </div>
               ) : (
                 <>
                   {/* Topic distribution bar chart */}
-                  <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-                    <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Topic Distribution</h3>
+                  <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+                    <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Topic Distribution</h3>
                     <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={insights.topic_clusters} barSize={44}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                         <XAxis dataKey="topic" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                         <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                         <Tooltip
                           contentStyle={{
                             borderRadius: "8px",
-                            border: "1px solid #FF6B6B26",
+                            border: "1px solid #0052FF26",
                             fontSize: "13px",
                           }}
                         />
@@ -331,16 +331,16 @@ export default function InsightsPage() {
           {activeTab === "trends" && (
             <div className="space-y-4">
               {/* Sentiment trend */}
-              <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-                <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Sentiment Trend Over Time</h3>
+              <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+                <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Sentiment Trend Over Time</h3>
                 {insights.sentiment_trend.length === 0 ? (
-                  <div className="flex items-center justify-center h-48 text-sm text-[#2D2D2D]/50">
+                  <div className="flex items-center justify-center h-48 text-sm text-[#0F172A]/50">
                     No sentiment data available
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={insights.sentiment_trend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                       <YAxis
                         domain={[-1, 1]}
@@ -352,7 +352,7 @@ export default function InsightsPage() {
                       <Tooltip
                         contentStyle={{
                           borderRadius: "8px",
-                          border: "1px solid #FF6B6B26",
+                          border: "1px solid #0052FF26",
                           fontSize: "13px",
                         }}
                         formatter={(value: number | undefined) => [value != null ? value.toFixed(2) : "-", "Avg Sentiment"]}
@@ -361,9 +361,9 @@ export default function InsightsPage() {
                       <Line
                         type="monotone"
                         dataKey="avg_sentiment"
-                        stroke="#4ECDC4"
+                        stroke="#4D7CFF"
                         strokeWidth={2}
-                        dot={{ r: 4, fill: "#4ECDC4" }}
+                        dot={{ r: 4, fill: "#4D7CFF" }}
                         name="Avg Sentiment"
                       />
                     </LineChart>
@@ -372,22 +372,22 @@ export default function InsightsPage() {
               </div>
 
               {/* Intent trend */}
-              <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5">
-                <h3 className="text-sm font-semibold text-[#2D2D2D] mb-4">Intent Distribution Over Time</h3>
+              <div className="bg-white rounded-xl border border-[#0052FF]/15 p-5">
+                <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Intent Distribution Over Time</h3>
                 {intentTrendData.length === 0 ? (
-                  <div className="flex items-center justify-center h-48 text-sm text-[#2D2D2D]/50">
+                  <div className="flex items-center justify-center h-48 text-sm text-[#0F172A]/50">
                     No intent data available
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={intentTrendData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#FF6B6B15" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#0052FF15" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                       <Tooltip
                         contentStyle={{
                           borderRadius: "8px",
-                          border: "1px solid #FF6B6B26",
+                          border: "1px solid #0052FF26",
                           fontSize: "13px",
                         }}
                       />
@@ -412,49 +412,49 @@ export default function InsightsPage() {
           {activeTab === "export" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[#2D2D2D]/60">
+                <p className="text-sm text-[#0F172A]/60">
                   {insights.interactions.length} interactions with full transcript, sentiment, and intent data
                 </p>
                 <button
                   onClick={handleExportCSV}
-                  className="flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+                  className="flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   Download CSV
                 </button>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#FF6B6B]/15 overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#0052FF]/15 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-[#FF6B6B]/10 bg-[#FFF8F0]/50">
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Phone</th>
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Status</th>
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Duration</th>
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Sentiment</th>
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Intent</th>
-                        <th className="text-left text-xs font-medium text-[#2D2D2D]/50 uppercase tracking-wider px-4 py-3">Transcript</th>
+                      <tr className="border-b border-[#0052FF]/10 bg-[#FAFAFA]/50">
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Phone</th>
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Status</th>
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Duration</th>
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Sentiment</th>
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Intent</th>
+                        <th className="text-left text-xs font-medium text-[#0F172A]/50 uppercase tracking-wider px-4 py-3">Transcript</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#FF6B6B]/10">
+                    <tbody className="divide-y divide-[#0052FF]/10">
                       {insights.interactions.slice(0, 50).map((ix) => (
-                        <tr key={ix.interaction_id} className="hover:bg-[#FFF8F0]/50">
-                          <td className="px-4 py-3 text-sm text-[#2D2D2D]">{ix.contact_phone}</td>
+                        <tr key={ix.interaction_id} className="hover:bg-[#FAFAFA]/50">
+                          <td className="px-4 py-3 text-sm text-[#0F172A]">{ix.contact_phone}</td>
                           <td className="px-4 py-3">
                             <span
                               className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                                 ix.status === "completed"
-                                  ? "bg-[#4ECDC4]/15 text-[#4ECDC4]"
+                                  ? "bg-[#4D7CFF]/15 text-[#4D7CFF]"
                                   : ix.status === "failed"
-                                    ? "bg-[#FF6B6B]/15 text-[#FF6B6B]"
+                                    ? "bg-[#0052FF]/15 text-[#0052FF]"
                                     : "bg-[#94a3b8]/15 text-[#94a3b8]"
                               }`}
                             >
                               {ix.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-[#2D2D2D]/60">
+                          <td className="px-4 py-3 text-sm text-[#0F172A]/60">
                             {ix.duration_seconds != null ? `${ix.duration_seconds}s` : "-"}
                           </td>
                           <td className="px-4 py-3">
@@ -462,20 +462,20 @@ export default function InsightsPage() {
                               <span
                                 className={`text-xs font-medium ${
                                   ix.sentiment_score > 0.3
-                                    ? "text-[#4ECDC4]"
+                                    ? "text-[#4D7CFF]"
                                     : ix.sentiment_score < -0.3
-                                      ? "text-[#FF6B6B]"
+                                      ? "text-[#0052FF]"
                                       : "text-[#94a3b8]"
                                 }`}
                               >
                                 {ix.sentiment_score.toFixed(2)}
                               </span>
                             ) : (
-                              <span className="text-xs text-[#2D2D2D]/30">-</span>
+                              <span className="text-xs text-[#0F172A]/30">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-xs text-[#2D2D2D]/60">{ix.detected_intent || "-"}</td>
-                          <td className="px-4 py-3 text-xs text-[#2D2D2D]/60 max-w-[200px] truncate">
+                          <td className="px-4 py-3 text-xs text-[#0F172A]/60">{ix.detected_intent || "-"}</td>
+                          <td className="px-4 py-3 text-xs text-[#0F172A]/60 max-w-[200px] truncate">
                             {ix.transcript || "-"}
                           </td>
                         </tr>
@@ -484,7 +484,7 @@ export default function InsightsPage() {
                   </table>
                 </div>
                 {insights.interactions.length > 50 && (
-                  <div className="px-4 py-3 text-xs text-[#2D2D2D]/50 border-t border-[#FF6B6B]/10 bg-[#FFF8F0]/30">
+                  <div className="px-4 py-3 text-xs text-[#0F172A]/50 border-t border-[#0052FF]/10 bg-[#FAFAFA]/30">
                     Showing 50 of {insights.interactions.length} interactions. Download CSV for full data.
                   </div>
                 )}
@@ -506,7 +506,7 @@ function HighlightCard({ highlight }: { highlight: ConversationHighlight }) {
   const Icon = info.icon;
 
   return (
-    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
+    <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -519,9 +519,9 @@ function HighlightCard({ highlight }: { highlight: ConversationHighlight }) {
             <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${info.color}15`, color: info.color }}>
               {info.label}
             </span>
-            <span className="text-xs text-[#2D2D2D]/40">{highlight.contact_phone}</span>
+            <span className="text-xs text-[#0F172A]/40">{highlight.contact_phone}</span>
           </div>
-          <div className="flex gap-4 text-xs text-[#2D2D2D]/60 mb-2">
+          <div className="flex gap-4 text-xs text-[#0F172A]/60 mb-2">
             {highlight.sentiment_score != null && (
               <span>Sentiment: <strong>{highlight.sentiment_score.toFixed(2)}</strong></span>
             )}
@@ -530,7 +530,7 @@ function HighlightCard({ highlight }: { highlight: ConversationHighlight }) {
             )}
           </div>
           {highlight.transcript_preview && (
-            <p className="text-xs text-[#2D2D2D]/50 line-clamp-2">{highlight.transcript_preview}</p>
+            <p className="text-xs text-[#0F172A]/50 line-clamp-2">{highlight.transcript_preview}</p>
           )}
         </div>
       </div>
@@ -540,22 +540,22 @@ function HighlightCard({ highlight }: { highlight: ConversationHighlight }) {
 
 function TopicCard({ cluster }: { cluster: TopicCluster }) {
   return (
-    <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-4">
+    <div className="bg-white rounded-xl border border-[#0052FF]/15 p-4">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm font-semibold text-[#2D2D2D] capitalize">{cluster.topic}</h4>
-        <span className="text-xs font-medium px-2 py-0.5 bg-[#4ECDC4]/15 text-[#4ECDC4] rounded-full">
+        <h4 className="text-sm font-semibold text-[#0F172A] capitalize">{cluster.topic}</h4>
+        <span className="text-xs font-medium px-2 py-0.5 bg-[#4D7CFF]/15 text-[#4D7CFF] rounded-full">
           {cluster.count} conversations
         </span>
       </div>
       {cluster.avg_sentiment != null && (
-        <p className="text-xs text-[#2D2D2D]/60 mb-2">
+        <p className="text-xs text-[#0F172A]/60 mb-2">
           Avg sentiment:{" "}
           <span
             className={`font-medium ${
               cluster.avg_sentiment > 0.3
-                ? "text-[#4ECDC4]"
+                ? "text-[#4D7CFF]"
                 : cluster.avg_sentiment < -0.3
-                  ? "text-[#FF6B6B]"
+                  ? "text-[#0052FF]"
                   : "text-[#94a3b8]"
             }`}
           >
@@ -565,9 +565,9 @@ function TopicCard({ cluster }: { cluster: TopicCluster }) {
       )}
       {cluster.sample_transcripts.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-[#2D2D2D]/40">Sample transcripts:</p>
+          <p className="text-xs font-medium text-[#0F172A]/40">Sample transcripts:</p>
           {cluster.sample_transcripts.map((t, i) => (
-            <p key={i} className="text-xs text-[#2D2D2D]/50 line-clamp-1">{t}</p>
+            <p key={i} className="text-xs text-[#0F172A]/50 line-clamp-1">{t}</p>
           ))}
         </div>
       )}

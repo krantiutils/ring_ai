@@ -1,162 +1,55 @@
 "use client";
 
-import { motion } from "framer-motion";
-import ClayButton from "@/components/ui/ClayButton";
+import type { LandingLanguage } from "@/app/page";
 
-export default function CTAFooter() {
+type CTAFooterProps = {
+  language: LandingLanguage;
+};
+
+const copy = {
+  en: {
+    title: "Turn Every Customer Interaction into Actionable Operations",
+    body: "Move from disconnected call tools to one unified communication platform with analytics, automation, and reliable handoff.",
+    cta: "Start Free",
+    secondary: "Talk to Sales",
+  },
+  ne: {
+    title: "हरेक ग्राहक संवादलाई कार्यान्वयनयोग्य अपरेसनमा रूपान्तरण गर्नुहोस्",
+    body: "छुट्टाछुट्टै कल टुलबाट एकीकृत कम्युनिकेशन प्लेटफर्ममा जानुहोस्, जहाँ analytics, automation र handoff भरपर्दो छन्।",
+    cta: "Free सुरु गर्नुहोस्",
+    secondary: "Sales सँग कुरा गर्नुहोस्",
+  },
+};
+
+export default function CTAFooter({ language }: CTAFooterProps) {
+  const t = copy[language];
+
   return (
     <>
-      {/* CTA Section */}
-      <section className="bg-clay-coral clay-texture py-24 md:py-32">
-        <div className="mx-auto max-w-4xl px-6 md:px-8 text-center">
-          <motion.h2
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            Ready to Transform Your
-            <br />
-            Business Communication?
-          </motion.h2>
-          <motion.p
-            className="text-white/80 text-lg mb-10 max-w-xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-          >
-            Join hundreds of Nepali businesses already using Ring AI to talk to
-            their customers smarter, faster, and in their own language.
-          </motion.p>
-          <motion.div
-            className="flex flex-wrap gap-4 justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            <ClayButton
-              variant="secondary"
-              size="lg"
-              className="bg-white text-clay-coral shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
-            >
-              Start Building
-            </ClayButton>
-            <ClayButton
-              variant="outline"
-              size="lg"
-              className="border-white/30 text-white bg-transparent hover:bg-white/10"
-            >
-              Talk to Sales
-            </ClayButton>
-          </motion.div>
+      <section className="relative overflow-hidden bg-[#0F172A] py-28 text-white">
+        <div className="absolute inset-0 dot-grid-dark" />
+        <div className="soft-glow -right-24 top-10 h-72 w-72 bg-[#4D7CFF]/30" />
+        <div className="relative mx-auto max-w-6xl px-4 text-center md:px-6">
+          <h2 className="font-display text-4xl leading-tight md:text-5xl">{t.title}</h2>
+          <p className="mx-auto mt-4 max-w-3xl text-white/80">{t.body}</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <a href="/login" className="btn-primary-modern inline-flex h-12 items-center px-6 text-sm font-semibold">
+              {t.cta}
+            </a>
+            <a href="/login" className="inline-flex h-12 items-center rounded-xl border border-white/30 px-6 text-sm font-semibold text-white transition hover:bg-white/10">
+              {t.secondary}
+            </a>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-clay-dark py-16">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-            {/* Brand */}
-            <div className="md:col-span-1">
-              <div className="text-2xl font-bold text-white mb-3">
-                <span className="text-clay-coral">Ring</span> AI
-              </div>
-              <p className="text-white/50 text-sm leading-relaxed mb-4">
-                AI-powered business communication platform.
-                <br />
-                Powered by AI, spoken in नेपाली.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Product
-              </h4>
-              <ul className="space-y-2.5">
-                {["Voice AI", "SMS Platform", "Smart Surveys", "Analytics"].map(
-                  (item) => (
-                    <li key={item}>
-                      <a
-                        href="#products"
-                        className="text-white/50 hover:text-white transition-colors text-sm"
-                      >
-                        {item}
-                      </a>
-                    </li>
-                  )
-                )}
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Company
-              </h4>
-              <ul className="space-y-2.5">
-                <li>
-                  <a
-                    href="#hero"
-                    className="text-white/50 hover:text-white transition-colors text-sm"
-                  >
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#pricing"
-                    className="text-white/50 hover:text-white transition-colors text-sm"
-                  >
-                    Careers
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#use-cases"
-                    className="text-white/50 hover:text-white transition-colors text-sm"
-                  >
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="mailto:hello@ring.ai"
-                    className="text-white/50 hover:text-white transition-colors text-sm"
-                  >
-                    Contact
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                Contact
-              </h4>
-              <ul className="space-y-2.5 text-sm text-white/50">
-                <li>hello@ring.ai</li>
-                <li>+977 1-XXXXXXX</li>
-                <li>Kathmandu, Nepal</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-white/30 text-sm">
-              &copy; {new Date().getFullYear()} Ring AI. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm text-white/30">
-              <a href="mailto:hello@ring.ai" className="hover:text-white/60 transition-colors">
-                Privacy
-              </a>
-              <a href="mailto:hello@ring.ai" className="hover:text-white/60 transition-colors">
-                Terms
-              </a>
-            </div>
+      <footer className="border-t border-[#E2E8F0] bg-white py-10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 text-sm text-[#64748B] md:flex-row md:items-center md:justify-between md:px-6">
+          <p>© {new Date().getFullYear()} Ring AI. All rights reserved.</p>
+          <div className="flex gap-5">
+            <a href="#products" className="hover:text-[#0052FF]">Product</a>
+            <a href="#pricing" className="hover:text-[#0052FF]">Pricing</a>
+            <a href="/login" className="hover:text-[#0052FF]">Login</a>
           </div>
         </div>
       </footer>

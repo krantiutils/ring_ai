@@ -1,98 +1,64 @@
 "use client";
 
 import { motion } from "framer-motion";
-import SectionWrapper from "@/components/ui/SectionWrapper";
-import ClayCard from "@/components/ui/ClayCard";
-import ClayScene from "@/components/three/ClayScene";
-import UseCaseDiorama from "@/components/three/UseCaseDiorama";
+import type { LandingLanguage } from "@/app/page";
 
-const useCases = [
-  {
-    title: "Banking & Finance",
-    description:
-      "Automated loan follow-ups, payment reminders, and customer verification calls — all in Nepali.",
-    type: "banking" as const,
-    color: "#FF6B6B",
-    stats: "40% faster loan processing",
-  },
-  {
-    title: "Healthcare",
-    description:
-      "Appointment reminders, patient surveys, health check-in calls, and prescription notifications.",
-    type: "healthcare" as const,
-    color: "#4ECDC4",
-    stats: "3x patient engagement",
-  },
-  {
-    title: "Telecom",
-    description:
-      "Bulk service alerts, plan upgrade campaigns, satisfaction surveys, and churn prediction calls.",
-    type: "telecom" as const,
-    color: "#FFD93D",
-    stats: "60% reduced churn",
-  },
-];
+type UseCasesProps = {
+  language: LandingLanguage;
+};
 
-export default function UseCases() {
+const content = {
+  en: {
+    label: "Industry Fit",
+    title: "Built for High-Volume Teams",
+    intro: "Designed for operations where every missed follow-up costs real revenue.",
+    cases: [
+      ["Banking & Finance", "Loan reminders, payment nudges, and account verification calls with measurable closure rates."],
+      ["Healthcare", "Appointment reminders, missed-call callbacks, and patient surveys through voice and SMS."],
+      ["Telecom", "Renewal campaigns, plan migration outreach, and churn recovery with human fallback."],
+    ],
+  },
+  ne: {
+    label: "उद्योग मिलान",
+    title: "High-volume टिमका लागि तयार",
+    intro: "त्यस्ता अपरेसनका लागि डिजाइन गरिएको, जहाँ फलो-अप छुट्दा वास्तविक राजस्व नोक्सान हुन्छ।",
+    cases: [
+      ["Banking & Finance", "ऋण सम्झौता, भुक्तानी रिमाइन्डर र अकाउन्ट verify कलहरू मापनयोग्य क्लोजर रेटसहित।"],
+      ["Healthcare", "अपोइन्टमेन्ट रिमाइन्डर, मिस-कल callback, र आवाज + SMS बाट बिरामी सर्वे।"],
+      ["Telecom", "renewal अभियान, प्लान migration outreach र human fallback सहित churn recovery।"],
+    ],
+  },
+};
+
+export default function UseCases({ language }: UseCasesProps) {
+  const t = content[language];
   return (
-    <SectionWrapper id="use-cases" bg="bg-clay-cream">
-      <div className="text-center mb-16">
-        <motion.h2
-          className="text-3xl sm:text-4xl font-bold text-clay-dark mb-4"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          Built for Industries That Talk
-        </motion.h2>
-        <motion.p
-          className="text-lg text-clay-dark/60 max-w-2xl mx-auto"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-        >
-          From banking halls to hospital wards to telecom towers — Ring AI
-          speaks the language of every industry.
-        </motion.p>
-      </div>
+    <section id="use-cases" className="py-24 md:py-32">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <div className="label-badge">
+          <span className="pulse-dot" />
+          {t.label}
+        </div>
+        <h2 className="font-display mt-5 text-4xl leading-tight md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-[#64748B]">{t.intro}</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {useCases.map((uc, i) => (
-          <motion.div
-            key={uc.title}
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.15, duration: 0.5 }}
-          >
-            <ClayCard className="h-full flex flex-col">
-              {/* 3D diorama */}
-              <div className="h-52 mb-6 rounded-2xl overflow-hidden bg-clay-lavender/20">
-                <ClayScene camera={{ position: [0, 0.5, 4.5], fov: 35 }}>
-                  <UseCaseDiorama type={uc.type} color={uc.color} />
-                </ClayScene>
-              </div>
-
-              <h3 className="text-xl font-bold text-clay-dark mb-2">
-                {uc.title}
-              </h3>
-              <p className="text-clay-dark/60 leading-relaxed text-sm mb-4 flex-1">
-                {uc.description}
-              </p>
-              <div
-                className="text-sm font-semibold px-3 py-1.5 rounded-xl inline-block w-fit"
-                style={{
-                  backgroundColor: `${uc.color}15`,
-                  color: uc.color,
-                }}
-              >
-                {uc.stats}
-              </div>
-            </ClayCard>
-          </motion.div>
-        ))}
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {t.cases.map(([title, desc], i) => (
+            <motion.article
+              key={title}
+              className="surface-card rounded-2xl p-6"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.6, delay: i * 0.08 }}
+            >
+              <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">Use Case</p>
+              <h3 className="mt-3 text-xl font-semibold text-[#0F172A]">{title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-[#64748B]">{desc}</p>
+            </motion.article>
+          ))}
+        </div>
       </div>
-    </SectionWrapper>
+    </section>
   );
 }

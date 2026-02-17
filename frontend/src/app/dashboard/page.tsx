@@ -78,7 +78,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF6B6B]" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0052FF]" />
       </div>
     );
   }
@@ -97,26 +97,26 @@ export default function DashboardPage() {
           title="Credits Purchased"
           value={credits ? formatNumber(credits.total_purchased) : "0"}
           icon={CreditCard}
-          iconColor="text-[#4ECDC4]"
+          iconColor="text-[#4D7CFF]"
         />
         <StatWidget
           title="Credits Top-up"
           value={credits ? formatNumber(credits.total_purchased) : "0"}
           icon={Coins}
-          iconColor="text-[#FFD93D]"
+          iconColor="text-[#1D4ED8]"
         />
         <StatWidget
           title="Top Performing Campaign"
           value="--"
           subtitle="No data yet"
           icon={Trophy}
-          iconColor="text-[#FF6B6B]"
+          iconColor="text-[#0052FF]"
         />
         <StatWidget
           title="Total Credits Used"
           value={credits ? formatNumber(credits.total_consumed) : "0"}
           icon={DollarSign}
-          iconColor="text-[#FF6B6B]"
+          iconColor="text-[#0052FF]"
         />
       </div>
 
@@ -126,27 +126,27 @@ export default function DashboardPage() {
           title="Remaining Credits"
           value={credits ? formatNumber(credits.balance) : "0"}
           icon={Coins}
-          iconColor="text-[#4ECDC4]"
+          iconColor="text-[#4D7CFF]"
         />
         <StatWidget
           title="Total Campaign(s)"
           value={totalCampaigns}
           subtitle={`SMS: ${smsCampaigns}, Phone: ${phoneCampaigns}, Survey: ${surveyCampaigns}, Combined: ${combinedCampaigns}`}
           icon={Megaphone}
-          iconColor="text-[#FF6B6B]"
+          iconColor="text-[#0052FF]"
         />
         <StatWidget
           title="Total Outbound Calls"
           value={formatNumber(overview?.total_reach || 0)}
           subtitle={`Successful: ${statusBreakdown["completed"] || 0}, Failed: ${statusBreakdown["failed"] || 0}`}
           icon={Phone}
-          iconColor="text-[#4ECDC4]"
+          iconColor="text-[#4D7CFF]"
         />
         <StatWidget
           title="Total Outbound SMS"
           value="0"
           icon={MessageSquare}
-          iconColor="text-[#FFD93D]"
+          iconColor="text-[#1D4ED8]"
         />
       </div>
 
@@ -156,27 +156,27 @@ export default function DashboardPage() {
           title="Total Call Duration"
           value={formatDuration(0)}
           icon={Clock}
-          iconColor="text-[#FF6B6B]"
+          iconColor="text-[#0052FF]"
         />
         <StatWidget
           title="Total Owned Numbers"
           value="0"
           icon={Hash}
-          iconColor="text-[#4ECDC4]"
+          iconColor="text-[#4D7CFF]"
         />
         <StatWidget
           title="Avg Playback %"
           value={playback ? `${playback.average_playback_percentage.toFixed(1)}%` : "0%"}
           subtitle="Voice message listen time"
           icon={Headphones}
-          iconColor="text-[#FF6B6B]"
+          iconColor="text-[#0052FF]"
         />
         <StatWidget
           title="Avg Credit Spent"
           value="--"
           subtitle="SMS/Phone/Combined/Survey"
           icon={DollarSign}
-          iconColor="text-[#FFD93D]"
+          iconColor="text-[#1D4ED8]"
         />
       </div>
 

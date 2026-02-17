@@ -182,22 +182,22 @@ export default function KnowledgeBasesPage() {
               setView("list");
               setSelectedKb(null);
             }}
-            className="p-2 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/60 hover:text-[#FF6B6B] transition-colors"
+            className="p-2 rounded-lg hover:bg-[#0052FF]/10 text-[#0F172A]/60 hover:text-[#0052FF] transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-[#2D2D2D]">{selectedKb.name}</h2>
+            <h2 className="text-lg font-semibold text-[#0F172A]">{selectedKb.name}</h2>
             {selectedKb.description && (
-              <p className="text-sm text-[#2D2D2D]/50">{selectedKb.description}</p>
+              <p className="text-sm text-[#0F172A]/50">{selectedKb.description}</p>
             )}
           </div>
         </div>
 
         {/* Upload & Documents */}
-        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-6">
+        <div className="bg-white rounded-xl border border-[#0052FF]/15 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-[#2D2D2D]">Documents</h3>
+            <h3 className="text-sm font-medium text-[#0F172A]">Documents</h3>
             <div className="flex items-center gap-2">
               <input
                 ref={fileInputRef}
@@ -209,7 +209,7 @@ export default function KnowledgeBasesPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors disabled:opacity-50"
               >
                 {uploading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -223,16 +223,16 @@ export default function KnowledgeBasesPage() {
 
           {docsLoading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF6B6B]" />
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#0052FF]" />
             </div>
           ) : documents.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-12">
-              <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center">
-                <FileText className="w-7 h-7 text-[#FF6B6B]/40" />
+              <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center">
+                <FileText className="w-7 h-7 text-[#0052FF]/40" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-[#2D2D2D]/60">No documents yet</p>
-                <p className="text-xs text-[#2D2D2D]/40 mt-1">
+                <p className="text-sm font-medium text-[#0F172A]/60">No documents yet</p>
+                <p className="text-xs text-[#0F172A]/40 mt-1">
                   Upload PDF or text files to build your knowledge base
                 </p>
               </div>
@@ -242,13 +242,13 @@ export default function KnowledgeBasesPage() {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between px-4 py-3 bg-[#FFF8F0]/50 rounded-lg"
+                  className="flex items-center justify-between px-4 py-3 bg-[#FAFAFA]/50 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-[#FF6B6B]/60" />
+                    <FileText className="w-5 h-5 text-[#0052FF]/60" />
                     <div>
-                      <p className="text-sm font-medium text-[#2D2D2D]">{doc.file_name}</p>
-                      <p className="text-xs text-[#2D2D2D]/40">
+                      <p className="text-sm font-medium text-[#0F172A]">{doc.file_name}</p>
+                      <p className="text-xs text-[#0F172A]/40">
                         {doc.chunk_count} chunks &middot; {doc.file_type.toUpperCase()}
                       </p>
                     </div>
@@ -276,14 +276,14 @@ export default function KnowledgeBasesPage() {
                       </span>
                     )}
                     {doc.status === "pending" && (
-                      <span className="flex items-center gap-1 text-xs text-[#2D2D2D]/40">
+                      <span className="flex items-center gap-1 text-xs text-[#0F172A]/40">
                         <Loader2 className="w-3.5 h-3.5" />
                         Pending
                       </span>
                     )}
                     <button
                       onClick={() => handleDeleteDoc(doc.id)}
-                      className="p-1.5 rounded-lg hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-[#0052FF]/10 text-[#0F172A]/40 hover:text-[#0052FF] transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -295,8 +295,8 @@ export default function KnowledgeBasesPage() {
         </div>
 
         {/* Search / Test Retrieval */}
-        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 p-6">
-          <h3 className="text-sm font-medium text-[#2D2D2D] mb-4">Test Retrieval</h3>
+        <div className="bg-white rounded-xl border border-[#0052FF]/15 p-6">
+          <h3 className="text-sm font-medium text-[#0F172A] mb-4">Test Retrieval</h3>
           <div className="flex gap-2 mb-4">
             <input
               type="text"
@@ -304,12 +304,12 @@ export default function KnowledgeBasesPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="flex-1 px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
+              className="flex-1 px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 focus:border-transparent"
             />
             <button
               onClick={handleSearch}
               disabled={searching || !searchQuery.trim()}
-              className="flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors disabled:opacity-50"
             >
               {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               Search
@@ -319,16 +319,16 @@ export default function KnowledgeBasesPage() {
           {searchResults.length > 0 && (
             <div className="space-y-3">
               {searchResults.map((result, idx) => (
-                <div key={result.chunk_id} className="p-4 bg-[#FFF8F0]/50 rounded-lg">
+                <div key={result.chunk_id} className="p-4 bg-[#FAFAFA]/50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-[#FF6B6B]">
+                    <span className="text-xs font-medium text-[#0052FF]">
                       #{idx + 1} &middot; {result.file_name}
                     </span>
-                    <span className="text-xs text-[#2D2D2D]/40">
+                    <span className="text-xs text-[#0F172A]/40">
                       Score: {(result.score * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <p className="text-sm text-[#2D2D2D]/80 whitespace-pre-wrap">{result.content}</p>
+                  <p className="text-sm text-[#0F172A]/80 whitespace-pre-wrap">{result.content}</p>
                 </div>
               ))}
             </div>
@@ -347,18 +347,18 @@ export default function KnowledgeBasesPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D]/40" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F172A]/40" />
           <input
             type="text"
             placeholder="Search knowledge bases..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 focus:border-transparent"
           />
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="ml-auto flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+          className="ml-auto flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
         >
           <Plus className="w-4 h-4" />
           Create Knowledge Base
@@ -368,45 +368,45 @@ export default function KnowledgeBasesPage() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-xl border border-[#FF6B6B]/15 shadow-lg w-full max-w-md p-6">
+          <div className="bg-white rounded-xl border border-[#0052FF]/15 shadow-lg w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[#2D2D2D]">Create Knowledge Base</h3>
-              <button onClick={() => setShowCreate(false)} className="text-[#2D2D2D]/40 hover:text-[#2D2D2D]">
+              <h3 className="text-lg font-semibold text-[#0F172A]">Create Knowledge Base</h3>
+              <button onClick={() => setShowCreate(false)} className="text-[#0F172A]/40 hover:text-[#0F172A]">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">Name</label>
+                <label className="block text-sm font-medium text-[#0F172A]/70 mb-1">Name</label>
                 <input
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="e.g. Product FAQs"
-                  className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40"
+                  className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#2D2D2D]/70 mb-1">Description (optional)</label>
+                <label className="block text-sm font-medium text-[#0F172A]/70 mb-1">Description (optional)</label>
                 <textarea
                   value={createDesc}
                   onChange={(e) => setCreateDesc(e.target.value)}
                   placeholder="What kind of knowledge does this base contain?"
                   rows={3}
-                  className="w-full px-4 py-2 text-sm border border-[#FF6B6B]/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]/40 resize-none"
+                  className="w-full px-4 py-2 text-sm border border-[#0052FF]/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0052FF]/40 resize-none"
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-sm font-medium text-[#2D2D2D]/60 hover:text-[#2D2D2D] transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-[#0F172A]/60 hover:text-[#0F172A] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={creating || !createName.trim()}
-                  className="flex items-center gap-2 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors disabled:opacity-50"
                 >
                   {creating && <Loader2 className="w-4 h-4 animate-spin" />}
                   Create
@@ -420,22 +420,22 @@ export default function KnowledgeBasesPage() {
       {/* Knowledge Bases Grid */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF6B6B]" />
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#0052FF]" />
         </div>
       ) : filteredKbs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#FF6B6B]/15 flex flex-col items-center gap-3 py-16">
-          <div className="w-14 h-14 rounded-full bg-[#FFF8F0] flex items-center justify-center">
-            <BookOpen className="w-7 h-7 text-[#FF6B6B]/40" />
+        <div className="bg-white rounded-xl border border-[#0052FF]/15 flex flex-col items-center gap-3 py-16">
+          <div className="w-14 h-14 rounded-full bg-[#FAFAFA] flex items-center justify-center">
+            <BookOpen className="w-7 h-7 text-[#0052FF]/40" />
           </div>
           <div className="text-center">
-            <p className="text-sm font-medium text-[#2D2D2D]/60">No knowledge bases yet</p>
-            <p className="text-xs text-[#2D2D2D]/40 mt-1">
+            <p className="text-sm font-medium text-[#0F172A]/60">No knowledge bases yet</p>
+            <p className="text-xs text-[#0F172A]/40 mt-1">
               Create a knowledge base to give your AI agent business-specific context
             </p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="mt-2 flex items-center gap-1.5 bg-[#FF6B6B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#ff5252] transition-colors"
+            className="mt-2 flex items-center gap-1.5 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
           >
             <Plus className="w-4 h-4" />
             Create Knowledge Base
@@ -447,14 +447,14 @@ export default function KnowledgeBasesPage() {
             <div
               key={kb.id}
               onClick={() => openDetail(kb)}
-              className="bg-white rounded-xl border border-[#FF6B6B]/15 p-5 cursor-pointer hover:shadow-md hover:border-[#FF6B6B]/30 transition-all group"
+              className="bg-white rounded-xl border border-[#0052FF]/15 p-5 cursor-pointer hover:shadow-md hover:border-[#0052FF]/30 transition-all group"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-lg bg-[#FF6B6B]/10 flex items-center justify-center">
-                    <BookOpen className="w-5 h-5 text-[#FF6B6B]" />
+                  <div className="w-9 h-9 rounded-lg bg-[#0052FF]/10 flex items-center justify-center">
+                    <BookOpen className="w-5 h-5 text-[#0052FF]" />
                   </div>
-                  <h3 className="text-sm font-semibold text-[#2D2D2D] group-hover:text-[#FF6B6B] transition-colors">
+                  <h3 className="text-sm font-semibold text-[#0F172A] group-hover:text-[#0052FF] transition-colors">
                     {kb.name}
                   </h3>
                 </div>
@@ -463,15 +463,15 @@ export default function KnowledgeBasesPage() {
                     e.stopPropagation();
                     handleDelete(kb.id);
                   }}
-                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-[#FF6B6B]/10 text-[#2D2D2D]/40 hover:text-[#FF6B6B] transition-all"
+                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-[#0052FF]/10 text-[#0F172A]/40 hover:text-[#0052FF] transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
               {kb.description && (
-                <p className="text-xs text-[#2D2D2D]/50 mb-3 line-clamp-2">{kb.description}</p>
+                <p className="text-xs text-[#0F172A]/50 mb-3 line-clamp-2">{kb.description}</p>
               )}
-              <div className="flex items-center gap-3 text-xs text-[#2D2D2D]/40">
+              <div className="flex items-center gap-3 text-xs text-[#0F172A]/40">
                 <span className="flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5" />
                   {kb.document_count} document{kb.document_count !== 1 ? "s" : ""}
@@ -486,7 +486,7 @@ export default function KnowledgeBasesPage() {
       )}
 
       {total > 0 && (
-        <p className="text-xs text-[#2D2D2D]/50">
+        <p className="text-xs text-[#0F172A]/50">
           Showing {filteredKbs.length} of {total} knowledge bases
         </p>
       )}
