@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Coins, User } from "lucide-react";
+import { Bell, Coins, LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -20,6 +21,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export default function TopBar() {
+  const router = useRouter();
   const pathname = usePathname();
   const title = pageTitles[pathname] || "Dashboard";
   const [credits, setCredits] = useState<{ balance: number; total_purchased: number } | null>(null);
@@ -27,6 +29,14 @@ export default function TopBar() {
   useEffect(() => {
     api.getCreditBalance().then(setCredits).catch(() => {});
   }, []);
+
+  function handleLogout() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("org_id");
+    }
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[#E2E8F0] bg-[#FAFAFA]/95 px-4 backdrop-blur-sm md:px-6">
@@ -49,6 +59,15 @@ export default function TopBar() {
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0052FF]/15">
           <User className="h-4 w-4 text-[#0052FF]" />
         </div>
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 rounded-lg border border-[#FF6B6B]/20 bg-white px-3 py-1.5 text-sm text-[#2D2D2D]/70 hover:border-[#FF6B6B]/45 hover:text-[#FF6B6B] transition-colors"
+          aria-label="Log out"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
       </div>
     </header>
   );
