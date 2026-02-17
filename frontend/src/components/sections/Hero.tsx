@@ -120,7 +120,7 @@ export default function Hero({ language }: HeroProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.15, ease: easeOut }}
         >
-          <div className="relative h-[420px] overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] shadow-[0_20px_25px_rgba(0,0,0,0.08)]">
+          <div className="relative h-[500px] overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] shadow-[0_20px_25px_rgba(0,0,0,0.08)] md:h-[540px]">
             <HeroFlowCanvas />
           </div>
           <button
