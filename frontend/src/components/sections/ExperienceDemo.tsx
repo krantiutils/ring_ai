@@ -9,27 +9,25 @@ type ExperienceDemoProps = {
   language: LandingLanguage;
 };
 
-type DemoTab = "call" | "survey" | "setup";
+type DemoTab = "call" | "survey";
 
 const copy = {
   en: {
     label: "Interactive Demo",
     title: "Try AgentShakti Before Signup",
-    desc: "Mainly for demo calling, with survey and WhatsApp pairing tools.",
+    desc: "Mainly for demo calling, with survey tools.",
     tabs: {
       call: "Demo Call",
       survey: "Questions for Survey",
-      setup: "WhatsApp Pairing",
     },
   },
   ne: {
     label: "इण्टरएक्टिभ डेमो",
     title: "साइनअप अघि AgentShakti चलाएर हेर्नुहोस्",
-    desc: "मुख्य रूपमा डेमो कल, साथै survey र WhatsApp pairing tool।",
+    desc: "मुख्य रूपमा डेमो कल, साथै survey tool।",
     tabs: {
       call: "डेमो कल",
       survey: "Survey का प्रश्नहरू",
-      setup: "WhatsApp Pairing",
     },
   },
 };
@@ -80,13 +78,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [surveyLoading, setSurveyLoading] = useState(false);
   const [surveyError, setSurveyError] = useState<string | null>(null);
 
-  const [waBridgeState, setWaBridgeState] = useState<string>("checking");
-  const [waBridgeQr, setWaBridgeQr] = useState<string | null>(null);
-  const [waBridgeError, setWaBridgeError] = useState<string | null>(null);
-  const [waTestFrom, setWaTestFrom] = useState("");
-  const [waTestTo, setWaTestTo] = useState("");
-  const [waTestLoading, setWaTestLoading] = useState(false);
-  const [waTestStatus, setWaTestStatus] = useState<string | null>(null);
   const MAX_TEXT = 299;
 
   const canGenerateVoice = useMemo(() => voiceText.trim().length > 0, [voiceText]);
@@ -101,30 +92,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, [audioUrl]);
-
-  async function refreshBridgeStatus(loadQr = false) {
-    setWaBridgeError(null);
-    try {
-      const status = await api.getLinkedWhatsAppStatus();
-      setWaBridgeState(status.state || "unknown");
-      if (loadQr && status.state !== "ready") {
-        try {
-          const qr = await api.getLinkedWhatsAppQr();
-          setWaBridgeQr(qr.qr_data_url);
-        } catch {
-          setWaBridgeQr(null);
-        }
-      }
-    } catch (err) {
-      setWaBridgeState("offline");
-      if (err instanceof ApiError) setWaBridgeError(`Bridge status failed (${err.status}).`);
-      else setWaBridgeError("Bridge status failed.");
-    }
-  }
-
-  useEffect(() => {
-    refreshBridgeStatus(true).catch(() => {});
-  }, []);
 
   async function handleGenerateVoice() {
     if (!canGenerateVoice) return;
@@ -258,34 +225,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     }
   }
 
-  async function handleWhatsAppTestSend() {
-    if (!waTestFrom.trim() || !waTestTo.trim()) {
-      setWaTestStatus("Sender र recipient दुबै चाहिन्छ।");
-      return;
-    }
-    setWaTestLoading(true);
-    setWaTestStatus(null);
-    try {
-      const session = await api.createWhatsAppDemoSession({
-        language,
-        from_number: waTestFrom.trim(),
-        to_number: waTestTo.trim(),
-      });
-      const result = await api.sendWhatsAppDemoMessage(session.session_id, {
-        message: "नमस्ते! यो AgentShakti linked WhatsApp test सन्देश हो।",
-        from_number: waTestFrom.trim(),
-        to_number: waTestTo.trim(),
-      });
-      setWaTestStatus(result.delivery_status === "simulated" ? "Simulated send भयो।" : "सन्देश पठाइयो।");
-      await api.endWhatsAppDemoSession(session.session_id);
-    } catch (err) {
-      if (err instanceof ApiError) setWaTestStatus(`WhatsApp test failed (${err.status}).`);
-      else setWaTestStatus("WhatsApp test failed.");
-    } finally {
-      setWaTestLoading(false);
-    }
-  }
-
   const tabButtonClass = (tab: DemoTab) =>
     `relative inline-flex h-11 items-center justify-center rounded-t-xl border px-5 text-sm font-semibold transition ${
       activeTab === tab
@@ -309,9 +248,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           </button>
           <button type="button" className={tabButtonClass("survey")} onClick={() => setActiveTab("survey")}>
             {t.tabs.survey}
-          </button>
-          <button type="button" className={tabButtonClass("setup")} onClick={() => setActiveTab("setup")}>
-            {t.tabs.setup}
           </button>
         </div>
 
@@ -443,32 +379,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           </motion.article>
         )}
 
-        {activeTab === "setup" && (
-          <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">Linked WhatsApp status</p>
-            <p className="mt-2 text-sm text-[var(--muted-foreground)]">State: {waBridgeState}</p>
-            {waBridgeError && <p className="mt-2 text-sm text-[var(--terminal-error,#DC2626)]">{waBridgeError}</p>}
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => refreshBridgeStatus(false)} className="btn-outline-modern inline-flex h-11 items-center px-4 text-sm font-medium">Refresh Status</button>
-              <button onClick={() => refreshBridgeStatus(true)} className="btn-primary-modern inline-flex h-11 items-center px-4 text-sm font-medium">Load QR</button>
-            </div>
-            {waBridgeQr && (
-              <div className="mt-4 rounded-xl border border-[var(--border)] p-3">
-                <img src={waBridgeQr} alt="WhatsApp Pairing QR" className="h-72 w-72 max-w-full rounded-lg border border-[var(--border)]" />
-              </div>
-            )}
-
-            <div className="mt-6 border-t border-[var(--border)] pt-6">
-              <p className="text-sm font-semibold text-[var(--foreground)]">WhatsApp test message</p>
-              <input value={waTestFrom} onChange={(e) => setWaTestFrom(e.target.value)} placeholder="Sender (+country...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-              <input value={waTestTo} onChange={(e) => setWaTestTo(e.target.value)} placeholder="Recipient (+country...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-              <button onClick={handleWhatsAppTestSend} disabled={waTestLoading} className="btn-primary-modern mt-3 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
-                {waTestLoading ? "Working..." : "Send WhatsApp test"}
-              </button>
-              {waTestStatus && <p className="mt-2 text-sm text-[var(--muted-foreground)]">{waTestStatus}</p>}
-            </div>
-          </motion.article>
-        )}
       </div>
     </section>
   );

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     TWILIO_BASE_URL: str = ""  # Publicly reachable URL for Twilio callbacks (e.g. ngrok in dev)
     WHATSAPP_BRIDGE_URL: str = ""  # e.g. http://127.0.0.1:3010
     WHATSAPP_BRIDGE_TOKEN: str = ""  # shared secret with linked-device bridge
+    INTERNAL_WHATSAPP_ADMIN_TOKEN: str = ""  # required for linked bridge QR/status admin access
 
     # SMS
     SMS_PROVIDER_API_KEY: str = ""

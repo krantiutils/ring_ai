@@ -9,6 +9,7 @@ import asyncio
 import logging
 import threading
 import uuid
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -81,6 +82,20 @@ def _bridge_headers() -> dict[str, str]:
     if settings.WHATSAPP_BRIDGE_TOKEN:
         headers["x-bridge-token"] = settings.WHATSAPP_BRIDGE_TOKEN
     return headers
+
+
+def _assert_internal_admin(request: Request) -> None:
+    token = settings.INTERNAL_WHATSAPP_ADMIN_TOKEN.strip()
+    if not token:
+        raise HTTPException(status_code=503, detail="Internal admin token is not configured")
+    provided = (
+        request.headers.get("x-internal-admin-token")
+        or request.headers.get("x-admin-token")
+        or request.query_params.get("token")
+        or ""
+    ).strip()
+    if not secrets.compare_digest(provided, token):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 async def _bridge_send_message(to: str, message: str) -> tuple[str, str | None]:
@@ -462,7 +477,8 @@ async def linked_whatsapp_inbound(request: Request):
 
 
 @router.get("/linked/status")
-async def linked_whatsapp_status():
+async def linked_whatsapp_status(request: Request):
+    _assert_internal_admin(request)
     if not settings.WHATSAPP_BRIDGE_URL:
         raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
     try:
@@ -479,7 +495,8 @@ async def linked_whatsapp_status():
 
 
 @router.get("/linked/qr")
-async def linked_whatsapp_qr():
+async def linked_whatsapp_qr(request: Request):
+    _assert_internal_admin(request)
     if not settings.WHATSAPP_BRIDGE_URL:
         raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
     try:
