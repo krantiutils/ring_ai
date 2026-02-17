@@ -86,6 +86,8 @@ _INTERACTIVE_DEMO_MAX_TURNS = 20
 class InteractiveDemoState:
     session_id: str
     expires_at: datetime
+    provider: str = "gemini"
+    language: str = "ne"
     turns: int = 0
     last_assistant_message: str = ""
 
@@ -311,6 +313,21 @@ async def _collect_assistant_turn(session, timeout_seconds: float = 25.0) -> str
     if not content:
         raise HTTPException(status_code=502, detail="No assistant response received")
     return content.strip()
+
+
+def _fallback_interactive_reply(message: str, language: str) -> str:
+    cleaned = message.strip()
+    if language.strip().lower().startswith("en"):
+        return (
+            f"I heard: \"{cleaned}\". AgentShakti can handle outbound voice calls, two-way SMS, "
+            "survey flows, and human handoff from one dashboard. "
+            "Would you like me to prepare this exact response as your demo call script?"
+        )
+    return (
+        f"मैले बुझें: \"{cleaned}\"। AgentShakti ले outbound voice call, two-way SMS, survey flow, "
+        "र human handoff एउटै dashboard बाट चलाउन मद्दत गर्छ। "
+        "यो जवाफलाई डेमो कल स्क्रिप्टमा राखेर अगाडि बढौं?"
+    )
 
 
 @router.post("/campaign-call", response_model=CampaignCallResponse, status_code=201)
@@ -570,36 +587,40 @@ async def initiate_demo_call_with_master_otp(payload: DemoCallMasterOtpRequest):
 @router.post("/interactive-demo/start", response_model=InteractiveDemoStartResponse, status_code=201)
 async def start_interactive_demo_session(payload: InteractiveDemoStartRequest, request: Request):
     """Start a short-lived interactive chat session backed by Gemini."""
-    if not settings.GEMINI_API_KEY:
-        raise HTTPException(status_code=503, detail="Interactive demo is not configured")
-
     now = datetime.now(timezone.utc)
     await _cleanup_expired_interactive_sessions(now, request)
 
-    session_pool = getattr(request.app.state, "session_pool", None)
-    if session_pool is None:
-        raise HTTPException(status_code=503, detail="Interactive demo is unavailable")
-
     session_id = uuid.uuid4().hex
-    config = SessionConfig(
-        session_id=session_id,
-        voice_name=payload.voice_name,
-        system_instruction=_interactive_demo_system_prompt(payload.language),
-        output_mode=OutputMode.HYBRID,
-        tool_names=None,
-        timeout_minutes=max(2, settings.GEMINI_SESSION_TIMEOUT_MINUTES),
-        temperature=0.5,
-    )
-    try:
-        await session_pool.acquire(config=config, timeout=8.0)
-    except Exception as exc:
-        logger.exception("Failed to start interactive demo session")
-        raise HTTPException(status_code=503, detail=f"Could not start interactive session: {exc}") from exc
+    provider = "gemini"
+
+    if settings.GEMINI_API_KEY:
+        session_pool = getattr(request.app.state, "session_pool", None)
+        if session_pool is None:
+            raise HTTPException(status_code=503, detail="Interactive demo is unavailable")
+
+        config = SessionConfig(
+            session_id=session_id,
+            voice_name=payload.voice_name,
+            system_instruction=_interactive_demo_system_prompt(payload.language),
+            output_mode=OutputMode.HYBRID,
+            tool_names=None,
+            timeout_minutes=max(2, settings.GEMINI_SESSION_TIMEOUT_MINUTES),
+            temperature=0.5,
+        )
+        try:
+            await session_pool.acquire(config=config, timeout=8.0)
+        except Exception as exc:
+            logger.exception("Failed to start interactive demo session")
+            raise HTTPException(status_code=503, detail=f"Could not start interactive session: {exc}") from exc
+    else:
+        provider = "fallback"
 
     with _INTERACTIVE_DEMO_LOCK:
         _INTERACTIVE_DEMO_STORE[session_id] = InteractiveDemoState(
             session_id=session_id,
             expires_at=now + timedelta(seconds=_INTERACTIVE_DEMO_TTL_SECONDS),
+            provider=provider,
+            language=payload.language,
         )
 
     return InteractiveDemoStartResponse(session_id=session_id, status="ready")
@@ -616,19 +637,22 @@ async def interactive_demo_message(session_id: str, payload: InteractiveDemoMess
     if state is None:
         raise HTTPException(status_code=404, detail="Interactive session not found or expired")
 
-    session_pool = getattr(request.app.state, "session_pool", None)
-    session = await session_pool.get_session(session_id) if session_pool else None
-    if session is None:
-        with _INTERACTIVE_DEMO_LOCK:
-            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
-        raise HTTPException(status_code=404, detail="Interactive session is not active")
-
     message = payload.message.strip()
     if not message:
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
-    await session.send_text(message)
-    assistant_message = await _collect_assistant_turn(session)
+    if state.provider == "fallback":
+        assistant_message = _fallback_interactive_reply(message, state.language)
+    else:
+        session_pool = getattr(request.app.state, "session_pool", None)
+        session = await session_pool.get_session(session_id) if session_pool else None
+        if session is None:
+            with _INTERACTIVE_DEMO_LOCK:
+                _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+            raise HTTPException(status_code=404, detail="Interactive session is not active")
+
+        await session.send_text(message)
+        assistant_message = await _collect_assistant_turn(session)
 
     should_release = False
     with _INTERACTIVE_DEMO_LOCK:
