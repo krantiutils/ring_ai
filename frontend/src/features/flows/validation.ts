@@ -101,7 +101,12 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
   for (const node of nodes.filter((n) => n.data.kind === "validation")) {
     const incoming = getIncoming(node.id, edges, nodes);
     const source = incoming.find((n) =>
-      n.data.kind === "source_csv" || n.data.kind === "source_xlsx" || n.data.kind === "source_file" || n.data.kind === "source_numbers",
+      n.data.kind === "source_csv" ||
+      n.data.kind === "source_xlsx" ||
+      n.data.kind === "source_file" ||
+      n.data.kind === "source_numbers" ||
+      n.data.kind === "source_manual_table" ||
+      n.data.kind === "source_google_contacts",
     );
     if (!source) {
       issues.push({
@@ -174,7 +179,12 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
 
 export function simulateContactsCount(nodes: FlowNode[]): number {
   const source = nodes.find(
-    (n) => n.data.kind === "source_numbers" || n.data.kind === "source_csv" || n.data.kind === "source_xlsx",
+    (n) =>
+      n.data.kind === "source_numbers" ||
+      n.data.kind === "source_csv" ||
+      n.data.kind === "source_xlsx" ||
+      n.data.kind === "source_manual_table" ||
+      n.data.kind === "source_google_contacts",
   );
   if (!source) return 0;
   if (source.data.kind === "source_numbers") {
@@ -182,6 +192,9 @@ export function simulateContactsCount(nodes: FlowNode[]): number {
       .split(",")
       .map((v) => v.trim())
       .filter(Boolean).length;
+  }
+  if (source.data.kind === "source_google_contacts") {
+    return Number(source.data.config.estimated_contacts || 0);
   }
   const sampleCsv = String(source.data.config.sample_csv || "");
   const parsed = parseCsv(sampleCsv);
