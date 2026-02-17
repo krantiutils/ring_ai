@@ -83,7 +83,7 @@ export default function Hero({ language }: HeroProps) {
       <div className="soft-glow -left-28 top-10 h-64 w-64 bg-[#0052FF]/20" />
       <div className="soft-glow -right-28 top-40 h-72 w-72 bg-[#4D7CFF]/20" />
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 md:px-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 md:px-6 lg:grid-cols-[1fr_1.08fr]">
         <motion.div
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}

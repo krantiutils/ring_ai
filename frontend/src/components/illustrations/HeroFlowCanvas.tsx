@@ -6,18 +6,32 @@ type Point = { x: number; y: number };
 type Edge = { from: Point; c1: Point; c2: Point; to: Point };
 type Particle = { edgeIndex: number; t: number; speed: number; radius: number };
 type NodeBox = { x: number; y: number; w: number; h: number; label: string };
+type PersonSpot = { x: number; y: number; r: number; img: number };
 
 const topNode: NodeBox = { x: 0.33, y: 0.06, w: 0.34, h: 0.1, label: "Enterprise" };
 const channelNodes: NodeBox[] = [
-  { x: 0.02, y: 0.26, w: 0.24, h: 0.1, label: "Voice Agent" },
-  { x: 0.28, y: 0.26, w: 0.24, h: 0.1, label: "SMS Agent" },
-  { x: 0.54, y: 0.26, w: 0.24, h: 0.1, label: "WhatsApp Agent" },
+  { x: 0.01, y: 0.26, w: 0.22, h: 0.1, label: "Voice Agent" },
+  { x: 0.26, y: 0.26, w: 0.22, h: 0.1, label: "SMS Agent" },
+  { x: 0.51, y: 0.26, w: 0.22, h: 0.1, label: "WhatsApp Agent" },
   { x: 0.76, y: 0.26, w: 0.22, h: 0.1, label: "Call Agent" },
 ];
 const centerNodes: NodeBox[] = [
   { x: 0.37, y: 0.48, w: 0.32, h: 0.1, label: "Agent Builder" },
   { x: 0.37, y: 0.64, w: 0.32, h: 0.1, label: "Campaign Builder" },
   { x: 0.37, y: 0.8, w: 0.32, h: 0.1, label: "AgentShakti" },
+];
+
+const people: PersonSpot[] = [
+  { x: 0.08, y: 0.96, r: 11, img: 0 },
+  { x: 0.16, y: 0.94, r: 12, img: 1 },
+  { x: 0.24, y: 0.97, r: 11, img: 2 },
+  { x: 0.32, y: 0.95, r: 12, img: 3 },
+  { x: 0.4, y: 0.97, r: 11, img: 4 },
+  { x: 0.6, y: 0.96, r: 11, img: 5 },
+  { x: 0.68, y: 0.94, r: 12, img: 2 },
+  { x: 0.76, y: 0.97, r: 11, img: 0 },
+  { x: 0.84, y: 0.95, r: 12, img: 1 },
+  { x: 0.92, y: 0.96, r: 11, img: 4 },
 ];
 
 function centerOf(node: NodeBox): Point {
@@ -61,17 +75,12 @@ function buildEdges(): Edge[] {
     to: { x: ring.x, y: ring.y - 0.03 },
   });
 
-  const spokes = 26;
-  for (let i = 0; i < spokes; i += 1) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const step = Math.floor(i / 2);
-    const x = 0.5 + side * (0.08 + step * 0.03);
-    const y = 0.95 - step * 0.01;
+  for (const person of people) {
     edges.push({
       from: { x: ring.x, y: ring.y + 0.06 },
-      c1: { x: ring.x, y: ring.y + 0.12 },
-      c2: { x, y: y - 0.03 },
-      to: { x, y },
+      c1: { x: ring.x, y: ring.y + 0.15 },
+      c2: { x: person.x, y: person.y - 0.06 },
+      to: { x: person.x, y: person.y },
     });
   }
 
@@ -158,7 +167,6 @@ export default function HeroFlowCanvas() {
       const card = (css.getPropertyValue("--card") || "#ffffff").trim();
       const border = (css.getPropertyValue("--border") || "#e2e8f0").trim();
       const fg = (css.getPropertyValue("--foreground") || "#0f172a").trim();
-      const muted = (css.getPropertyValue("--muted-foreground") || "#64748b").trim();
 
       context.clearRect(0, 0, w, h);
 
@@ -226,18 +234,6 @@ export default function HeroFlowCanvas() {
       }
 
       const ring = centerOf(centerNodes[2]);
-      const people = [
-        { x: 0.08, y: 0.96, r: 11, img: 0 },
-        { x: 0.16, y: 0.94, r: 12, img: 1 },
-        { x: 0.24, y: 0.97, r: 11, img: 2 },
-        { x: 0.32, y: 0.95, r: 12, img: 3 },
-        { x: 0.4, y: 0.97, r: 11, img: 4 },
-        { x: 0.6, y: 0.96, r: 11, img: 5 },
-        { x: 0.68, y: 0.94, r: 12, img: 2 },
-        { x: 0.76, y: 0.97, r: 11, img: 0 },
-        { x: 0.84, y: 0.95, r: 12, img: 1 },
-        { x: 0.92, y: 0.96, r: 11, img: 4 },
-      ];
       for (const person of people) {
         const cx = person.x * w;
         const cy = person.y * h;
@@ -265,11 +261,6 @@ export default function HeroFlowCanvas() {
       context.fillStyle = `${accent}8a`;
       context.arc(ring.x * w, ring.y * h + 8, 7, 0, Math.PI * 2);
       context.fill();
-
-      context.font = `500 ${Math.max(10, Math.min(14, w * 0.016))}px JetBrains Mono, monospace`;
-      context.textAlign = "left";
-      context.fillStyle = muted;
-      context.fillText("Unified outreach graph", 18, h - 16);
 
       rafId = requestAnimationFrame(draw);
     }
