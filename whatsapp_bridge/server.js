@@ -5,6 +5,7 @@ const cors = require("cors");
 const qrcode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
+const dns = require("dns");
 const qrcodeTerminal = require("qrcode-terminal");
 const { Boom } = require("@hapi/boom");
 const pino = require("pino");
@@ -20,6 +21,9 @@ const BACKEND_WEBHOOK_URL = process.env.BACKEND_WEBHOOK_URL || "";
 const BACKEND_WEBHOOK_TOKEN = process.env.BACKEND_WEBHOOK_TOKEN || "";
 const AUTH_DIR = path.resolve(process.env.WHATSAPP_BAILEYS_AUTH_DIR || ".baileys_auth");
 const STARTUP_CLEAR_AUTH = String(process.env.WHATSAPP_BAILEYS_CLEAR_AUTH_ON_START || "").toLowerCase() === "true";
+
+// EC2 hosts often lack global IPv6 routing; prefer IPv4 for WA Web socket.
+dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
 app.use(cors());
