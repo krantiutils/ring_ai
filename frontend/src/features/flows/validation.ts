@@ -112,7 +112,7 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
         message: "Business Hours node requires timezone.",
       });
     }
-    if ((node.data.kind === "agent_sms" || node.data.kind === "agent_whatsapp") && !cfg.message) {
+    if (node.data.kind === "agent_sms" && !cfg.message) {
       issues.push({
         id: `missing-msg-${node.id}`,
         severity: "error",

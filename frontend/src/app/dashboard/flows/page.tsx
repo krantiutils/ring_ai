@@ -13,7 +13,7 @@ export default function FlowsPage() {
         <h1 className="font-display mt-4 text-4xl leading-tight text-[var(--foreground)]">Agent Workflow Studio</h1>
         <p className="mt-2 max-w-4xl text-[var(--muted-foreground)]">
           Build n8n-style multi-channel flows for CSV/XLSX imports, validation, conditional routing, time windows, and
-          voice/SMS/WhatsApp actions. Use templates to launch faster and validate before publish.
+          voice/SMS actions. Use templates to launch faster and validate before publish.
         </p>
       </header>
 

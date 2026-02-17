@@ -21,7 +21,6 @@ export type FlowNodeKind =
   | "sender_number"
   | "agent_sms"
   | "agent_voice"
-  | "agent_whatsapp"
   | "survey_ai"
   | "dtmf_menu"
   | "response_capture"

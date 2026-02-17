@@ -43,7 +43,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [activeTab, setActiveTab] = useState<DemoTab>("call");
 
   const [voiceText, setVoiceText] = useState(
-    "नमस्ते! AgentShakti मा स्वागत छ। हामी voice call, SMS, र WhatsApp survey flow सजिलो बनाउँछौं।",
+    "नमस्ते! AgentShakti मा स्वागत छ। हामी voice call र SMS automation सजिलो बनाउँछौं।",
   );
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
@@ -55,8 +55,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [callScript, setCallScript] = useState(
     "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
   );
-  const [otpChannel, setOtpChannel] = useState<"sms" | "whatsapp">("whatsapp");
-  const [otpWhatsappSender, setOtpWhatsappSender] = useState("");
   const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [callLoading, setCallLoading] = useState(false);
@@ -70,14 +68,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [surveyCallerPhone, setSurveyCallerPhone] = useState("");
   const [surveyCallingNow, setSurveyCallingNow] = useState(false);
   const [surveyCallError, setSurveyCallError] = useState<string | null>(null);
-  const [surveyWaFrom, setSurveyWaFrom] = useState("");
-  const [surveyRecipients, setSurveyRecipients] = useState("");
-  const [surveyOptions, setSurveyOptions] = useState("१ दबाउनुहोस्,२ दबाउनुहोस्,३ दबाउनुहोस्,४ दबाउनुहोस्,५ दबाउनुहोस्");
-  const [surveyId, setSurveyId] = useState<string | null>(null);
-  const [surveyCounts, setSurveyCounts] = useState<Record<string, number> | null>(null);
-  const [surveyLoading, setSurveyLoading] = useState(false);
-  const [surveyError, setSurveyError] = useState<string | null>(null);
-
   const MAX_TEXT = 299;
 
   const canGenerateVoice = useMemo(() => voiceText.trim().length > 0, [voiceText]);
@@ -124,8 +114,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
         name: callName.trim(),
         phone: callPhone.trim(),
         message: callScript.trim(),
-        otp_channel: otpChannel,
-        whatsapp_from_number: otpChannel === "whatsapp" ? otpWhatsappSender.trim() || undefined : undefined,
+        otp_channel: "sms",
         tts_config: { provider: "edge_tts", voice: "ne-NP-HemkalaNeural" },
       });
       setOtpRequestId(result.request_id);
@@ -172,56 +161,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
       else setSurveyCallError("Call now failed.");
     } finally {
       setSurveyCallingNow(false);
-    }
-  }
-
-  async function handleStartWhatsAppSurvey() {
-    const recipients = surveyRecipients
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const options = surveyOptions
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (!surveyWaFrom.trim() || !recipients.length || !surveySayText.trim() || options.length < 2) {
-      setSurveyError("WhatsApp sender, recipients, question, and options चाहिन्छ।");
-      return;
-    }
-
-    setSurveyLoading(true);
-    setSurveyError(null);
-    try {
-      const started = await api.startWhatsAppSurvey({
-        from_number: surveyWaFrom.trim(),
-        to_numbers: recipients,
-        question: surveySayText.trim(),
-        options,
-      });
-      setSurveyId(started.survey_id);
-      const results = await api.getWhatsAppSurveyResults(started.survey_id);
-      setSurveyCounts(results.counts);
-    } catch (err) {
-      if (err instanceof ApiError) setSurveyError(`Survey start failed (${err.status}).`);
-      else setSurveyError("Survey start failed.");
-    } finally {
-      setSurveyLoading(false);
-    }
-  }
-
-  async function handleRefreshSurvey() {
-    if (!surveyId) return;
-    setSurveyLoading(true);
-    setSurveyError(null);
-    try {
-      const results = await api.getWhatsAppSurveyResults(surveyId);
-      setSurveyCounts(results.counts);
-    } catch (err) {
-      if (err instanceof ApiError) setSurveyError(`Survey fetch failed (${err.status}).`);
-      else setSurveyError("Survey fetch failed.");
-    } finally {
-      setSurveyLoading(false);
     }
   }
 
@@ -279,25 +218,9 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                   <input value={callPhone} onChange={(e) => setCallPhone(e.target.value)} placeholder="फोन नम्बर (+977...)" className="input-modern h-11 px-4 text-sm" />
                 </div>
                 <textarea value={callScript} maxLength={MAX_TEXT} onChange={(e) => setCallScript(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
-
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">OTP delivery</p>
-                <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={() => setOtpChannel("whatsapp")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${otpChannel === "whatsapp" ? "btn-primary-modern" : "btn-outline-modern"}`}>
-                    WhatsApp OTP
-                  </button>
-                  <button type="button" onClick={() => setOtpChannel("sms")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${otpChannel === "sms" ? "btn-primary-modern" : "btn-outline-modern"}`}>
-                    SMS OTP
-                  </button>
-                </div>
-
-                {otpChannel === "whatsapp" && (
-                  <input
-                    value={otpWhatsappSender}
-                    onChange={(e) => setOtpWhatsappSender(e.target.value)}
-                    placeholder="WhatsApp sender number (+country...)"
-                    className="input-modern mt-3 h-11 w-full px-4 text-sm"
-                  />
-                )}
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                  OTP delivery: SMS
+                </p>
 
                 {otpRequestId && <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="OTP" className="input-modern mt-3 h-11 w-full px-4 text-sm" />}
 
@@ -348,32 +271,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                   {surveyCallingNow ? "Working..." : "Call me now"}
                 </button>
                 {surveyCallError && <p className="mt-2 text-sm text-[var(--terminal-error,#DC2626)]">{surveyCallError}</p>}
-
-                <div className="mt-6 border-t border-[var(--border)] pt-4">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Real-time WhatsApp Survey</p>
-                  <input value={surveyWaFrom} onChange={(e) => setSurveyWaFrom(e.target.value)} placeholder="WhatsApp sender (+country...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-                  <input value={surveyRecipients} onChange={(e) => setSurveyRecipients(e.target.value)} placeholder="Recipients comma-separated (+977..., +977...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-                  <input value={surveyOptions} onChange={(e) => setSurveyOptions(e.target.value)} placeholder="Options comma-separated" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button onClick={handleStartWhatsAppSurvey} disabled={surveyLoading} className="btn-primary-modern inline-flex h-11 items-center px-4 text-sm font-medium disabled:opacity-50">
-                      {surveyLoading ? "Working..." : "Start Survey"}
-                    </button>
-                    <button onClick={handleRefreshSurvey} disabled={!surveyId || surveyLoading} className="btn-outline-modern inline-flex h-11 items-center px-4 text-sm font-medium disabled:opacity-50">
-                      Refresh Results
-                    </button>
-                  </div>
-                  {surveyId && <p className="mt-2 text-xs text-[var(--muted-foreground)]">Survey ID: {surveyId}</p>}
-                  {surveyError && <p className="mt-2 text-sm text-[var(--terminal-error,#DC2626)]">{surveyError}</p>}
-                  {surveyCounts && (
-                    <div className="mt-2 rounded-xl border border-[var(--border)] p-3">
-                      {Object.entries(surveyCounts).map(([label, count]) => (
-                        <p key={label} className="text-sm text-[var(--foreground)]">
-                          {label}: {count}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </motion.article>

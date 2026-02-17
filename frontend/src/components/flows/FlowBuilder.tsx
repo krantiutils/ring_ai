@@ -77,7 +77,6 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   sender_number: <Smartphone className="h-4 w-4" />,
   agent_sms: <MessageSquare className="h-4 w-4" />,
   agent_voice: <PhoneCall className="h-4 w-4" />,
-  agent_whatsapp: <MessageSquare className="h-4 w-4" />,
   survey_ai: <Volume2 className="h-4 w-4" />,
   dtmf_menu: <GitBranch className="h-4 w-4" />,
   response_capture: <MessageSquare className="h-4 w-4" />,
@@ -109,7 +108,6 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   { kind: "sender_number", label: "Sender Number", description: "Pick outbound number" },
   { kind: "agent_sms", label: "SMS Agent", description: "Send SMS" },
   { kind: "agent_voice", label: "Voice Agent", description: "Place voice call" },
-  { kind: "agent_whatsapp", label: "WhatsApp Agent", description: "Send WhatsApp message" },
   { kind: "survey_ai", label: "Survey AI", description: "Conversational AI survey (Gemini/voice)" },
   { kind: "dtmf_menu", label: "Press 1/2 Menu", description: "Phone keypad branching during calls" },
   { kind: "response_capture", label: "Response Capture", description: "Capture reply text/intents/survey answers" },
@@ -135,7 +133,7 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "business_hours") return { timezone: "Asia/Kathmandu", window: "09:00-18:00" };
   if (kind === "rate_limit") return { per_minute: "20" };
   if (kind === "sender_number") return { number: "+19704701940" };
-  if (kind === "agent_sms" || kind === "agent_whatsapp") return { message: "Namaste {{name}}, यो AgentShakti automation सन्देश हो।" };
+  if (kind === "agent_sms") return { message: "Namaste {{name}}, यो AgentShakti automation सन्देश हो।" };
   if (kind === "agent_voice") return { script: "नमस्ते, AgentShakti बाट बोल्दैछु।" };
   if (kind === "survey_ai") return { model: "gemini-2.5-flash-native-audio", mode: "voice+text", survey_id: "default-survey" };
   if (kind === "dtmf_menu") return { option_1: "support", option_2: "sales", fallback: "repeat" };
@@ -901,7 +899,7 @@ export default function FlowBuilder() {
             </li>
             <li className="flex items-start gap-2">
               <Volume2 className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
-              Channel nodes represent SMS/Voice/WhatsApp delivery actions.
+              Channel nodes represent SMS/Voice delivery actions.
             </li>
           </ul>
           <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-2 text-sm">

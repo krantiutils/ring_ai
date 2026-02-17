@@ -12,7 +12,7 @@ const topNode: NodeBox = { x: 0.33, y: 0.06, w: 0.34, h: 0.1, label: "Enterprise
 const channelNodes: NodeBox[] = [
   { x: 0.01, y: 0.26, w: 0.22, h: 0.1, label: "Voice Agent" },
   { x: 0.26, y: 0.26, w: 0.22, h: 0.1, label: "SMS Agent" },
-  { x: 0.51, y: 0.26, w: 0.22, h: 0.1, label: "WhatsApp Agent" },
+  { x: 0.51, y: 0.26, w: 0.22, h: 0.1, label: "Survey Agent" },
   { x: 0.76, y: 0.26, w: 0.22, h: 0.1, label: "Call Agent" },
 ];
 const centerNodes: NodeBox[] = [
