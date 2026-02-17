@@ -1,5 +1,6 @@
 """Voice call API endpoints — outbound campaign calls via Twilio."""
 
+import asyncio
 import logging
 import threading
 import uuid
@@ -24,7 +25,13 @@ from app.schemas.voice import (
     DemoCallOtpVerifyRequest,
     DemoCallRequest,
     DemoCallResponse,
+    InteractiveDemoHandoffCallRequest,
+    InteractiveDemoMessageRequest,
+    InteractiveDemoMessageResponse,
+    InteractiveDemoStartRequest,
+    InteractiveDemoStartResponse,
 )
+from app.services.interactive_agent.models import OutputMode, SessionConfig
 from app.services.otp import generate_otp
 from app.services.telephony import (
     AudioEntry,
@@ -70,6 +77,20 @@ _DEMO_OTP_MESSAGE = "Your AgentShakti demo verification code is {otp}. Valid for
 _MASTER_DEMO_OTP = "34026"
 _MASTER_OTP_CALL_MESSAGE = "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।"
 _DEMO_OTP_LOCK = threading.Lock()
+_INTERACTIVE_DEMO_LOCK = threading.Lock()
+_INTERACTIVE_DEMO_TTL_SECONDS = 30 * 60
+_INTERACTIVE_DEMO_MAX_TURNS = 20
+
+
+@dataclass
+class InteractiveDemoState:
+    session_id: str
+    expires_at: datetime
+    turns: int = 0
+    last_assistant_message: str = ""
+
+
+_INTERACTIVE_DEMO_STORE: dict[str, InteractiveDemoState] = {}
 
 
 @dataclass
@@ -96,6 +117,43 @@ def _cleanup_expired_demo_otps(now: datetime) -> None:
     expired_ids = [req_id for req_id, state in _DEMO_CALL_OTP_STORE.items() if state.expires_at <= now]
     for req_id in expired_ids:
         _DEMO_CALL_OTP_STORE.pop(req_id, None)
+
+
+def _interactive_demo_system_prompt(language: str) -> str:
+    lang = language.strip().lower()
+    if lang.startswith("en"):
+        language_instruction = "Respond in English unless user asks for another language."
+    else:
+        language_instruction = "Respond in Nepali by default unless user asks for another language."
+    return (
+        "You are AgentShakti demo assistant. Keep replies concise, clear, and actionable. "
+        "Mention how AgentShakti helps with outbound voice, SMS, surveys, and human handoff when relevant. "
+        "End each turn with one clear next action question. "
+        f"{language_instruction}"
+    )
+
+
+async def _release_interactive_session(session_id: str, request: Request) -> None:
+    session_pool = getattr(request.app.state, "session_pool", None)
+    if session_pool is None:
+        return
+    try:
+        await session_pool.release(session_id)
+    except Exception:
+        logger.exception("Failed to release interactive demo session %s", session_id)
+
+
+async def _cleanup_expired_interactive_sessions(now: datetime, request: Request) -> None:
+    expired: list[str] = []
+    with _INTERACTIVE_DEMO_LOCK:
+        for session_id, state in _INTERACTIVE_DEMO_STORE.items():
+            if state.expires_at <= now:
+                expired.append(session_id)
+        for session_id in expired:
+            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+
+    for session_id in expired:
+        await _release_interactive_session(session_id, request)
 
 
 async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
@@ -230,6 +288,29 @@ async def _place_demo_call(payload: DemoCallRequest) -> DemoCallResponse:
         call_id=result.call_id,
         status=result.status,
     )
+
+
+async def _collect_assistant_turn(session, timeout_seconds: float = 25.0) -> str:
+    chunks: list[str] = []
+    transcript_chunks: list[str] = []
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            async for response in session.receive():
+                if response.text:
+                    chunks.append(response.text.strip())
+                elif response.output_transcript:
+                    transcript_chunks.append(response.output_transcript.strip())
+                if response.is_turn_complete:
+                    break
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="Interactive agent timed out") from exc
+
+    content = " ".join(part for part in chunks if part)
+    if not content:
+        content = " ".join(part for part in transcript_chunks if part)
+    if not content:
+        raise HTTPException(status_code=502, detail="No assistant response received")
+    return content.strip()
 
 
 @router.post("/campaign-call", response_model=CampaignCallResponse, status_code=201)
@@ -484,6 +565,129 @@ async def initiate_demo_call_with_master_otp(payload: DemoCallMasterOtpRequest):
         tts_config=payload.tts_config,
     )
     return await _place_demo_call(call_payload)
+
+
+@router.post("/interactive-demo/start", response_model=InteractiveDemoStartResponse, status_code=201)
+async def start_interactive_demo_session(payload: InteractiveDemoStartRequest, request: Request):
+    """Start a short-lived interactive chat session backed by Gemini."""
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="Interactive demo is not configured")
+
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    session_pool = getattr(request.app.state, "session_pool", None)
+    if session_pool is None:
+        raise HTTPException(status_code=503, detail="Interactive demo is unavailable")
+
+    session_id = uuid.uuid4().hex
+    config = SessionConfig(
+        session_id=session_id,
+        voice_name=payload.voice_name,
+        system_instruction=_interactive_demo_system_prompt(payload.language),
+        output_mode=OutputMode.HYBRID,
+        tool_names=None,
+        timeout_minutes=max(2, settings.GEMINI_SESSION_TIMEOUT_MINUTES),
+        temperature=0.5,
+    )
+    try:
+        await session_pool.acquire(config=config, timeout=8.0)
+    except Exception as exc:
+        logger.exception("Failed to start interactive demo session")
+        raise HTTPException(status_code=503, detail=f"Could not start interactive session: {exc}") from exc
+
+    with _INTERACTIVE_DEMO_LOCK:
+        _INTERACTIVE_DEMO_STORE[session_id] = InteractiveDemoState(
+            session_id=session_id,
+            expires_at=now + timedelta(seconds=_INTERACTIVE_DEMO_TTL_SECONDS),
+        )
+
+    return InteractiveDemoStartResponse(session_id=session_id, status="ready")
+
+
+@router.post("/interactive-demo/{session_id}/message", response_model=InteractiveDemoMessageResponse)
+async def interactive_demo_message(session_id: str, payload: InteractiveDemoMessageRequest, request: Request):
+    """Send a user message and return one assistant turn."""
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    with _INTERACTIVE_DEMO_LOCK:
+        state = _INTERACTIVE_DEMO_STORE.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Interactive session not found or expired")
+
+    session_pool = getattr(request.app.state, "session_pool", None)
+    session = await session_pool.get_session(session_id) if session_pool else None
+    if session is None:
+        with _INTERACTIVE_DEMO_LOCK:
+            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+        raise HTTPException(status_code=404, detail="Interactive session is not active")
+
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Message cannot be empty")
+
+    await session.send_text(message)
+    assistant_message = await _collect_assistant_turn(session)
+
+    should_release = False
+    with _INTERACTIVE_DEMO_LOCK:
+        fresh = _INTERACTIVE_DEMO_STORE.get(session_id)
+        if fresh:
+            fresh.turns += 1
+            fresh.last_assistant_message = assistant_message
+            fresh.expires_at = now + timedelta(seconds=_INTERACTIVE_DEMO_TTL_SECONDS)
+            if fresh.turns >= _INTERACTIVE_DEMO_MAX_TURNS:
+                _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+                should_release = True
+
+    if should_release:
+        await _release_interactive_session(session_id, request)
+
+    return InteractiveDemoMessageResponse(session_id=session_id, assistant_message=assistant_message)
+
+
+@router.post("/interactive-demo/{session_id}/handoff-call", response_model=DemoCallResponse, status_code=201)
+async def interactive_demo_handoff_call(
+    session_id: str,
+    payload: InteractiveDemoHandoffCallRequest,
+    request: Request,
+):
+    """Place a demo call using the latest assistant response or a custom message."""
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    with _INTERACTIVE_DEMO_LOCK:
+        state = _INTERACTIVE_DEMO_STORE.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Interactive session not found or expired")
+
+    message = (payload.message or "").strip() or state.last_assistant_message
+    if not message:
+        raise HTTPException(status_code=422, detail="No assistant response available for handoff call")
+
+    call_payload = DemoCallRequest(
+        name=payload.name,
+        phone=payload.phone,
+        message=message,
+        from_number=payload.from_number,
+        tts_config=payload.tts_config,
+    )
+    return await _place_demo_call(call_payload)
+
+
+@router.delete("/interactive-demo/{session_id}", status_code=204)
+async def interactive_demo_end_session(session_id: str, request: Request):
+    """End an interactive demo session and release its Gemini connection."""
+    removed = False
+    with _INTERACTIVE_DEMO_LOCK:
+        if session_id in _INTERACTIVE_DEMO_STORE:
+            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+            removed = True
+
+    if removed:
+        await _release_interactive_session(session_id, request)
+    return Response(status_code=204)
 
 
 @router.post("/twiml/{call_id}")

@@ -659,6 +659,49 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  startInteractiveDemoSession: (data?: { language?: string; voice_name?: string }) =>
+    request<{ session_id: string; status: string }>("/voice/interactive-demo/start", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+  sendInteractiveDemoMessage: (sessionId: string, message: string) =>
+    request<{ session_id: string; assistant_message: string }>(`/voice/interactive-demo/${sessionId}/message`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+  handoffInteractiveDemoCall: (
+    sessionId: string,
+    data: {
+      name: string;
+      phone: string;
+      message?: string;
+      from_number?: string;
+      tts_config?: {
+        provider?: string;
+        voice?: string;
+        rate?: string;
+        pitch?: string;
+        fallback_provider?: string;
+      };
+    },
+  ) =>
+    request<{ call_id: string; status: string }>(`/voice/interactive-demo/${sessionId}/handoff-call`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  endInteractiveDemoSession: async (sessionId: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/voice/interactive-demo/${sessionId}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.status !== 204) {
+      const body = await res.text();
+      throw new ApiError(res.status, body || "Failed to end interactive session");
+    }
+  },
 };
 
 export { ApiError };

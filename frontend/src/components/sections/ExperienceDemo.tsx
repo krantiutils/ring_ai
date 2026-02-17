@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import type { LandingLanguage } from "@/app/page";
@@ -9,18 +9,23 @@ type ExperienceDemoProps = {
   language: LandingLanguage;
 };
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 const copy = {
   en: {
     label: "Interactive Demo",
     title: "Try AgentShakti Before Signup",
-    desc: "Run a quick flow: type text, hear Nepali TTS, request OTP, verify, and queue a demo call.",
-    message: "AgentShakti ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
-    textToSpeech: "Text to Speech",
+    desc: "Chat with the AI first, hear its voice response, then hand it off to a real demo call with OTP verification.",
+    chatDemo: "AI Message + Voice",
+    chatPlaceholder: "Type your question to the AI agent...",
+    sendToAi: "Send to AI",
+    useReplyForCall: "Use Reply For Call",
     callDemo: "Request Demo Call",
-    sendOtp: "Send OTP & Call",
-    verifyOtp: "Verify OTP",
-    speak: "Generate Voice",
+    sendOtp: "Send OTP",
+    verifyOtp: "Verify OTP & Call",
     name: "Name",
     phone: "Phone Number",
     callScript: "Call Script",
@@ -29,14 +34,14 @@ const copy = {
   ne: {
     label: "इण्टरएक्टिभ डेमो",
     title: "साइनअप अघि AgentShakti चलाएर हेर्नुहोस्",
-    desc: "छोटो flow चलाउनुहोस्: टेक्स्ट टाइप गर्नुहोस्, Nepali TTS सुन्नुहोस्, OTP माग्नुहोस्, verify गर्नुहोस् र डेमो कल queue गर्नुहोस्।",
-    message: "AgentShakti ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
-    textToSpeech: "टेक्स्ट टु स्पीच",
+    desc: "पहिले AI सँग च्याट गर्नुहोस्, त्यसको आवाज सुन्नुहोस्, अनि OTP पुष्टि गरेर वास्तविक डेमो कलमा handoff गर्नुहोस्।",
+    chatDemo: "AI सन्देश + आवाज",
+    chatPlaceholder: "AI एजेन्टलाई प्रश्न लेख्नुहोस्...",
+    sendToAi: "AI लाई पठाउनुहोस्",
+    useReplyForCall: "जवाफलाई कल स्क्रिप्ट बनाउनुहोस्",
     callDemo: "डेमो कल अनुरोध",
-    sendOtp: "OTP पठाउनुहोस् र कल गर्नुहोस्",
-    verifyOtp: "OTP पुष्टि गर्नुहोस्",
-    speak: "भ्वाइस बनाउनुहोस्",
+    sendOtp: "OTP पठाउनुहोस्",
+    verifyOtp: "OTP पुष्टि गरेर कल गर्नुहोस्",
     name: "नाम",
     phone: "फोन नम्बर",
     callScript: "कल स्क्रिप्ट",
@@ -46,46 +51,98 @@ const copy = {
 
 export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const t = copy[language];
-  const [demoText, setDemoText] = useState(t.message);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [ttsLoading, setTtsLoading] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
+  const sessionRef = useRef<string | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [callMessage, setCallMessage] = useState(t.callMessage);
+  const [callMessage, setCallMessage] = useState(
+    "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
+  );
   const [callLoading, setCallLoading] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
   const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState("");
 
-  const canSpeak = useMemo(() => demoText.trim().length > 0, [demoText]);
+  const canSendChat = useMemo(() => chatInput.trim().length > 0, [chatInput]);
   const canCall = useMemo(
     () => name.trim().length > 0 && phone.trim().length > 0 && callMessage.trim().length > 0,
     [name, phone, callMessage],
   );
   const canVerifyOtp = useMemo(() => (otpRequestId ? otpValue.trim().length >= 4 : false), [otpRequestId, otpValue]);
 
-  async function handleSpeak() {
-    if (!canSpeak) return;
-    setTtsLoading(true);
-    setTtsError(null);
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
+  useEffect(() => {
+    sessionRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    audioUrlRef.current = audioUrl;
+  }, [audioUrl]);
+
+  useEffect(() => {
+    return () => {
+      const currentAudioUrl = audioUrlRef.current;
+      const currentSession = sessionRef.current;
+      if (currentAudioUrl) {
+        URL.revokeObjectURL(currentAudioUrl);
+      }
+      if (currentSession) {
+        api.endInteractiveDemoSession(currentSession).catch(() => {});
+      }
+    };
+  }, []);
+
+  async function ensureSession(): Promise<string> {
+    if (sessionId) return sessionId;
+    const created = await api.startInteractiveDemoSession({ language, voice_name: "Kore" });
+    setSessionId(created.session_id);
+    return created.session_id;
+  }
+
+  async function handleChatSend() {
+    if (!canSendChat) return;
+    setChatLoading(true);
+    setChatError(null);
+
+    const userMessage = chatInput.trim();
+    setChatMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setChatInput("");
+
     try {
-      const result = await api.synthesizeTTS({
-        text: demoText.trim(),
+      const activeSessionId = await ensureSession();
+      const reply = await api.sendInteractiveDemoMessage(activeSessionId, userMessage);
+      const assistantText = reply.assistant_message;
+      setChatMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
+
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+      }
+
+      const audio = await api.synthesizeTTS({
+        text: assistantText,
         provider: "edge_tts",
         voice: "ne-NP-HemkalaNeural",
       });
-      setAudioUrl(URL.createObjectURL(result.audioBlob));
-    } catch {
-      setTtsError("TTS failed. Please try again.");
+      setAudioUrl(URL.createObjectURL(audio.audioBlob));
+    } catch (err) {
+      if (err instanceof ApiError) setChatError(`Interactive demo failed (${err.status}).`);
+      else setChatError("Interactive demo failed. Please try again.");
     } finally {
-      setTtsLoading(false);
+      setChatLoading(false);
     }
+  }
+
+  function handleUseReplyForCall() {
+    const latestAssistant = [...chatMessages].reverse().find((msg) => msg.role === "assistant");
+    if (!latestAssistant) return;
+    setCallMessage(latestAssistant.content);
   }
 
   async function handleCall() {
@@ -142,26 +199,51 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
             viewport={{ once: true, amount: 0.15 }}
             transition={{ duration: 0.6 }}
           >
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">{t.textToSpeech}</p>
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">{t.chatDemo}</p>
+            <div className="mt-4 h-[260px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--muted)]/45 p-3">
+              {chatMessages.length === 0 ? (
+                <p className="text-sm text-[var(--muted-foreground)]">{t.chatPlaceholder}</p>
+              ) : (
+                <div className="space-y-2">
+                  {chatMessages.map((msg, idx) => (
+                    <div
+                      key={`${msg.role}-${idx}`}
+                      className={`rounded-lg border px-3 py-2 text-sm ${msg.role === "assistant" ? "border-[var(--accent)]/35 bg-[var(--accent)]/5" : "border-[var(--border)] bg-[var(--card)]"}`}
+                    >
+                      <p className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{msg.role}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-[var(--foreground)]">{msg.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <textarea
-              value={demoText}
-              onChange={(e) => setDemoText(e.target.value)}
-              rows={7}
-              className="input-modern mt-4 w-full px-4 py-3 text-sm"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              rows={3}
+              className="input-modern mt-3 w-full px-4 py-3 text-sm"
+              placeholder={t.chatPlaceholder}
             />
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-3 flex flex-wrap gap-3">
               <button
-                onClick={handleSpeak}
-                disabled={!canSpeak || ttsLoading}
+                onClick={handleChatSend}
+                disabled={!canSendChat || chatLoading}
                 className="btn-primary-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
               >
-                {ttsLoading ? "Working..." : t.speak}
+                {chatLoading ? "Working..." : t.sendToAi}
+              </button>
+              <button
+                onClick={handleUseReplyForCall}
+                className="btn-outline-modern inline-flex h-11 items-center px-5 text-sm font-medium"
+              >
+                {t.useReplyForCall}
               </button>
               <a href="/login" className="btn-outline-modern inline-flex h-11 items-center px-5 text-sm font-medium">
                 Login
               </a>
             </div>
-            {ttsError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{ttsError}</p>}
+            {chatError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{chatError}</p>}
             {audioUrl && (
               <div className="mt-4 rounded-xl border border-[var(--border)] p-3">
                 <audio controls autoPlay className="w-full">

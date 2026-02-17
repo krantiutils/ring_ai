@@ -86,6 +86,43 @@ class DemoCallResponse(BaseModel):
     status: CallStatus
 
 
+class InteractiveDemoStartRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/start request body."""
+
+    language: str = Field(default="ne", min_length=2, max_length=8)
+    voice_name: str = Field(default="Kore", min_length=1, max_length=64)
+
+
+class InteractiveDemoStartResponse(BaseModel):
+    """POST /api/v1/voice/interactive-demo/start response."""
+
+    session_id: str
+    status: str
+
+
+class InteractiveDemoMessageRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/message request body."""
+
+    message: str = Field(..., min_length=1, max_length=2000)
+
+
+class InteractiveDemoMessageResponse(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/message response."""
+
+    session_id: str
+    assistant_message: str
+
+
+class InteractiveDemoHandoffCallRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/handoff-call request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    message: str | None = Field(None, min_length=1, max_length=400)
+    from_number: str | None = None
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
 class CallStatusResponse(BaseModel):
     """GET /api/v1/voice/calls/{call_id} response."""
 
