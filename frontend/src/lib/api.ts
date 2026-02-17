@@ -702,6 +702,47 @@ export const api = {
       throw new ApiError(res.status, body || "Failed to end interactive session");
     }
   },
+  createWhatsAppDemoSession: (data?: {
+    language?: string;
+    voice_name?: string;
+    from_number?: string;
+    to_number?: string;
+  }) =>
+    request<{ session_id: string; provider: string; status: string; created_at: string }>("/whatsapp/demo/session", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+  sendWhatsAppDemoMessage: (
+    sessionId: string,
+    data: {
+      message: string;
+      from_number?: string;
+      to_number?: string;
+    },
+  ) =>
+    request<{
+      session_id: string;
+      assistant_message: string;
+      provider: string;
+      delivery_status: string;
+      delivery_id?: string | null;
+    }>(`/whatsapp/demo/session/${sessionId}/message`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  endWhatsAppDemoSession: async (sessionId: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/whatsapp/demo/session/${sessionId}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.status !== 204) {
+      const body = await res.text();
+      throw new ApiError(res.status, body || "Failed to end WhatsApp session");
+    }
+  },
 };
 
 export { ApiError };

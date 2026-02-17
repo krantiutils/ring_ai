@@ -26,6 +26,10 @@ const copy = {
     callDemo: "Request Demo Call",
     sendOtp: "Send OTP",
     verifyOtp: "Verify OTP & Call",
+    whatsappDemo: "WhatsApp Bridge",
+    sendWhatsApp: "Send Latest Reply to WhatsApp",
+    whatsappFrom: "WhatsApp From",
+    whatsappTo: "WhatsApp To",
     name: "Name",
     phone: "Phone Number",
     callScript: "Call Script",
@@ -42,6 +46,10 @@ const copy = {
     callDemo: "डेमो कल अनुरोध",
     sendOtp: "OTP पठाउनुहोस्",
     verifyOtp: "OTP पुष्टि गरेर कल गर्नुहोस्",
+    whatsappDemo: "WhatsApp ब्रिज",
+    sendWhatsApp: "अन्तिम जवाफ WhatsApp मा पठाउनुहोस्",
+    whatsappFrom: "WhatsApp पठाउने नम्बर",
+    whatsappTo: "WhatsApp प्राप्त गर्ने नम्बर",
     name: "नाम",
     phone: "फोन नम्बर",
     callScript: "कल स्क्रिप्ट",
@@ -69,6 +77,12 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [callError, setCallError] = useState<string | null>(null);
   const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
   const [otpValue, setOtpValue] = useState("");
+  const [whatsAppFrom, setWhatsAppFrom] = useState("");
+  const [whatsAppTo, setWhatsAppTo] = useState("");
+  const [whatsAppSessionId, setWhatsAppSessionId] = useState<string | null>(null);
+  const [whatsAppLoading, setWhatsAppLoading] = useState(false);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<string | null>(null);
+  const [whatsAppError, setWhatsAppError] = useState<string | null>(null);
 
   const canSendChat = useMemo(() => chatInput.trim().length > 0, [chatInput]);
   const canCall = useMemo(
@@ -89,14 +103,18 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     return () => {
       const currentAudioUrl = audioUrlRef.current;
       const currentSession = sessionRef.current;
+      const currentWaSession = whatsAppSessionId;
       if (currentAudioUrl) {
         URL.revokeObjectURL(currentAudioUrl);
       }
       if (currentSession) {
         api.endInteractiveDemoSession(currentSession).catch(() => {});
       }
+      if (currentWaSession) {
+        api.endWhatsAppDemoSession(currentWaSession).catch(() => {});
+      }
     };
-  }, []);
+  }, [whatsAppSessionId]);
 
   async function ensureSession(): Promise<string> {
     if (sessionId) return sessionId;
@@ -145,6 +163,51 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     setCallMessage(latestAssistant.content);
   }
 
+  async function ensureWhatsAppSession(): Promise<string> {
+    if (whatsAppSessionId) return whatsAppSessionId;
+    const created = await api.createWhatsAppDemoSession({
+      language,
+      voice_name: "Kore",
+      from_number: whatsAppFrom.trim() || undefined,
+      to_number: whatsAppTo.trim() || undefined,
+    });
+    setWhatsAppSessionId(created.session_id);
+    return created.session_id;
+  }
+
+  async function handleSendLatestToWhatsApp() {
+    const latestAssistant = [...chatMessages].reverse().find((msg) => msg.role === "assistant");
+    if (!latestAssistant) {
+      setWhatsAppError("No assistant reply yet. Send a chat message first.");
+      return;
+    }
+    if (!whatsAppFrom.trim() || !whatsAppTo.trim()) {
+      setWhatsAppError("Enter both WhatsApp From and To numbers.");
+      return;
+    }
+    setWhatsAppLoading(true);
+    setWhatsAppError(null);
+    setWhatsAppStatus(null);
+    try {
+      const waSessionId = await ensureWhatsAppSession();
+      const result = await api.sendWhatsAppDemoMessage(waSessionId, {
+        message: latestAssistant.content,
+        from_number: whatsAppFrom.trim(),
+        to_number: whatsAppTo.trim(),
+      });
+      setWhatsAppStatus(
+        result.delivery_status === "simulated"
+          ? "Delivered in demo mode (simulated)."
+          : `Delivered via Twilio (${result.delivery_status}).`,
+      );
+    } catch (err) {
+      if (err instanceof ApiError) setWhatsAppError(`WhatsApp send failed (${err.status}).`);
+      else setWhatsAppError("WhatsApp send failed.");
+    } finally {
+      setWhatsAppLoading(false);
+    }
+  }
+
   async function handleCall() {
     if (!canCall) return;
     setCallLoading(true);
@@ -191,7 +254,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
         <h2 className="font-display mt-5 text-4xl leading-tight text-[var(--foreground)] md:text-5xl">{t.title}</h2>
         <p className="mt-3 max-w-3xl text-[var(--muted-foreground)]">{t.desc}</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
           <motion.article
             className="surface-card rounded-2xl p-6"
             initial={{ opacity: 0, y: 24 }}
@@ -321,6 +384,39 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
             <a href="/masterotp" className="mt-3 inline-flex text-xs font-semibold text-[var(--accent)] underline-offset-4 hover:underline">
               Use Master OTP Page
             </a>
+          </motion.article>
+
+          <motion.article
+            className="surface-card rounded-2xl p-6"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.6, delay: 0.12 }}
+          >
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">{t.whatsappDemo}</p>
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <input
+                value={whatsAppFrom}
+                onChange={(e) => setWhatsAppFrom(e.target.value)}
+                placeholder={`${t.whatsappFrom} (e.g. +14155238886)`}
+                className="input-modern h-11 px-4 text-sm"
+              />
+              <input
+                value={whatsAppTo}
+                onChange={(e) => setWhatsAppTo(e.target.value)}
+                placeholder={`${t.whatsappTo} (e.g. +97798XXXXXXXX)`}
+                className="input-modern h-11 px-4 text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSendLatestToWhatsApp}
+              disabled={whatsAppLoading}
+              className="btn-primary-modern mt-4 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
+            >
+              {whatsAppLoading ? "Working..." : t.sendWhatsApp}
+            </button>
+            {whatsAppError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{whatsAppError}</p>}
+            {whatsAppStatus && <p className="mt-3 text-sm text-[var(--muted-foreground)]">{whatsAppStatus}</p>}
           </motion.article>
         </div>
       </div>
