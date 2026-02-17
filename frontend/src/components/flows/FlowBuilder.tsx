@@ -39,9 +39,10 @@ import {
   Workflow,
   XCircle,
 } from "lucide-react";
-import type { FlowEdge, FlowNode, FlowNodeData, FlowNodeKind } from "@/features/flows/builderTypes";
+import type { FlowEdge, FlowNode, FlowNodeKind } from "@/features/flows/builderTypes";
 import { FLOW_TEMPLATES } from "@/features/flows/templates";
 import { reachableNodeCount, simulateContactsCount, validateFlow } from "@/features/flows/validation";
+import { api } from "@/lib/api";
 
 const STORAGE_KEY = "agentshakti_flow_builder_v1";
 
@@ -279,6 +280,8 @@ export default function FlowBuilder() {
   const [urlTestError, setUrlTestError] = useState<string | null>(null);
   const [urlPreviewHeaders, setUrlPreviewHeaders] = useState<string[]>([]);
   const [urlPreviewRows, setUrlPreviewRows] = useState<string[][]>([]);
+  const [manualSourceLoading, setManualSourceLoading] = useState(false);
+  const [manualSourceMessage, setManualSourceMessage] = useState<string | null>(null);
 
   const hasSource = useMemo(() => nodes.some((n) => SOURCE_KINDS.includes(n.data.kind)), [nodes]);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -408,6 +411,69 @@ export default function FlowBuilder() {
     const safeHeaders = headers.map((h) => h.trim()).filter(Boolean);
     updateNodeConfig("table_columns", safeHeaders.join(","));
     updateNodeConfig("sample_csv", toCsvText(safeHeaders, rows));
+    setManualSourceMessage(null);
+  }
+
+  function currentManualTableData(): { name: string; headers: string[]; rows: string[][] } | null {
+    if (!selectedNode || selectedNode.data.kind !== "source_manual_table") return null;
+    const parsed = parseCsvText(String(selectedNode.data.config.sample_csv || ""));
+    const headers =
+      parsed.headers.length > 0
+        ? parsed.headers
+        : String(selectedNode.data.config.table_columns || "name,phone")
+            .split(",")
+            .map((h) => h.trim())
+            .filter(Boolean);
+    return {
+      name: String(selectedNode.data.config.source_name || "Manual Table Source"),
+      headers,
+      rows: parsed.rows,
+    };
+  }
+
+  async function saveManualTableSource() {
+    const data = currentManualTableData();
+    if (!data || data.headers.length === 0) {
+      setManualSourceMessage("Add at least one column before saving.");
+      return;
+    }
+    setManualSourceLoading(true);
+    setManualSourceMessage(null);
+    try {
+      const sourceId = String(selectedNode?.data.config.manual_source_id || "");
+      const payload = { name: data.name, headers: data.headers, rows: data.rows };
+      const saved = sourceId
+        ? await api.updateManualTableSource(sourceId, payload)
+        : await api.createManualTableSource(payload);
+      updateNodeConfig("manual_source_id", saved.id);
+      updateNodeConfig("source_name", saved.name);
+      setManualSourceMessage("Saved to server.");
+    } catch (err) {
+      setManualSourceMessage(err instanceof Error ? `Save failed: ${err.message}` : "Save failed.");
+    } finally {
+      setManualSourceLoading(false);
+    }
+  }
+
+  async function loadManualTableSource() {
+    if (!selectedNode || selectedNode.data.kind !== "source_manual_table") return;
+    const sourceId = String(selectedNode.data.config.manual_source_id || "").trim();
+    if (!sourceId) {
+      setManualSourceMessage("manual_source_id is required to load.");
+      return;
+    }
+    setManualSourceLoading(true);
+    setManualSourceMessage(null);
+    try {
+      const source = await api.getManualTableSource(sourceId);
+      applyManualTable(source.headers, source.rows);
+      updateNodeConfig("source_name", source.name);
+      setManualSourceMessage(`Loaded ${source.row_count} rows from server.`);
+    } catch (err) {
+      setManualSourceMessage(err instanceof Error ? `Load failed: ${err.message}` : "Load failed.");
+    } finally {
+      setManualSourceLoading(false);
+    }
   }
 
   async function testUrlSource() {
@@ -420,42 +486,19 @@ export default function FlowBuilder() {
     setUrlTestLoading(true);
     setUrlTestError(null);
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      let headers: string[] = [];
-      let rows: string[][] = [];
-      if (selectedNode.data.kind === "source_url_csv") {
-        const text = await res.text();
-        const parsed = parseCsvText(text);
-        headers = parsed.headers;
-        rows = parsed.rows;
-      } else {
-        const payload = await res.json();
-        const arr = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.items)
-          ? payload.items
-          : [];
-        if (!arr.length || typeof arr[0] !== "object") throw new Error("JSON must be an array of objects.");
-        headers = Object.keys(arr[0] as Record<string, unknown>);
-        rows = arr.map((item: Record<string, unknown>) => headers.map((h) => String(item[h] ?? "")));
-      }
-
-      if (!headers.length) throw new Error("No columns found.");
-      setUrlPreviewHeaders(headers);
-      setUrlPreviewRows(rows.slice(0, 6));
-      updateNodeConfig("mapping", headers.join(","));
-      updateNodeConfig("estimated_rows", String(rows.length));
-      updateNodeConfig("sample_csv", toCsvText(headers, rows.slice(0, 20)));
+      const preview = await api.previewFlowUrlSource({
+        url,
+        source_kind: selectedNode.data.kind,
+        max_preview_rows: 6,
+        max_rows: 2000,
+      });
+      setUrlPreviewHeaders(preview.headers);
+      setUrlPreviewRows(preview.preview_rows);
+      updateNodeConfig("mapping", preview.mapping);
+      updateNodeConfig("estimated_rows", String(preview.total_rows));
+      updateNodeConfig("sample_csv", preview.sample_csv);
     } catch (err) {
-      setUrlTestError(
-        err instanceof Error
-          ? `${err.message}. If this is a browser CORS issue, use backend proxy for URL fetching.`
-          : "URL fetch failed.",
-      );
+      setUrlTestError(err instanceof Error ? err.message : "URL preview failed.");
       setUrlPreviewHeaders([]);
       setUrlPreviewRows([]);
     } finally {
@@ -759,7 +802,26 @@ export default function FlowBuilder() {
                           >
                             Add Row
                           </button>
+                          <button
+                            type="button"
+                            onClick={saveManualTableSource}
+                            disabled={manualSourceLoading}
+                            className="btn-outline-modern inline-flex h-9 items-center px-3 text-xs disabled:opacity-60"
+                          >
+                            {manualSourceLoading ? "Saving..." : "Save Source"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={loadManualTableSource}
+                            disabled={manualSourceLoading}
+                            className="btn-outline-modern inline-flex h-9 items-center px-3 text-xs disabled:opacity-60"
+                          >
+                            {manualSourceLoading ? "Loading..." : "Load Source"}
+                          </button>
                         </div>
+                        {manualSourceMessage ? (
+                          <p className="text-xs text-[var(--muted-foreground)]">{manualSourceMessage}</p>
+                        ) : null}
                       </div>
                     );
                   })()}

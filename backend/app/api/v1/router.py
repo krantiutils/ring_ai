@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     campaigns,
     contacts,
     credits,
+    flows,
     forms,
     gateway,
     inbound,
@@ -32,6 +33,7 @@ api_v1_router.include_router(voice.router, prefix="/voice", tags=["voice"])
 api_v1_router.include_router(agent_call.router, prefix="/voice", tags=["agent-call"])
 api_v1_router.include_router(voice_models.router, prefix="/voice-models", tags=["voice-models"])
 api_v1_router.include_router(text.router, prefix="/text", tags=["text"])
+api_v1_router.include_router(flows.router, prefix="/flows", tags=["flows"])
 api_v1_router.include_router(forms.router, prefix="/forms", tags=["forms"])
 api_v1_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 api_v1_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])

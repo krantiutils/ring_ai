@@ -374,6 +374,63 @@ export const api = {
   deleteTemplate: (id: string) =>
     request<void>(`/templates/${id}`, { method: "DELETE" }),
 
+  // Flow sources
+  previewFlowUrlSource: (data: {
+    url: string;
+    source_kind: "source_url_json" | "source_url_csv";
+    max_preview_rows?: number;
+    max_rows?: number;
+  }) =>
+    request<{
+      headers: string[];
+      preview_rows: string[][];
+      total_rows: number;
+      mapping: string;
+      sample_csv: string;
+    }>("/flows/sources/url-preview", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  createManualTableSource: (data: { name: string; headers: string[]; rows: string[][] }) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>("/flows/sources/manual-table", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getManualTableSource: (id: string) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/flows/sources/manual-table/${id}`),
+  updateManualTableSource: (id: string, data: { name: string; headers: string[]; rows: string[][] }) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/flows/sources/manual-table/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   // Phone Numbers
   getActivePhoneNumbers: () => request<import("@/types/dashboard").PhoneNumber[]>("/phone-numbers/active"),
   getBrokerPhoneNumbers: () => request<import("@/types/dashboard").PhoneNumber[]>("/phone-numbers/broker"),

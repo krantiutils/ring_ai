@@ -12,6 +12,7 @@ from app.models.inbound_routing_rule import InboundRoutingRule
 from app.models.interaction import Interaction
 from app.models.knowledge_base import KnowledgeBase, KnowledgeChunk, KnowledgeDocument
 from app.models.kyc_verification import KYCVerification
+from app.models.manual_table_source import ManualTableSource
 from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.otp import OTPRecord
@@ -41,6 +42,7 @@ __all__ = [
     "KnowledgeChunk",
     "KnowledgeDocument",
     "KYCVerification",
+    "ManualTableSource",
     "Notification",
     "Organization",
     "OTPRecord",
