@@ -627,6 +627,7 @@ export const api = {
   initiateMasterOtpDemoCall: (data: {
     name: string;
     phone: string;
+    message?: string;
     master_otp: string;
     from_number?: string;
     tts_config?: {

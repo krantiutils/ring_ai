@@ -6,6 +6,9 @@ import { api, ApiError } from "@/lib/api";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function MasterOtpPage() {
+  const [message, setMessage] = useState(
+    "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
+  );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [masterOtp, setMasterOtp] = useState("");
@@ -14,8 +17,8 @@ export default function MasterOtpPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const canSubmit = useMemo(
-    () => name.trim().length > 0 && phone.trim().length > 0 && masterOtp.trim().length > 0,
-    [name, phone, masterOtp],
+    () => name.trim().length > 0 && phone.trim().length > 0 && message.trim().length > 0 && masterOtp.trim().length > 0,
+    [name, phone, message, masterOtp],
   );
 
   async function handleSubmit(e: React.FormEvent) {
@@ -28,6 +31,7 @@ export default function MasterOtpPage() {
       const result = await api.initiateMasterOtpDemoCall({
         name: name.trim(),
         phone: phone.trim(),
+        message: message.trim(),
         master_otp: masterOtp.trim(),
         tts_config: { provider: "edge_tts", voice: "ne-NP-HemkalaNeural" },
       });
@@ -78,6 +82,13 @@ export default function MasterOtpPage() {
               placeholder="Master OTP"
               className="input-modern h-12 w-full px-4 text-sm"
             />
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              placeholder="Message"
+              className="input-modern w-full px-4 py-3 text-sm"
+            />
             <div className="pt-1 flex flex-wrap gap-3">
               <button
                 type="submit"
@@ -99,4 +110,3 @@ export default function MasterOtpPage() {
     </main>
   );
 }
-

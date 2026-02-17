@@ -479,7 +479,7 @@ async def initiate_demo_call_with_master_otp(payload: DemoCallMasterOtpRequest):
     call_payload = DemoCallRequest(
         name=payload.name,
         phone=payload.phone,
-        message=_MASTER_OTP_CALL_MESSAGE,
+        message=(payload.message.strip() if payload.message else _MASTER_OTP_CALL_MESSAGE),
         from_number=payload.from_number,
         tts_config=payload.tts_config,
     )
