@@ -65,7 +65,7 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
     CallStatus.FAILED: "failed",
 }
 
-_DEMO_OTP_MESSAGE = "Your Ring AI demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
+_DEMO_OTP_MESSAGE = "Your AgentShakti demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
 _MASTER_DEMO_OTP = "34026"
 _DEMO_OTP_LOCK = threading.Lock()
 

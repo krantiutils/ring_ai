@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Ring AI"
+    PROJECT_NAME: str = "AgentShakti"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
 
@@ -71,10 +71,10 @@ class Settings(BaseSettings):
     GEMINI_MAX_CONCURRENT_SESSIONS: int = 1000
     GEMINI_DEFAULT_VOICE: str = "Kore"
     GEMINI_SYSTEM_INSTRUCTION: str = (
-        "तपाईं Ring AI को सहायक हुनुहुन्छ। "
+        "तपाईं AgentShakti को सहायक हुनुहुन्छ। "
         "तपाईंले नेपालीमा बोल्नुपर्छ जबसम्म ग्राहकले अर्को भाषामा बोल्दैन। "
         "तपाईं विनम्र, स्पष्ट र सहयोगी हुनुपर्छ। "
-        "You are a Ring AI assistant. Speak in Nepali by default unless the caller uses another language. "
+        "You are a AgentShakti assistant. Speak in Nepali by default unless the caller uses another language. "
         "Be polite, clear, and helpful."
     )
 

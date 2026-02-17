@@ -8,7 +8,7 @@ export default function EditorialOrbitalGraphic() {
       aria-labelledby="orbitalTitle orbitalDesc"
       className="w-full h-full"
     >
-      <title id="orbitalTitle">Ring AI Editorial Illustration</title>
+      <title id="orbitalTitle">AgentShakti Editorial Illustration</title>
       <desc id="orbitalDesc">
         Abstract orbital newsroom-inspired diagram showing communication flows across voice, text, and handoff lanes.
       </desc>

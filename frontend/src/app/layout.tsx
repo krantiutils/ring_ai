@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ring AI — One Platform. Every Conversation. Understood.",
+  title: "AgentShakti — One Platform. Every Conversation. Understood.",
   description:
     "AI-powered business communication platform for voice, SMS, and surveys. Powered by AI, spoken in नेपाली.",
 };

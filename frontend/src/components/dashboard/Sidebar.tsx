@@ -42,10 +42,10 @@ export default function Sidebar() {
     >
       <div className="flex h-16 items-center gap-3 border-b border-[#E2E8F0] px-5">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-sm font-bold text-white shadow-[0_4px_14px_rgba(0,82,255,0.28)]">
-          R
+          A
         </div>
         <div>
-          <span className="text-lg font-semibold tracking-tight text-[#0F172A]">Ring AI</span>
+          <span className="text-lg font-semibold tracking-tight text-[#0F172A]">AgentShakti</span>
           <p className="font-mono-label text-[10px] uppercase tracking-[0.15em] text-[#64748B]">Operations</p>
         </div>
       </div>

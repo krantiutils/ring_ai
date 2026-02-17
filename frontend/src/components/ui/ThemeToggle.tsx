@@ -7,11 +7,16 @@ type Theme = "light" | "dark";
 
 const STORAGE_KEY = "ring_theme_mode";
 
-function detectInitialTheme(): Theme {
+function detectSystemTheme(): Theme {
   if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function detectStoredTheme(): Theme | null {
+  if (typeof window === "undefined") return null;
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return null;
 }
 
 function applyTheme(theme: Theme) {
@@ -24,9 +29,20 @@ export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
-    const initial = detectInitialTheme();
+    const stored = detectStoredTheme();
+    const initial = stored ?? detectSystemTheme();
     setTheme(initial);
     applyTheme(initial);
+
+    if (stored) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSystemThemeChange = (event: MediaQueryListEvent) => {
+      const next = event.matches ? "dark" : "light";
+      setTheme(next);
+      applyTheme(next);
+    };
+    media.addEventListener("change", onSystemThemeChange);
+    return () => media.removeEventListener("change", onSystemThemeChange);
   }, []);
 
   const nextTheme = theme === "light" ? "dark" : "light";

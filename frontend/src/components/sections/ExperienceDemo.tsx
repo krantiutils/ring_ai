@@ -12,10 +12,10 @@ type ExperienceDemoProps = {
 const copy = {
   en: {
     label: "Interactive Demo",
-    title: "Try Ring AI Before Signup",
+    title: "Try AgentShakti Before Signup",
     desc: "Run a quick flow: type text, hear Nepali TTS, request OTP, verify, and queue a demo call.",
-    message: "Ring AI ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
+    message: "AgentShakti ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
+    callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
     textToSpeech: "Text to Speech",
     callDemo: "Request Demo Call",
     sendOtp: "Send OTP",
@@ -28,10 +28,10 @@ const copy = {
   },
   ne: {
     label: "इण्टरएक्टिभ डेमो",
-    title: "साइनअप अघि Ring AI चलाएर हेर्नुहोस्",
+    title: "साइनअप अघि AgentShakti चलाएर हेर्नुहोस्",
     desc: "छोटो flow चलाउनुहोस्: टेक्स्ट टाइप गर्नुहोस्, Nepali TTS सुन्नुहोस्, OTP माग्नुहोस्, verify गर्नुहोस् र डेमो कल queue गर्नुहोस्।",
-    message: "Ring AI ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
+    message: "AgentShakti ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
+    callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
     textToSpeech: "टेक्स्ट टु स्पीच",
     callDemo: "डेमो कल अनुरोध",
     sendOtp: "OTP पठाउनुहोस्",

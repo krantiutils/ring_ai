@@ -77,8 +77,8 @@ test.describe("Authentication Flows", () => {
 
     // Assert dashboard elements are visible
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    // Sidebar should be visible with Ring AI branding
-    await expect(page.getByText("Ring AI").first()).toBeVisible();
+    // Sidebar should be visible with AgentShakti branding
+    await expect(page.getByText("AgentShakti").first()).toBeVisible();
 
     await page.screenshot({
       path: "feature_parity_validation/auth/dashboard-after-login.png",

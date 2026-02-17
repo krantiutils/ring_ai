@@ -36,7 +36,7 @@ declare global {
 
 const copy = {
   en: {
-    title: "Access Ring AI",
+    title: "Access AgentShakti",
     subtitle: "Create account with mobile number or continue with Google.",
     login: "Sign In",
     create: "Create Account",
@@ -46,7 +46,7 @@ const copy = {
     language: "नेपाली",
   },
   ne: {
-    title: "Ring AI पहुँच",
+    title: "AgentShakti पहुँच",
     subtitle: "मोबाइल नम्बर सहित खाता बनाउनुहोस् वा Google बाट जारी राख्नुहोस्।",
     login: "लगइन",
     create: "खाता बनाउनुहोस्",
@@ -173,42 +173,45 @@ export default function LoginPage() {
   return (
     <>
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setScriptLoaded(true)} />
-      <main className="min-h-screen bg-[#FAFAFA] px-4 py-12">
+      <main className="min-h-screen bg-[var(--background)] px-4 py-12">
         <div className="mx-auto max-w-5xl">
-          <div className="relative overflow-hidden rounded-3xl border border-[#E2E8F0] bg-white shadow-xl">
+          <div className="relative overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--card)] shadow-xl">
             <div className="soft-glow -right-20 top-10 h-72 w-72 bg-[#4D7CFF]/25" />
             <div className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]">
-              <aside className="border-b border-[#E2E8F0] bg-[#F8FAFC] p-8 lg:border-r lg:border-b-0">
+              <aside className="border-b border-[var(--border)] bg-[var(--muted)] p-8 lg:border-r lg:border-b-0">
                 <div className="label-badge">
                   <span className="pulse-dot" />
                   Auth
                 </div>
-                <h1 className="font-display mt-5 text-5xl leading-tight text-[#0F172A]">{t.title}</h1>
-                <p className="mt-4 text-[#64748B]">{t.subtitle}</p>
+                <h1 className="font-display mt-5 text-5xl leading-tight text-[var(--foreground)]">{t.title}</h1>
+                <p className="mt-4 text-[var(--muted-foreground)]">{t.subtitle}</p>
                 <div className="mt-6 flex gap-2">
                   <ThemeToggle />
-                  <button onClick={() => setLang((v) => (v === "en" ? "ne" : "en"))} className="btn-outline-modern inline-flex h-10 items-center px-4 text-sm font-medium">
+                  <button
+                    onClick={() => setLang((v) => (v === "en" ? "ne" : "en"))}
+                    className="btn-outline-modern inline-flex h-10 items-center border px-4 font-mono-label text-[11px] font-medium uppercase tracking-[0.12em]"
+                  >
                     {t.language}
                   </button>
-                  <a href="/" className="btn-outline-modern inline-flex h-10 items-center px-4 text-sm font-medium">
+                  <a href="/" className="btn-outline-modern inline-flex h-10 items-center border px-4 text-sm font-medium">
                     {t.back}
                   </a>
                 </div>
               </aside>
 
               <section className="p-8">
-                <div className="mb-5 flex gap-2">
+                <div className="mb-5 inline-flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-1">
                   <button
                     type="button"
                     onClick={() => setMode("login")}
-                    className={`inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold transition ${mode === "login" ? "btn-primary-modern" : "btn-outline-modern"}`}
+                    className={`inline-flex h-11 items-center rounded-xl border px-4 text-sm font-semibold transition ${mode === "login" ? "btn-primary-modern border-transparent" : "btn-outline-modern"}`}
                   >
                     {t.login}
                   </button>
                   <button
                     type="button"
                     onClick={() => setMode("create")}
-                    className={`inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold transition ${mode === "create" ? "btn-primary-modern" : "btn-outline-modern"}`}
+                    className={`inline-flex h-11 items-center rounded-xl border px-4 text-sm font-semibold transition ${mode === "create" ? "btn-primary-modern border-transparent" : "btn-outline-modern"}`}
                   >
                     {t.create}
                   </button>
@@ -234,7 +237,7 @@ export default function LoginPage() {
                       placeholder="Password"
                       className="input-modern h-12 w-full px-4 text-sm"
                     />
-                    <button type="submit" disabled={loading} className="btn-primary-modern inline-flex h-12 items-center px-6 text-sm font-semibold disabled:opacity-60">
+                    <button type="submit" disabled={loading} className="btn-primary-modern inline-flex h-12 items-center border border-transparent px-6 text-sm font-semibold disabled:opacity-60">
                       {loading ? "Signing in..." : t.loginBtn}
                     </button>
                   </form>
@@ -247,19 +250,19 @@ export default function LoginPage() {
                     <input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+97798XXXXXXXX" className="input-modern h-12 px-4 text-sm" />
                     <input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} required placeholder="Password" className="input-modern h-12 px-4 text-sm" />
                     <div className="md:col-span-2">
-                      <button type="submit" disabled={loading || !canCreate} className="btn-primary-modern inline-flex h-12 items-center px-6 text-sm font-semibold disabled:opacity-60">
+                      <button type="submit" disabled={loading || !canCreate} className="btn-primary-modern inline-flex h-12 items-center border border-transparent px-6 text-sm font-semibold disabled:opacity-60">
                         {loading ? "Creating..." : t.createBtn}
                       </button>
                     </div>
                   </form>
                 )}
 
-                <div className="mt-6 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA] p-4">
+                <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--background)] p-4">
                   <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">Continue with Google</p>
                   {googleClientId ? (
                     <div ref={googleButtonRef} className="mt-3 min-h-[44px]" />
                   ) : (
-                    <p className="mt-3 text-sm text-[#64748B]">Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to enable Google login.</p>
+                    <p className="mt-3 text-sm text-[var(--muted-foreground)]">Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to enable Google login.</p>
                   )}
                 </div>
               </section>

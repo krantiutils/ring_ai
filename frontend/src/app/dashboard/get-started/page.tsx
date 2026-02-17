@@ -47,7 +47,7 @@ export default function GetStartedPage() {
 
   const [campaignId, setCampaignId] = useState<string>("");
   const [contactsFile, setContactsFile] = useState<File | null>(null);
-  const [smsMessage, setSmsMessage] = useState("Namaste {{name}}, Ring AI bata call/sms reminder chha.");
+  const [smsMessage, setSmsMessage] = useState("Namaste {{name}}, AgentShakti bata call/sms reminder chha.");
   const [scheduleAt, setScheduleAt] = useState("");
 
   const [busy, setBusy] = useState(false);
@@ -66,7 +66,7 @@ export default function GetStartedPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "ring-ai-contacts-sample.csv";
+    a.download = "agentshakti-contacts-sample.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -344,7 +344,7 @@ export default function GetStartedPage() {
             </button>
             <button
               type="button"
-              onClick={() => setSmsMessage("Namaste {{name}}, Ring AI bata yo automated reminder ho.")}
+              onClick={() => setSmsMessage("Namaste {{name}}, AgentShakti bata yo automated reminder ho.")}
               className="rounded-lg border border-[#d6dceb] px-3 py-1.5 text-xs text-[#334155] hover:border-[#0052FF]"
             >
               Message Templates
@@ -365,7 +365,7 @@ export default function GetStartedPage() {
             </button>
             <button
               type="button"
-              onClick={() => setSmsMessage((prev) => prev.replace("Ring AI", "Ring Sewa"))}
+              onClick={() => setSmsMessage((prev) => `${prev} हामी सहयोगका लागि 24/7 उपलब्ध छौं।`)}
               className="inline-flex items-center gap-1 rounded-lg border border-[#b8cdfa] bg-[#eff4ff] px-3 py-1.5 text-xs text-[#0052FF]"
             >
               <Sparkles className="h-3.5 w-3.5" />

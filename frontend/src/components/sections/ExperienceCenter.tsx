@@ -10,7 +10,7 @@ type ExperienceCenterProps = {
 
 export default function ExperienceCenter({ embedded = false }: ExperienceCenterProps) {
   const [demoText, setDemoText] = useState(
-    "Ring AI ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
+    "AgentShakti ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
   );
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
@@ -19,7 +19,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [callMessage, setCallMessage] = useState(
-    "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म कसरी काम गर्छ भनेर छोटकरीमा बताउँछौं।",
+    "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म कसरी काम गर्छ भनेर छोटकरीमा बताउँछौं।",
   );
   const [callLoading, setCallLoading] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);

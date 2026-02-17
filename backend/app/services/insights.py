@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 INSIGHTS_SYSTEM_PROMPT = (
-    "You are an analytics expert for Ring AI, a voice/SMS campaign platform in Nepal. "
+    "You are an analytics expert for AgentShakti, a voice/SMS campaign platform in Nepal. "
     "Given campaign statistics and sample transcripts, generate a concise insight report.\n\n"
     "Return a JSON object with exactly two fields:\n"
     '- "summary": a 2-4 sentence natural-language summary of the campaign outcomes, '

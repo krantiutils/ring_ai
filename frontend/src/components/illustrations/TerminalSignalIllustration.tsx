@@ -6,7 +6,7 @@ export default function TerminalSignalIllustration() {
       aria-labelledby="terminal-signal-title terminal-signal-desc"
       className="h-auto w-full sharp-corners border border-[#1f521f] bg-[#050805]"
     >
-      <title id="terminal-signal-title">Ring AI terminal signal illustration</title>
+      <title id="terminal-signal-title">AgentShakti terminal signal illustration</title>
       <desc id="terminal-signal-desc">A terminal-styled signal path showing message handoff from text to voice.</desc>
 
       <defs>

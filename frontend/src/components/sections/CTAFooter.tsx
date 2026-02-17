@@ -45,7 +45,7 @@ export default function CTAFooter({ language }: CTAFooterProps) {
 
       <footer className="border-t border-[#E2E8F0] bg-white py-10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 text-sm text-[#64748B] md:flex-row md:items-center md:justify-between md:px-6">
-          <p>© {new Date().getFullYear()} Ring AI. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} AgentShakti. All rights reserved.</p>
           <div className="flex gap-5">
             <a href="#products" className="hover:text-[#0052FF]">Product</a>
             <a href="#pricing" className="hover:text-[#0052FF]">Pricing</a>

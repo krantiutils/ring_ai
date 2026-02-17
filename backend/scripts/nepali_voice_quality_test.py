@@ -63,7 +63,7 @@ NEPALI_TEST_PHRASES: list[dict[str, str]] = [
     },
     {
         "id": "greeting_formal",
-        "text": "नमस्कार, म Ring AI बाट बोल्दै छु।",
+        "text": "नमस्कार, म AgentShakti बाट बोल्दै छु।",
         "category": "greeting",
         "notes": "Formal greeting with code-switch to English brand name",
     },

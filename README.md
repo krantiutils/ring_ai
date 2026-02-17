@@ -1,4 +1,4 @@
-# Ring AI
+# AgentShakti
 
 Voice campaign platform with TTS, SMS, and survey capabilities.
 

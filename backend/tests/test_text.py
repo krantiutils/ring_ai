@@ -91,7 +91,7 @@ class TestSendSms:
             "/api/v1/text/send",
             json={
                 "to": "+9779812345678",
-                "body": "Hello from Ring AI",
+                "body": "Hello from AgentShakti",
                 "org_id": str(org.id),
             },
         )
@@ -108,7 +108,7 @@ class TestSendSms:
         msg = db.query(SmsMessage).first()
         assert msg is not None
         assert msg.direction == "outbound"
-        assert msg.body == "Hello from Ring AI"
+        assert msg.body == "Hello from AgentShakti"
         assert msg.twilio_sid == "SM-test-123"
 
         conv = db.query(SmsConversation).first()
