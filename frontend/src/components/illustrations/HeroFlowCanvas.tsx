@@ -112,6 +112,20 @@ export default function HeroFlowCanvas() {
 
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const edges = buildEdges();
+    const portraitSources = [
+      "/images/nepali-portraits/p1.jpg",
+      "/images/nepali-portraits/p2.jpg",
+      "/images/nepali-portraits/p3.jpg",
+      "/images/nepali-portraits/p4.jpg",
+      "/images/nepali-portraits/p5.jpg",
+      "/images/nepali-portraits/p6.jpg",
+    ];
+    const portraits: HTMLImageElement[] = [];
+    for (const src of portraitSources) {
+      const img = new Image();
+      img.src = src;
+      portraits.push(img);
+    }
     const particles: Particle[] = Array.from({ length: 60 }).map((_, i) => ({
       edgeIndex: i % edges.length,
       t: (i * 0.17) % 1,
@@ -212,18 +226,38 @@ export default function HeroFlowCanvas() {
       }
 
       const ring = centerOf(centerNodes[2]);
-      for (let i = 0; i < 28; i += 1) {
-        const side = i % 2 === 0 ? -1 : 1;
-        const row = Math.floor(i / 2);
-        const x = w * (0.5 + side * (0.1 + row * 0.03));
-        const y = h * (0.95 - row * 0.01);
-        const r = 9 + (i % 3);
+      const people = [
+        { x: 0.08, y: 0.93, r: 14, img: 0 },
+        { x: 0.16, y: 0.89, r: 15, img: 1 },
+        { x: 0.24, y: 0.94, r: 14, img: 2 },
+        { x: 0.32, y: 0.9, r: 15, img: 3 },
+        { x: 0.4, y: 0.94, r: 14, img: 4 },
+        { x: 0.6, y: 0.93, r: 14, img: 5 },
+        { x: 0.68, y: 0.89, r: 15, img: 2 },
+        { x: 0.76, y: 0.94, r: 14, img: 0 },
+        { x: 0.84, y: 0.9, r: 15, img: 1 },
+        { x: 0.92, y: 0.93, r: 14, img: 4 },
+      ];
+      for (const person of people) {
+        const cx = person.x * w;
+        const cy = person.y * h;
+        const r = person.r;
+        context.save();
         context.beginPath();
-        context.fillStyle = `${card}f2`;
-        context.arc(x, y, r, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = `${border}cc`;
-        context.lineWidth = 1;
+        context.arc(cx, cy, r, 0, Math.PI * 2);
+        context.clip();
+        const portrait = portraits[person.img];
+        if (portrait?.complete && portrait.naturalWidth > 0) {
+          context.drawImage(portrait, cx - r, cy - r, r * 2, r * 2);
+        } else {
+          context.fillStyle = `${card}f2`;
+          context.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+        context.restore();
+        context.beginPath();
+        context.arc(cx, cy, r, 0, Math.PI * 2);
+        context.strokeStyle = `${border}dd`;
+        context.lineWidth = 1.2;
         context.stroke();
       }
 

@@ -115,16 +115,18 @@ export default function Hero({ language }: HeroProps) {
         </motion.div>
 
         <motion.div
-          className="relative h-[420px] overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] shadow-[0_20px_25px_rgba(0,0,0,0.08)]"
+          className="relative"
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.15, ease: easeOut }}
         >
-          <HeroFlowCanvas />
+          <div className="relative h-[420px] overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] shadow-[0_20px_25px_rgba(0,0,0,0.08)]">
+            <HeroFlowCanvas />
+          </div>
           <button
             type="button"
             onClick={handlePlayWelcome}
-            className="absolute left-1/2 top-[52%] z-10 w-[270px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--card)]/95 p-4 text-left shadow-lg transition hover:-translate-y-[53%] hover:shadow-[0_18px_30px_rgba(0,82,255,0.2)]"
+            className="mt-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_30px_rgba(0,82,255,0.2)]"
           >
             <div className="flex items-center gap-3">
               <svg width="56" height="56" viewBox="0 0 56 56" className="shrink-0">
@@ -147,7 +149,7 @@ export default function Hero({ language }: HeroProps) {
             </div>
           </button>
           {voiceStatus && (
-            <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-xs text-[var(--muted-foreground)]">{voiceStatus}</p>
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">{voiceStatus}</p>
           )}
         </motion.div>
       </div>
