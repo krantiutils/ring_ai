@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/templates": "Message Templates",
   "/dashboard/knowledge-bases": "Knowledge Base",
   "/dashboard/tts-providers": "TTS Providers",
+  "/dashboard/flows": "Flow Builder",
   "/dashboard/insights": "Conversation Insights",
   "/dashboard/integrations": "Integrations",
   "/dashboard/settings": "Settings",
@@ -40,22 +41,22 @@ export default function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[#E2E8F0] bg-[#FAFAFA]/95 px-4 backdrop-blur-sm md:px-6">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_94%,transparent)] px-4 backdrop-blur-sm md:px-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#0F172A] md:text-xl">{title}</h1>
+        <h1 className="text-lg font-semibold text-[var(--foreground)] md:text-xl">{title}</h1>
       </div>
 
       <div className="flex items-center gap-4">
         <ThemeToggle />
-        <div className="hidden items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm md:flex">
+        <div className="hidden items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm md:flex">
           <Coins className="h-4 w-4 text-[#0052FF]" />
-          <span className="font-mono-label text-[11px] uppercase tracking-[0.12em] text-[#0F172A]">
+          <span className="font-mono-label text-[11px] uppercase tracking-[0.12em] text-[var(--foreground)]">
             {credits ? `${credits.balance} | ${credits.total_purchased} Credits` : "0 Credits"}
           </span>
         </div>
 
-        <button className="relative rounded-xl p-2 transition-colors hover:bg-[#F1F5F9]">
-          <Bell className="h-5 w-5 text-[#0F172A]/50" />
+        <button className="relative rounded-xl p-2 transition-colors hover:bg-[var(--muted)]">
+          <Bell className="h-5 w-5 text-[color-mix(in_srgb,var(--foreground)_55%,transparent)]" />
         </button>
 
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0052FF]/15">

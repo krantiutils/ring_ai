@@ -20,7 +20,7 @@ export default function DashboardLayout({
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
+    <div className="min-h-screen bg-[var(--background)]">
       <Sidebar />
       <div className="transition-all duration-300 md:ml-[260px]">
         <TopBar />
