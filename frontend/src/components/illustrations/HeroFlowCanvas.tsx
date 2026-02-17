@@ -227,16 +227,16 @@ export default function HeroFlowCanvas() {
 
       const ring = centerOf(centerNodes[2]);
       const people = [
-        { x: 0.08, y: 0.93, r: 14, img: 0 },
-        { x: 0.16, y: 0.89, r: 15, img: 1 },
-        { x: 0.24, y: 0.94, r: 14, img: 2 },
-        { x: 0.32, y: 0.9, r: 15, img: 3 },
-        { x: 0.4, y: 0.94, r: 14, img: 4 },
-        { x: 0.6, y: 0.93, r: 14, img: 5 },
-        { x: 0.68, y: 0.89, r: 15, img: 2 },
-        { x: 0.76, y: 0.94, r: 14, img: 0 },
-        { x: 0.84, y: 0.9, r: 15, img: 1 },
-        { x: 0.92, y: 0.93, r: 14, img: 4 },
+        { x: 0.08, y: 0.96, r: 11, img: 0 },
+        { x: 0.16, y: 0.94, r: 12, img: 1 },
+        { x: 0.24, y: 0.97, r: 11, img: 2 },
+        { x: 0.32, y: 0.95, r: 12, img: 3 },
+        { x: 0.4, y: 0.97, r: 11, img: 4 },
+        { x: 0.6, y: 0.96, r: 11, img: 5 },
+        { x: 0.68, y: 0.94, r: 12, img: 2 },
+        { x: 0.76, y: 0.97, r: 11, img: 0 },
+        { x: 0.84, y: 0.95, r: 12, img: 1 },
+        { x: 0.92, y: 0.96, r: 11, img: 4 },
       ];
       for (const person of people) {
         const cx = person.x * w;
