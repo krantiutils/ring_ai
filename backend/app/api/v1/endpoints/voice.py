@@ -212,6 +212,23 @@ async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
 
 
 async def _send_demo_call_otp_whatsapp(phone: str, otp: str, from_number: str | None = None) -> None:
+    if settings.WHATSAPP_BRIDGE_URL:
+        payload = {"to": phone, "message": _DEMO_OTP_MESSAGE.format(otp=otp)}
+        headers = {"content-type": "application/json"}
+        if settings.WHATSAPP_BRIDGE_TOKEN:
+            headers["x-bridge-token"] = settings.WHATSAPP_BRIDGE_TOKEN
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(
+                    f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/send",
+                    json=payload,
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Linked WhatsApp OTP bridge unreachable: {exc}") from exc
+        if response.status_code < 400:
+            return
+
     try:
         provider = get_twilio_provider()
     except TelephonyConfigurationError as exc:

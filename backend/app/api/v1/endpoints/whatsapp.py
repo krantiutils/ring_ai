@@ -12,6 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.core.config import settings
@@ -73,6 +74,31 @@ def _with_whatsapp_prefix(number: str) -> str:
     if raw.lower().startswith("whatsapp:"):
         return raw
     return f"whatsapp:{raw}"
+
+
+def _bridge_headers() -> dict[str, str]:
+    headers = {"content-type": "application/json"}
+    if settings.WHATSAPP_BRIDGE_TOKEN:
+        headers["x-bridge-token"] = settings.WHATSAPP_BRIDGE_TOKEN
+    return headers
+
+
+async def _bridge_send_message(to: str, message: str) -> tuple[str, str | None]:
+    if not settings.WHATSAPP_BRIDGE_URL:
+        raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(
+                f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/send",
+                json={"to": to, "message": message},
+                headers=_bridge_headers(),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Linked WhatsApp bridge unreachable: {exc}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=f"Linked WhatsApp bridge rejected message: {response.text}")
+    data = response.json()
+    return data.get("status", "sent"), data.get("id")
 
 
 def _survey_message(question: str, options: list[str]) -> str:
@@ -264,18 +290,28 @@ async def send_demo_message(session_id: str, payload: WhatsAppDemoMessageRequest
     delivery_id: str | None = None
 
     if from_number and to_number:
-        try:
-            twilio = get_twilio_provider()
-            sms_result = await twilio.send_sms(
-                to=_with_whatsapp_prefix(to_number),
-                from_number=_with_whatsapp_prefix(from_number),
-                body=assistant_message,
-            )
-            delivery_status = sms_result.status or "sent"
-            delivery_id = sms_result.message_id
-        except (TelephonyConfigurationError, TelephonyProviderError) as exc:
-            logger.warning("WhatsApp delivery fallback to simulated: %s", exc)
-            delivery_status = "simulated"
+        # Prefer linked-device bridge, then Twilio WhatsApp fallback, then simulated.
+        if settings.WHATSAPP_BRIDGE_URL:
+            try:
+                bridge_status, bridge_id = await _bridge_send_message(to_number, assistant_message)
+                delivery_status = bridge_status
+                delivery_id = bridge_id
+            except HTTPException as exc:
+                logger.warning("Linked WhatsApp bridge send failed: %s", exc.detail)
+                delivery_status = "simulated"
+        if delivery_status == "simulated":
+            try:
+                twilio = get_twilio_provider()
+                sms_result = await twilio.send_sms(
+                    to=_with_whatsapp_prefix(to_number),
+                    from_number=_with_whatsapp_prefix(from_number),
+                    body=assistant_message,
+                )
+                delivery_status = sms_result.status or "sent"
+                delivery_id = sms_result.message_id
+            except (TelephonyConfigurationError, TelephonyProviderError) as exc:
+                logger.warning("WhatsApp delivery fallback to simulated: %s", exc)
+                delivery_status = "simulated"
 
     should_release = False
     with _LOCK:
@@ -368,21 +404,8 @@ async def whatsapp_survey_webhook(request: Request):
     if not sender or not body:
         return {"status": "ignored"}
 
-    normalized_sender = sender.replace("whatsapp:", "")
-    matched = 0
     with _LOCK:
-        for survey in _SURVEYS.values():
-            if normalized_sender not in {r.replace("whatsapp:", "") for r in survey.recipients}:
-                continue
-            selected = _normalize_option_reply(body, survey.options)
-            if not selected:
-                continue
-            previous = survey.responses.get(normalized_sender)
-            if previous:
-                survey.counts[previous] = max(0, survey.counts.get(previous, 0) - 1)
-            survey.responses[normalized_sender] = selected
-            survey.counts[selected] = survey.counts.get(selected, 0) + 1
-            matched += 1
+        matched = _apply_survey_response(sender, body)
     return {"status": "ok", "updated_surveys": matched}
 
 
@@ -399,3 +422,74 @@ async def whatsapp_survey_results(survey_id: str):
         counts=survey.counts,
         responses=survey.responses,
     )
+
+
+def _apply_survey_response(sender: str, body: str) -> int:
+    normalized_sender = sender.replace("whatsapp:", "").strip()
+    matched = 0
+    for survey in _SURVEYS.values():
+        if normalized_sender not in {r.replace("whatsapp:", "") for r in survey.recipients}:
+            continue
+        selected = _normalize_option_reply(body, survey.options)
+        if not selected:
+            continue
+        previous = survey.responses.get(normalized_sender)
+        if previous:
+            survey.counts[previous] = max(0, survey.counts.get(previous, 0) - 1)
+        survey.responses[normalized_sender] = selected
+        survey.counts[selected] = survey.counts.get(selected, 0) + 1
+        matched += 1
+    return matched
+
+
+@router.post("/linked/inbound")
+async def linked_whatsapp_inbound(request: Request):
+    """Inbound webhook target for linked-device WhatsApp bridge."""
+    token = settings.WHATSAPP_BRIDGE_TOKEN
+    if token:
+        header = (request.headers.get("x-bridge-token") or "").strip()
+        if header != token:
+            raise HTTPException(status_code=401, detail="Invalid bridge token")
+
+    payload = await request.json()
+    sender = str(payload.get("from") or "").strip()
+    body = str(payload.get("body") or "").strip()
+    if not sender or not body:
+        return {"status": "ignored"}
+    with _LOCK:
+        matched = _apply_survey_response(sender, body)
+    return {"status": "ok", "updated_surveys": matched}
+
+
+@router.get("/linked/status")
+async def linked_whatsapp_status():
+    if not settings.WHATSAPP_BRIDGE_URL:
+        raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.get(
+                f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/status",
+                headers=_bridge_headers(),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Linked WhatsApp bridge unreachable: {exc}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+
+@router.get("/linked/qr")
+async def linked_whatsapp_qr():
+    if not settings.WHATSAPP_BRIDGE_URL:
+        raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.get(
+                f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/qr",
+                headers=_bridge_headers(),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Linked WhatsApp bridge unreachable: {exc}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()

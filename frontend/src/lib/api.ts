@@ -763,6 +763,12 @@ export const api = {
       counts: Record<string, number>;
       responses: Record<string, string>;
     }>(`/whatsapp/demo/survey/${surveyId}/results`),
+  getLinkedWhatsAppStatus: () =>
+    request<{ state: string; ready_at?: string | null; has_qr?: boolean; last_error?: string | null }>(
+      "/whatsapp/linked/status",
+    ),
+  getLinkedWhatsAppQr: () =>
+    request<{ qr: string; qr_data_url: string }>("/whatsapp/linked/qr"),
 };
 
 export { ApiError };
