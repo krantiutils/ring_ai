@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const qrcode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
 const qrcodeTerminal = require("qrcode-terminal");
 const { Boom } = require("@hapi/boom");
 const pino = require("pino");
@@ -16,7 +18,8 @@ const PORT = Number(process.env.PORT || 3010);
 const BRIDGE_TOKEN = process.env.WHATSAPP_BRIDGE_TOKEN || "";
 const BACKEND_WEBHOOK_URL = process.env.BACKEND_WEBHOOK_URL || "";
 const BACKEND_WEBHOOK_TOKEN = process.env.BACKEND_WEBHOOK_TOKEN || "";
-const AUTH_DIR = process.env.WHATSAPP_BAILEYS_AUTH_DIR || ".baileys_auth";
+const AUTH_DIR = path.resolve(process.env.WHATSAPP_BAILEYS_AUTH_DIR || ".baileys_auth");
+const STARTUP_CLEAR_AUTH = String(process.env.WHATSAPP_BAILEYS_CLEAR_AUTH_ON_START || "").toLowerCase() === "true";
 
 const app = express();
 app.use(cors());
@@ -27,6 +30,10 @@ let state = "initializing";
 let currentQr = "";
 let lastError = "";
 let readyAt = null;
+let reconnectTimer = null;
+
+const QR_TXT_PATH = path.join(AUTH_DIR, "latest-qr.txt");
+const QR_PNG_PATH = path.join(AUTH_DIR, "latest-qr.png");
 
 function normalizeTarget(to) {
   const raw = String(to || "").trim();
@@ -45,6 +52,35 @@ function guard(req, res, next) {
     return res.status(401).json({ error: "unauthorized" });
   }
   next();
+}
+
+function ensureAuthDir() {
+  fs.mkdirSync(AUTH_DIR, { recursive: true });
+}
+
+function clearAuthDir() {
+  fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+  fs.mkdirSync(AUTH_DIR, { recursive: true });
+}
+
+async function persistQrArtifacts(qr) {
+  try {
+    ensureAuthDir();
+    fs.writeFileSync(QR_TXT_PATH, qr, "utf8");
+    const png = await qrcode.toBuffer(qr, { margin: 1, width: 320 });
+    fs.writeFileSync(QR_PNG_PATH, png);
+  } catch (err) {
+    console.warn("[whatsapp-bridge] failed to persist QR artifacts", err?.message || err);
+  }
+}
+
+function clearQrArtifacts() {
+  try {
+    if (fs.existsSync(QR_TXT_PATH)) fs.unlinkSync(QR_TXT_PATH);
+    if (fs.existsSync(QR_PNG_PATH)) fs.unlinkSync(QR_PNG_PATH);
+  } catch (err) {
+    console.warn("[whatsapp-bridge] failed to clear QR artifacts", err?.message || err);
+  }
 }
 
 function extractText(messageContent) {
@@ -83,6 +119,10 @@ async function forwardInboundMessage(message) {
 }
 
 async function startSocket() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   const { state: authState, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   sock = makeWASocket({
     auth: authState,
@@ -104,6 +144,7 @@ async function startSocket() {
       lastError = "";
       console.log("[whatsapp-bridge] QR updated");
       qrcodeTerminal.generate(qr, { small: true });
+      await persistQrArtifacts(qr);
     }
 
     if (connection === "open") {
@@ -111,6 +152,7 @@ async function startSocket() {
       readyAt = new Date().toISOString();
       currentQr = "";
       lastError = "";
+      clearQrArtifacts();
       console.log("[whatsapp-bridge] ready");
       return;
     }
@@ -124,6 +166,7 @@ async function startSocket() {
       lastError = reason;
       currentQr = "";
       readyAt = null;
+      clearQrArtifacts();
       console.warn("[whatsapp-bridge] logged out; restart bridge to re-pair");
       return;
     }
@@ -131,7 +174,7 @@ async function startSocket() {
     state = "reconnecting";
     lastError = reason;
     console.warn("[whatsapp-bridge] disconnected, reconnecting");
-    setTimeout(() => {
+    reconnectTimer = setTimeout(() => {
       startSocket().catch((err) => {
         state = "init_failed";
         lastError = String(err?.message || err);
@@ -154,7 +197,15 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/status", guard, (_req, res) => {
-  res.json({ state, ready_at: readyAt, has_qr: Boolean(currentQr), last_error: lastError || null });
+  res.json({
+    state,
+    ready_at: readyAt,
+    has_qr: Boolean(currentQr),
+    last_error: lastError || null,
+    auth_dir: AUTH_DIR,
+    qr_txt_path: fs.existsSync(QR_TXT_PATH) ? QR_TXT_PATH : null,
+    qr_png_path: fs.existsSync(QR_PNG_PATH) ? QR_PNG_PATH : null,
+  });
 });
 
 app.get("/qr", guard, async (_req, res) => {
@@ -182,8 +233,35 @@ app.post("/send", guard, async (req, res) => {
   }
 });
 
+app.post("/auth/reset", guard, (_req, res) => {
+  clearAuthDir();
+  state = "initializing";
+  currentQr = "";
+  lastError = "";
+  readyAt = null;
+  if (sock?.ws) {
+    try {
+      sock.ws.close();
+    } catch (err) {
+      console.warn("[whatsapp-bridge] socket close failed during auth reset", err?.message || err);
+    }
+  }
+  startSocket().catch((err) => {
+    state = "init_failed";
+    lastError = String(err?.message || err);
+    console.error("[whatsapp-bridge] init failed", err);
+  });
+  return res.json({ status: "ok", auth_dir: AUTH_DIR, reset: true });
+});
+
 app.listen(PORT, () => {
+  ensureAuthDir();
+  if (STARTUP_CLEAR_AUTH) {
+    console.warn("[whatsapp-bridge] startup auth reset enabled; clearing auth directory");
+    clearAuthDir();
+  }
   console.log(`[whatsapp-bridge] listening on :${PORT}`);
+  console.log(`[whatsapp-bridge] auth dir: ${AUTH_DIR}`);
 });
 
 startSocket().catch((err) => {
