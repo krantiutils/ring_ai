@@ -1,6 +1,7 @@
 "use client";
 
 import type { LandingLanguage } from "@/app/page";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 type NavbarProps = {
   language: LandingLanguage;
@@ -47,6 +48,7 @@ export default function Navbar({ language, onToggleLanguage }: NavbarProps) {
         </nav>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <button
             type="button"
             onClick={onToggleLanguage}

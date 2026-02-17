@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { hasAccessToken, setAccessToken } from "@/lib/auth";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 type AuthMode = "login" | "create";
 type Lang = "en" | "ne";
@@ -185,6 +186,7 @@ export default function LoginPage() {
                 <h1 className="font-display mt-5 text-5xl leading-tight text-[#0F172A]">{t.title}</h1>
                 <p className="mt-4 text-[#64748B]">{t.subtitle}</p>
                 <div className="mt-6 flex gap-2">
+                  <ThemeToggle />
                   <button onClick={() => setLang((v) => (v === "en" ? "ne" : "en"))} className="btn-outline-modern inline-flex h-10 items-center px-4 text-sm font-medium">
                     {t.language}
                   </button>

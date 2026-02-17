@@ -39,7 +39,7 @@ export default function ThemeToggle() {
         applyTheme(nextTheme);
       }}
       aria-label={`Switch to ${nextTheme} mode`}
-      className="fixed right-4 top-4 z-[10000] inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] shadow-sm transition-colors hover:border-[rgba(0,82,255,0.4)]"
+      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] shadow-sm transition-colors hover:border-[rgba(0,82,255,0.4)]"
     >
       {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
     </button>

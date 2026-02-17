@@ -5,6 +5,7 @@ import { Bell, Coins, LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -45,6 +46,7 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-4">
+        <ThemeToggle />
         <div className="hidden items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm md:flex">
           <Coins className="h-4 w-4 text-[#0052FF]" />
           <span className="font-mono-label text-[11px] uppercase tracking-[0.12em] text-[#0F172A]">
@@ -62,7 +64,7 @@ export default function TopBar() {
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 rounded-lg border border-[#FF6B6B]/20 bg-white px-3 py-1.5 text-sm text-[#2D2D2D]/70 hover:border-[#FF6B6B]/45 hover:text-[#FF6B6B] transition-colors"
+          className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--foreground)]/75 transition-colors hover:border-[rgba(0,82,255,0.45)] hover:text-[var(--accent)]"
           aria-label="Log out"
         >
           <LogOut className="w-4 h-4" />

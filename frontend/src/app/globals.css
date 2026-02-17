@@ -187,15 +187,16 @@ body {
 .btn-outline-modern {
   border-radius: 0.75rem;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--card);
   color: var(--foreground);
   transition: all 0.2s ease-out;
 }
 
 .btn-outline-modern:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 82, 255, 0.3);
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--card) 85%, var(--accent) 15%);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
 }
 
 /* Dark-mode compatibility layer for existing hardcoded utility colors across pages/components. */
@@ -245,8 +246,12 @@ html[data-theme="dark"] .glass-border {
 .input-modern {
   border: 1px solid var(--border);
   border-radius: 0.85rem;
-  background: white;
+  background: var(--card);
   color: var(--foreground);
+}
+
+.input-modern::placeholder {
+  color: var(--muted-foreground);
 }
 
 .input-modern:focus-visible {

@@ -131,8 +131,8 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           <span className="pulse-dot" />
           {t.label}
         </div>
-        <h2 className="font-display mt-5 text-4xl leading-tight text-[#0F172A] md:text-5xl">{t.title}</h2>
-        <p className="mt-3 max-w-3xl text-[#64748B]">{t.desc}</p>
+        <h2 className="font-display mt-5 text-4xl leading-tight text-[var(--foreground)] md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-[var(--muted-foreground)]">{t.desc}</p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <motion.article
@@ -142,7 +142,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
             viewport={{ once: true, amount: 0.15 }}
             transition={{ duration: 0.6 }}
           >
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">{t.textToSpeech}</p>
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">{t.textToSpeech}</p>
             <textarea
               value={demoText}
               onChange={(e) => setDemoText(e.target.value)}
@@ -161,9 +161,9 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                 Login
               </a>
             </div>
-            {ttsError && <p className="mt-3 text-sm text-[#DC2626]">{ttsError}</p>}
+            {ttsError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{ttsError}</p>}
             {audioUrl && (
-              <div className="mt-4 rounded-xl border border-[#E2E8F0] p-3">
+              <div className="mt-4 rounded-xl border border-[var(--border)] p-3">
                 <audio controls autoPlay className="w-full">
                   <source src={audioUrl} type="audio/mpeg" />
                 </audio>
@@ -178,7 +178,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
             viewport={{ once: true, amount: 0.15 }}
             transition={{ duration: 0.6, delay: 0.08 }}
           >
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">{t.callDemo}</p>
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">{t.callDemo}</p>
             <div className="mt-4 grid grid-cols-1 gap-3">
               <input
                 value={name}
@@ -235,7 +235,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                 </button>
               </div>
             )}
-            {callError && <p className="mt-3 text-sm text-[#DC2626]">{callError}</p>}
+            {callError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{callError}</p>}
           </motion.article>
         </div>
       </div>
