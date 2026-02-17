@@ -21,6 +21,9 @@ from app.schemas.whatsapp import (
     WhatsAppDemoSessionCreateRequest,
     WhatsAppDemoSessionCreateResponse,
     WhatsAppDemoSessionInfoResponse,
+    WhatsAppSurveyResultsResponse,
+    WhatsAppSurveyStartRequest,
+    WhatsAppSurveyStartResponse,
 )
 from app.services.interactive_agent.models import OutputMode, SessionConfig
 from app.services.telephony import get_twilio_provider
@@ -50,11 +53,48 @@ class WhatsAppDemoState:
 _STORE: dict[str, WhatsAppDemoState] = {}
 
 
+@dataclass
+class WhatsAppSurveyState:
+    survey_id: str
+    question: str
+    options: list[str]
+    from_number: str
+    recipients: set[str]
+    counts: dict[str, int]
+    responses: dict[str, str]
+    created_at: datetime
+
+
+_SURVEYS: dict[str, WhatsAppSurveyState] = {}
+
+
 def _with_whatsapp_prefix(number: str) -> str:
     raw = number.strip()
     if raw.lower().startswith("whatsapp:"):
         return raw
     return f"whatsapp:{raw}"
+
+
+def _survey_message(question: str, options: list[str]) -> str:
+    lines = [question.strip(), "", "Reply with option number:"]
+    for idx, option in enumerate(options, start=1):
+        lines.append(f"{idx}. {option}")
+    return "\n".join(lines)
+
+
+def _normalize_option_reply(body: str, options: list[str]) -> str | None:
+    reply = body.strip()
+    if not reply:
+        return None
+    if reply.isdigit():
+        idx = int(reply)
+        if 1 <= idx <= len(options):
+            return options[idx - 1]
+    lowered = reply.lower()
+    for option in options:
+        if lowered == option.strip().lower():
+            return option
+    return None
 
 
 def _assistant_system_prompt(language: str) -> str:
@@ -270,3 +310,92 @@ async def end_demo_session(session_id: str, request: Request):
         await _release_session(session_id, request)
     return Response(status_code=204)
 
+
+@router.post("/demo/survey/start", response_model=WhatsAppSurveyStartResponse, status_code=201)
+async def start_whatsapp_survey(payload: WhatsAppSurveyStartRequest):
+    options = [opt.strip() for opt in payload.options if opt.strip()]
+    if len(options) < 2:
+        raise HTTPException(status_code=422, detail="Survey requires at least 2 non-empty options")
+    message_body = _survey_message(payload.question, options)
+    survey_id = uuid.uuid4().hex
+    recipients = [number.strip() for number in payload.to_numbers if number.strip()]
+    if not recipients:
+        raise HTTPException(status_code=422, detail="Provide at least one recipient number")
+
+    counts = {opt: 0 for opt in options}
+    responses: dict[str, str] = {}
+    sender = payload.from_number.strip()
+
+    delivery_simulated = False
+    try:
+        twilio = get_twilio_provider()
+        for to_number in recipients:
+            try:
+                await twilio.send_sms(
+                    to=_with_whatsapp_prefix(to_number),
+                    from_number=_with_whatsapp_prefix(sender),
+                    body=message_body,
+                )
+            except TelephonyProviderError:
+                delivery_simulated = True
+    except TelephonyConfigurationError:
+        delivery_simulated = True
+
+    with _LOCK:
+        _SURVEYS[survey_id] = WhatsAppSurveyState(
+            survey_id=survey_id,
+            question=payload.question.strip(),
+            options=options,
+            from_number=sender,
+            recipients=set(recipients),
+            counts=counts,
+            responses=responses,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    return WhatsAppSurveyStartResponse(
+        survey_id=survey_id,
+        status="simulated" if delivery_simulated else "sent",
+        recipients=len(recipients),
+    )
+
+
+@router.post("/demo/survey/webhook")
+async def whatsapp_survey_webhook(request: Request):
+    form = await request.form()
+    sender = (form.get("From") or "").strip()
+    body = (form.get("Body") or "").strip()
+    if not sender or not body:
+        return {"status": "ignored"}
+
+    normalized_sender = sender.replace("whatsapp:", "")
+    matched = 0
+    with _LOCK:
+        for survey in _SURVEYS.values():
+            if normalized_sender not in {r.replace("whatsapp:", "") for r in survey.recipients}:
+                continue
+            selected = _normalize_option_reply(body, survey.options)
+            if not selected:
+                continue
+            previous = survey.responses.get(normalized_sender)
+            if previous:
+                survey.counts[previous] = max(0, survey.counts.get(previous, 0) - 1)
+            survey.responses[normalized_sender] = selected
+            survey.counts[selected] = survey.counts.get(selected, 0) + 1
+            matched += 1
+    return {"status": "ok", "updated_surveys": matched}
+
+
+@router.get("/demo/survey/{survey_id}/results", response_model=WhatsAppSurveyResultsResponse)
+async def whatsapp_survey_results(survey_id: str):
+    with _LOCK:
+        survey = _SURVEYS.get(survey_id)
+    if survey is None:
+        raise HTTPException(status_code=404, detail="Survey not found")
+    return WhatsAppSurveyResultsResponse(
+        survey_id=survey.survey_id,
+        question=survey.question,
+        options=survey.options,
+        counts=survey.counts,
+        responses=survey.responses,
+    )

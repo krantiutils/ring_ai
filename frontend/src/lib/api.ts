@@ -606,6 +606,8 @@ export const api = {
     name: string;
     phone: string;
     message: string;
+    otp_channel?: "auto" | "sms" | "whatsapp";
+    whatsapp_from_number?: string;
     from_number?: string;
     tts_config?: {
       provider?: string;
@@ -743,6 +745,24 @@ export const api = {
       throw new ApiError(res.status, body || "Failed to end WhatsApp session");
     }
   },
+  startWhatsAppSurvey: (data: {
+    from_number: string;
+    to_numbers: string[];
+    question: string;
+    options: string[];
+  }) =>
+    request<{ survey_id: string; status: string; recipients: number }>("/whatsapp/demo/survey/start", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getWhatsAppSurveyResults: (surveyId: string) =>
+    request<{
+      survey_id: string;
+      question: string;
+      options: string[];
+      counts: Record<string, number>;
+      responses: Record<string, string>;
+    }>(`/whatsapp/demo/survey/${surveyId}/results`),
 };
 
 export { ApiError };

@@ -115,6 +115,27 @@ def _normalize_nepal_phone(phone: str) -> str | None:
     return None
 
 
+def _normalize_e164(phone: str) -> str:
+    raw = phone.strip()
+    if raw.startswith("+"):
+        return raw
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if digits.startswith("977") and len(digits) == 13:
+        return f"+{digits}"
+    if len(digits) == 10 and digits.startswith("9"):
+        return f"+977{digits}"
+    if digits:
+        return f"+{digits}"
+    return raw
+
+
+def _with_whatsapp_prefix(number: str) -> str:
+    raw = number.strip()
+    if raw.lower().startswith("whatsapp:"):
+        return raw
+    return f"whatsapp:{_normalize_e164(raw)}"
+
+
 def _cleanup_expired_demo_otps(now: datetime) -> None:
     expired_ids = [req_id for req_id, state in _DEMO_CALL_OTP_STORE.items() if state.expires_at <= now]
     for req_id in expired_ids:
@@ -188,6 +209,26 @@ async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
     invalid = (data.get("data") or {}).get("invalid") or []
     if invalid:
         raise HTTPException(status_code=422, detail="OTP SMS delivery failed: invalid phone number")
+
+
+async def _send_demo_call_otp_whatsapp(phone: str, otp: str, from_number: str | None = None) -> None:
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=f"WhatsApp OTP is not configured: {exc}") from exc
+
+    sender = from_number or settings.TWILIO_WHATSAPP_NUMBER or settings.TWILIO_PHONE_NUMBER or provider.default_from_number
+    if not sender:
+        raise HTTPException(status_code=503, detail="WhatsApp OTP sender number is not configured")
+
+    try:
+        await provider.send_sms(
+            to=_with_whatsapp_prefix(phone),
+            from_number=_with_whatsapp_prefix(sender),
+            body=_DEMO_OTP_MESSAGE.format(otp=otp),
+        )
+    except TelephonyProviderError as exc:
+        raise HTTPException(status_code=502, detail=f"WhatsApp OTP delivery failed: {exc}") from exc
 
 
 async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
@@ -517,17 +558,47 @@ async def send_demo_call_otp(payload: DemoCallRequest):
     expires_at = now + timedelta(seconds=settings.DEMO_CALL_OTP_TTL_SECONDS)
     request_id = str(uuid.uuid4())
     sms_status = "sent"
+    channel = payload.otp_channel.strip().lower() if payload.otp_channel else "auto"
+    if channel not in {"auto", "sms", "whatsapp"}:
+        raise HTTPException(status_code=422, detail="otp_channel must be one of: auto, sms, whatsapp")
 
-    # Aakash SMS only supports Nepal mobile numbers; non-Nepal numbers can still
-    # continue via the master OTP path.
-    if _normalize_nepal_phone(payload.phone):
-        # Graceful fallback: if SMS token is missing, continue with master OTP path.
-        if settings.AAKASH_SMS_TOKEN:
-            await _send_demo_call_otp_sms(payload.phone, otp)
+    delivery_errors: list[str] = []
+    delivered = False
+
+    # Channel priority:
+    # - whatsapp: try WhatsApp only
+    # - sms: try SMS only
+    # - auto: try WhatsApp first, then SMS fallback
+    if channel in {"auto", "whatsapp"}:
+        try:
+            await _send_demo_call_otp_whatsapp(
+                payload.phone,
+                otp,
+                from_number=payload.whatsapp_from_number,
+            )
+            sms_status = "sent_whatsapp"
+            delivered = True
+        except HTTPException as exc:
+            delivery_errors.append(str(exc.detail))
+            if channel == "whatsapp":
+                raise
+
+    if not delivered and channel in {"auto", "sms"}:
+        if _normalize_nepal_phone(payload.phone) and settings.AAKASH_SMS_TOKEN:
+            try:
+                await _send_demo_call_otp_sms(payload.phone, otp)
+                sms_status = "sent_sms"
+                delivered = True
+            except HTTPException as exc:
+                delivery_errors.append(str(exc.detail))
         else:
-            sms_status = "master_otp_only"
-    else:
+            delivery_errors.append("SMS OTP unavailable for this number/provider")
+
+    if not delivered:
+        # Keep demo usable with master OTP fallback.
         sms_status = "master_otp_only"
+        if delivery_errors:
+            logger.warning("Demo OTP delivery fallback to master OTP only: %s", " | ".join(delivery_errors))
 
     with _DEMO_OTP_LOCK:
         _cleanup_expired_demo_otps(now)

@@ -42,3 +42,23 @@ class WhatsAppDemoSessionInfoResponse(BaseModel):
     created_at: datetime
     expires_at: datetime
 
+
+class WhatsAppSurveyStartRequest(BaseModel):
+    from_number: str = Field(..., min_length=7, max_length=32)
+    to_numbers: list[str] = Field(..., min_length=1)
+    question: str = Field(..., min_length=3, max_length=500)
+    options: list[str] = Field(..., min_length=2, max_length=9)
+
+
+class WhatsAppSurveyStartResponse(BaseModel):
+    survey_id: str
+    status: str
+    recipients: int
+
+
+class WhatsAppSurveyResultsResponse(BaseModel):
+    survey_id: str
+    question: str
+    options: list[str]
+    counts: dict[str, int]
+    responses: dict[str, str]

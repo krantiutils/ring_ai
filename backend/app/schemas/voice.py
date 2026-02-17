@@ -50,6 +50,11 @@ class DemoCallRequest(BaseModel):
     phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
     message: str = Field(..., min_length=1, max_length=400)
     from_number: str | None = None
+    whatsapp_from_number: str | None = None
+    otp_channel: str = Field(
+        default="auto",
+        description="OTP channel preference: auto, sms, or whatsapp",
+    )
     tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
 
 
