@@ -345,6 +345,18 @@ export interface ProviderInfo {
   supported_formats: string[];
 }
 
+export interface VoiceCreditQuote {
+  provider: "edge_tts" | "azure" | "elevenlabs" | "cambai" | "pre_recorded_upload";
+  is_metered: boolean;
+  requires_purchased_credits: boolean;
+  billing_basis: "characters" | "duration" | "none";
+  credits_per_1k_chars: number | null;
+  estimated_required_credits: number;
+  current_balance: number;
+  sufficient_credits: boolean;
+  note: string;
+}
+
 // ---------------------------------------------------------------------------
 // Conversation Insights
 // ---------------------------------------------------------------------------

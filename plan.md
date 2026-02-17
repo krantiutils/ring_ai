@@ -3,6 +3,44 @@
 Last updated: 2026-02-17
 Scope: n8n-style builder for voice/SMS/WhatsApp with survey + conversational AI execution.
 
+## 0. Voice Product Ideas + Credit Model (New)
+
+### 0.1 Product additions
+- ElevenLabs integration for premium neural voice generation.
+- CAMB.AI integration for voice localization and multilingual dubbing workflows.
+- Pre-recorded audio upload flow (user uploads mp3/wav and reuses in campaigns).
+- Voice asset library (versioned clips, tags, language, usage stats).
+- Runtime A/B test by voice source (`edge_tts` vs ElevenLabs vs uploaded clip).
+
+### 0.2 Credit policy (required)
+- ElevenLabs: **metered**, consumes AgentShakti credits.
+- CAMB.AI: **metered**, consumes AgentShakti credits.
+- Pre-recorded upload: **unmetered by provider**, no ElevenLabs/CAMB.AI credits charged.
+- Edge/Azure passthrough:
+  - Edge demo mode: platform-managed, optional zero-cost or base campaign-only credit.
+  - Azure BYO key mode: no provider credits from AgentShakti wallet (customer pays Azure directly).
+
+### 0.3 Wallet and UX behavior
+1. User chooses voice source in campaign/demo builder.
+2. System shows live quote: chars, estimated credits, balance check.
+3. If source is metered and balance is insufficient:
+   - block launch/synthesis,
+   - show top-up CTA.
+4. If source is pre-recorded upload:
+   - skip provider credit checks,
+   - only standard campaign execution credits apply.
+5. On successful metered generation:
+   - consume credits and write transaction metadata (`provider`, `chars`, `reference`).
+
+### 0.4 What is being implemented now
+- [x] Plan and architecture update for provider credit policy.
+- [x] Backend API for voice provider credit quote (ElevenLabs/CAMB.AI metered, upload free).
+- [x] Dashboard integration UI for quote + policy visibility.
+- [ ] Runtime charge-on-success enforcement during provider synthesis execution.
+- [ ] ElevenLabs provider adapter.
+- [ ] CAMB.AI provider adapter.
+- [ ] Pre-recorded asset upload/management UI + API.
+
 ## 1. Product Goals
 - Build a visual workflow system where non-technical users launch campaigns from configurable nodes.
 - Use one **source of truth** data source, then allow **column enrichment** from survey/call/message events.

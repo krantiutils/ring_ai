@@ -13,8 +13,11 @@ from app.schemas.credits import (
     CreditHistoryResponse,
     CreditPurchaseRequest,
     CreditTransactionResponse,
+    VoiceCreditQuoteRequest,
+    VoiceCreditQuoteResponse,
 )
 from app.services.credits import (
+    estimate_voice_provider_credits,
     estimate_campaign_cost,
     get_balance,
     get_transaction_history,
@@ -105,3 +108,22 @@ def estimate_campaign_cost_endpoint(
 
     estimate = estimate_campaign_cost(db, campaign)
     return CostEstimateResponse(**estimate)
+
+
+@router.post("/voice/quote", response_model=VoiceCreditQuoteResponse)
+def estimate_voice_quote(
+    payload: VoiceCreditQuoteRequest,
+    db: Session = Depends(get_db),
+):
+    """Estimate provider-specific voice credits before synthesis/run."""
+    try:
+        quote = estimate_voice_provider_credits(
+            db=db,
+            org_id=payload.org_id,
+            provider=payload.provider,
+            text_chars=payload.text_chars,
+            duration_seconds=payload.duration_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return VoiceCreditQuoteResponse(**quote)

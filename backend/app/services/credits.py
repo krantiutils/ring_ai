@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.campaign import Campaign
 from app.models.credit import Credit
 from app.models.credit_transaction import CreditTransaction
@@ -22,6 +23,44 @@ COST_PER_INTERACTION: dict[str, float] = {
     "outbound_call": 2.0,
     "sms": 0.5,
     "form_response": 1.0,
+}
+
+VOICE_PROVIDER_POLICY: dict[str, dict[str, object]] = {
+    "edge_tts": {
+        "is_metered": False,
+        "requires_purchased_credits": False,
+        "billing_basis": "none",
+        "credits_per_1k_chars": None,
+        "note": "Edge TTS demo mode. No provider credits consumed.",
+    },
+    "azure": {
+        "is_metered": False,
+        "requires_purchased_credits": False,
+        "billing_basis": "none",
+        "credits_per_1k_chars": None,
+        "note": "Azure BYO key mode. Customer is billed by Azure directly.",
+    },
+    "elevenlabs": {
+        "is_metered": True,
+        "requires_purchased_credits": True,
+        "billing_basis": "characters",
+        "credits_per_1k_chars": settings.ELEVENLABS_CREDITS_PER_1K_CHARS,
+        "note": "Premium voice synthesis billed from AgentShakti credits.",
+    },
+    "cambai": {
+        "is_metered": True,
+        "requires_purchased_credits": True,
+        "billing_basis": "characters",
+        "credits_per_1k_chars": settings.CAMBAI_CREDITS_PER_1K_CHARS,
+        "note": "Localization voice synthesis billed from AgentShakti credits.",
+    },
+    "pre_recorded_upload": {
+        "is_metered": False,
+        "requires_purchased_credits": False,
+        "billing_basis": "none",
+        "credits_per_1k_chars": None,
+        "note": "Uploaded audio is not charged as provider usage.",
+    },
 }
 
 
@@ -125,6 +164,50 @@ def estimate_campaign_cost(db: Session, campaign: Campaign) -> dict:
         "estimated_total_cost": estimated_total,
         "current_balance": credit.balance,
         "sufficient_credits": credit.balance >= estimated_total,
+    }
+
+
+def estimate_voice_provider_credits(
+    db: Session,
+    org_id: uuid.UUID,
+    provider: str,
+    text_chars: int = 0,
+    duration_seconds: int = 0,
+) -> dict:
+    """Estimate credits required for provider-specific voice generation."""
+    policy = VOICE_PROVIDER_POLICY.get(provider)
+    if policy is None:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    credit = get_or_create_credit(db, org_id)
+
+    billing_basis = str(policy["billing_basis"])
+    credits_per_1k_chars = policy["credits_per_1k_chars"]
+
+    estimated_required_credits = 0.0
+    if billing_basis == "characters" and credits_per_1k_chars is not None:
+        chars = max(text_chars, 0)
+        estimated_required_credits = (chars / 1000.0) * float(credits_per_1k_chars)
+        estimated_required_credits = round(estimated_required_credits, 3)
+    elif billing_basis == "duration":
+        # Reserved for future per-minute billing providers.
+        estimated_required_credits = float(max(duration_seconds, 0))
+
+    requires_purchased_credits = bool(policy["requires_purchased_credits"])
+    sufficient = True
+    if requires_purchased_credits:
+        sufficient = credit.balance >= estimated_required_credits
+
+    return {
+        "provider": provider,
+        "is_metered": bool(policy["is_metered"]),
+        "requires_purchased_credits": requires_purchased_credits,
+        "billing_basis": billing_basis,
+        "credits_per_1k_chars": credits_per_1k_chars,
+        "estimated_required_credits": estimated_required_credits,
+        "current_balance": round(credit.balance, 3),
+        "sufficient_credits": sufficient,
+        "note": str(policy["note"]),
     }
 
 

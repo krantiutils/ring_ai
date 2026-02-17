@@ -368,6 +368,26 @@ export const api = {
       per_page: raw.per_page ?? raw.page_size ?? transactions.length,
     } as import("@/types/dashboard").CreditHistoryResponse;
   },
+  estimateVoiceProviderCredits: async (data: {
+    provider: "edge_tts" | "azure" | "elevenlabs" | "cambai" | "pre_recorded_upload";
+    text_chars?: number;
+    duration_seconds?: number;
+    org_id?: string;
+  }) => {
+    const orgId = data.org_id || getStoredOrgId();
+    if (!orgId) {
+      throw new ApiError(422, "Missing org_id. Open Campaigns once so organization context can be loaded.");
+    }
+    return request<import("@/types/dashboard").VoiceCreditQuote>("/credits/voice/quote", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: orgId,
+        provider: data.provider,
+        text_chars: data.text_chars ?? 0,
+        duration_seconds: data.duration_seconds ?? 0,
+      }),
+    });
+  },
 
   // Templates
   getTemplates: async (params?: string) => {

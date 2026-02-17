@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     # TTS
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = ""
+    ELEVENLABS_API_KEY: str = ""
+    CAMBAI_API_KEY: str = ""
+
+    # Provider credit policy (credits per 1,000 chars)
+    ELEVENLABS_CREDITS_PER_1K_CHARS: float = 8.0
+    CAMBAI_CREDITS_PER_1K_CHARS: float = 10.0
 
     # Twilio
     TWILIO_ACCOUNT_SID: str = ""

@@ -13,6 +13,7 @@ from app.services.credits import (
     check_sufficient_credits,
     consume_credits,
     estimate_campaign_cost,
+    estimate_voice_provider_credits,
     get_balance,
     get_or_create_credit,
     get_transaction_history,
@@ -497,6 +498,60 @@ class TestCampaignStartCreditCheck:
         resp = client.post(f"/api/v1/campaigns/{created['id']}/start")
         assert resp.status_code == 200
         assert resp.json()["status"] == "active"
+
+
+class TestVoiceProviderQuoteService:
+    def test_elevenlabs_requires_credits(self, db, org):
+        purchase_credits(db, org.id, 1.0)
+        quote = estimate_voice_provider_credits(
+            db=db,
+            org_id=org.id,
+            provider="elevenlabs",
+            text_chars=1000,
+        )
+        assert quote["requires_purchased_credits"] is True
+        assert quote["estimated_required_credits"] > 1.0
+        assert quote["sufficient_credits"] is False
+
+    def test_pre_recorded_is_free(self, db, org):
+        quote = estimate_voice_provider_credits(
+            db=db,
+            org_id=org.id,
+            provider="pre_recorded_upload",
+            text_chars=9999,
+        )
+        assert quote["requires_purchased_credits"] is False
+        assert quote["estimated_required_credits"] == 0.0
+        assert quote["sufficient_credits"] is True
+
+
+class TestVoiceProviderQuoteAPI:
+    def test_voice_quote_success(self, client, org_id, db):
+        purchase_credits(db, org_id, 20.0)
+        resp = client.post(
+            "/api/v1/credits/voice/quote",
+            json={
+                "org_id": str(org_id),
+                "provider": "cambai",
+                "text_chars": 1200,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["provider"] == "cambai"
+        assert data["requires_purchased_credits"] is True
+        assert data["estimated_required_credits"] > 0
+
+    def test_voice_quote_invalid_provider(self, client, org_id):
+        resp = client.post(
+            "/api/v1/credits/voice/quote",
+            json={
+                "org_id": str(org_id),
+                "provider": "invalid-provider",
+                "text_chars": 1200,
+            },
+        )
+        assert resp.status_code == 422
 
     def test_start_with_insufficient_credits(self, client, org_id):
         created = self._campaign_with_contacts_via_api(client, org_id)

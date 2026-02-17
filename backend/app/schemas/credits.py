@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 CreditTransactionType = Literal["purchase", "consume", "refund"]
+VoiceProviderType = Literal["edge_tts", "azure", "elevenlabs", "cambai", "pre_recorded_upload"]
 
 
 # ---------------------------------------------------------------------------
@@ -70,3 +71,27 @@ class CreditPurchaseRequest(BaseModel):
     org_id: uuid.UUID
     amount: float = Field(..., gt=0)
     description: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Voice provider quote
+# ---------------------------------------------------------------------------
+
+
+class VoiceCreditQuoteRequest(BaseModel):
+    org_id: uuid.UUID
+    provider: VoiceProviderType
+    text_chars: int = Field(default=0, ge=0, le=100000)
+    duration_seconds: int = Field(default=0, ge=0, le=36000)
+
+
+class VoiceCreditQuoteResponse(BaseModel):
+    provider: VoiceProviderType
+    is_metered: bool
+    requires_purchased_credits: bool
+    billing_basis: Literal["characters", "duration", "none"]
+    credits_per_1k_chars: float | None = None
+    estimated_required_credits: float
+    current_balance: float
+    sufficient_credits: bool
+    note: str
