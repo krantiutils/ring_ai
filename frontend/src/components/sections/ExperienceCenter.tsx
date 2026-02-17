@@ -152,29 +152,29 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
   const content = (
     <>
       <div className="mb-6">
-        <p className="terminal-caps text-[11px] text-[var(--terminal-secondary)]">root@ring-ai:~$ ./run-demo --index</p>
+        <p className="terminal-caps text-[11px] text-[#ffb000]">root@ring-ai:~$ ./run-demo --index</p>
         <h2 className="terminal-display mt-3 text-4xl uppercase leading-tight lg:text-5xl">INTERACTIVE DEMO FLOW</h2>
-        <p className="mt-3 text-sm text-[var(--terminal-primary)]/80 lg:text-base">
+        <p className="mt-3 text-sm text-[#7bd96a] lg:text-base">
           Input text, synthesize voice, request OTP, verify, and queue a controlled call without leaving the index page.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 border-2 border-[var(--terminal-primary)] xl:grid-cols-2">
-        <article className="terminal-pane border-b border-[var(--terminal-primary)] p-5 lg:border-r lg:border-b-0 lg:p-6">
+      <div className="grid grid-cols-1 border border-[#1f521f] xl:grid-cols-2">
+        <article className="terminal-pane border-b border-[#1f521f] p-5 lg:border-r lg:border-b-0 lg:p-6">
           <div className="terminal-titlebar sharp-corners -mx-5 -mt-5 mb-4 px-5 py-2 text-[11px] terminal-caps lg:-mx-6 lg:-mt-6 lg:px-6">
             +-- TTS WINDOW --+
           </div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-10 w-10 border-2 border-[var(--terminal-primary)] flex items-center justify-center sharp-corners text-[var(--terminal-secondary)]">
+            <div className="h-10 w-10 border border-[#1f521f] flex items-center justify-center sharp-corners text-[#ffb000]">
               <Volume2 className="w-4 h-4" />
             </div>
             <div>
-              <p className="terminal-caps text-[11px] text-[var(--terminal-secondary)]">lane_a</p>
+              <p className="terminal-caps text-[11px] text-[#ffb000]">lane_a</p>
               <h3 className="terminal-display text-2xl uppercase">text_to_speech</h3>
             </div>
           </div>
 
-          <label className="terminal-caps block mb-2 text-[11px] text-[var(--terminal-secondary)]">prompt_text</label>
+          <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">prompt_text</label>
           <textarea
             value={demoText}
             onChange={(e) => setDemoText(e.target.value)}
@@ -199,10 +199,10 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
             </a>
           </div>
 
-          {ttsError && <p className="terminal-caps mt-3 text-[11px] text-[var(--terminal-error)]">[err] {ttsError}</p>}
+          {ttsError && <p className="terminal-caps mt-3 text-[11px] text-[#ff3333]">[err] {ttsError}</p>}
 
           {audioUrl && (
-            <div className="mt-4 border-2 border-[var(--terminal-primary)] p-3">
+            <div className="mt-4 border border-[#1f521f] p-3">
               <audio controls autoPlay className="w-full sharp-corners">
                 <source src={audioUrl} type="audio/mpeg" />
               </audio>
@@ -215,18 +215,18 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
             +-- CALL WINDOW --+
           </div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-10 w-10 border-2 border-[var(--terminal-primary)] flex items-center justify-center sharp-corners text-[var(--terminal-secondary)]">
+            <div className="h-10 w-10 border border-[#1f521f] flex items-center justify-center sharp-corners text-[#ffb000]">
               <PhoneCall className="w-4 h-4" />
             </div>
             <div>
-              <p className="terminal-caps text-[11px] text-[var(--terminal-secondary)]">lane_b</p>
+              <p className="terminal-caps text-[11px] text-[#ffb000]">lane_b</p>
               <h3 className="terminal-display text-2xl uppercase">otp_confirmed_call</h3>
             </div>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="terminal-caps block mb-2 text-[11px] text-[var(--terminal-secondary)]">name</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">name</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -234,7 +234,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
               />
             </div>
             <div>
-              <label className="terminal-caps block mb-2 text-[11px] text-[var(--terminal-secondary)]">phone_number</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">phone_number</label>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -243,7 +243,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
               />
             </div>
             <div>
-              <label className="terminal-caps block mb-2 text-[11px] text-[var(--terminal-secondary)]">call_message</label>
+              <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">call_message</label>
               <textarea
                 value={callMessage}
                 onChange={(e) => setCallMessage(e.target.value)}
@@ -254,7 +254,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
 
             {otpRequestId && (
               <div>
-                <label className="terminal-caps block mb-2 text-[11px] text-[var(--terminal-secondary)]">otp_code</label>
+                <label className="terminal-caps block mb-2 text-[11px] text-[#ffb000]">otp_code</label>
                 <input
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value)}
@@ -293,7 +293,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
             )}
           </div>
 
-          {callError && <p className="terminal-caps mt-3 text-[11px] text-[var(--terminal-error)]">[err] {callError}</p>}
+          {callError && <p className="terminal-caps mt-3 text-[11px] text-[#ff3333]">[err] {callError}</p>}
         </article>
       </div>
     </>

@@ -38,7 +38,7 @@ export default function Home() {
       </header>
 
       <main>
-        <section id="index-hero" className="border-b border-[var(--terminal-primary)] py-4 lg:py-6">
+        <section id="index-hero" className="border-b border-[#1f521f] py-8 lg:py-12">
           <div className="mx-auto grid max-w-screen-xl grid-cols-12 px-4">
             <div className="terminal-pane col-span-12 border-b border-[#1f521f] p-5 md:p-7 lg:col-span-8 lg:border-r">
               <p className="terminal-caps mb-4 text-[11px] text-[#ffb000]">ring-ai runtime v1.0.0</p>

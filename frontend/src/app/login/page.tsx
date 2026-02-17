@@ -155,19 +155,19 @@ export default function LoginPage() {
         strategy="afterInteractive"
         onLoad={() => setScriptLoaded(true)}
       />
-      <main className="min-h-screen bg-[var(--terminal-bg)] px-4 py-10 text-[var(--terminal-primary)]">
+      <main className="min-h-screen bg-[#0a0a0a] px-4 py-10 text-[#33ff00]">
         <div className="mx-auto max-w-3xl">
           <div className="terminal-pane sharp-corners overflow-hidden">
             <div className="terminal-titlebar px-4 py-3 text-xs terminal-caps">+-- AUTH TERMINAL --+</div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5">
-              <aside className="border-b border-[var(--terminal-primary)] p-5 lg:col-span-2 lg:border-r lg:border-b-0">
-                <p className="terminal-caps text-[11px] text-[var(--terminal-secondary)]">session info</p>
+              <aside className="border-b border-[#1f521f] p-5 lg:col-span-2 lg:border-r lg:border-b-0">
+                <p className="terminal-caps text-[11px] text-[#ffb000]">session info</p>
                 <h1 className="terminal-display mt-3 text-4xl uppercase leading-[0.9]">RING AI ACCESS</h1>
-                <p className="mt-4 text-sm text-[var(--terminal-primary)]/80">
+                <p className="mt-4 text-sm text-[#7bd96a]">
                   Create account with mobile number or continue with Google.
                 </p>
-                <div className="terminal-line mt-5 border-t pt-4 text-xs text-[var(--terminal-primary)]/80">
+                <div className="terminal-line mt-5 border-t pt-4 text-xs text-[#7bd96a]">
                   <p>$ mode --{mode}</p>
                   <p className="mt-2">$ status --{loading ? "busy" : "ready"}</p>
                 </div>
@@ -183,8 +183,8 @@ export default function LoginPage() {
                     onClick={() => setMode("login")}
                     className={`sharp-corners min-h-[44px] px-4 text-xs terminal-caps border ${
                       mode === "login"
-                        ? "border-[var(--terminal-primary)] bg-[var(--terminal-primary)] text-[var(--terminal-bg)]"
-                        : "border-[var(--terminal-muted)] text-[var(--terminal-primary)] hover:border-[var(--terminal-primary)]"
+                        ? "border-[#33ff00] bg-[#33ff00] text-[#0a0a0a]"
+                        : "border-[#1f521f] text-[#33ff00] hover:border-[#33ff00]"
                     }`}
                   >
                     sign in
@@ -194,8 +194,8 @@ export default function LoginPage() {
                     onClick={() => setMode("create")}
                     className={`sharp-corners min-h-[44px] px-4 text-xs terminal-caps border ${
                       mode === "create"
-                        ? "border-[var(--terminal-primary)] bg-[var(--terminal-primary)] text-[var(--terminal-bg)]"
-                        : "border-[var(--terminal-muted)] text-[var(--terminal-primary)] hover:border-[var(--terminal-primary)]"
+                        ? "border-[#33ff00] bg-[#33ff00] text-[#0a0a0a]"
+                        : "border-[#1f521f] text-[#33ff00] hover:border-[#33ff00]"
                     }`}
                   >
                     create account
@@ -203,7 +203,7 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <div className="mb-4 border border-[var(--terminal-error)] bg-[var(--terminal-error)]/10 px-3 py-2 text-xs terminal-caps text-[var(--terminal-error)]">
+                  <div className="mb-4 border border-[#ff3333] bg-[#190909] px-3 py-2 text-xs terminal-caps text-[#ff3333]">
                     [err] {error}
                   </div>
                 )}
@@ -211,7 +211,7 @@ export default function LoginPage() {
                 {mode === "login" ? (
                   <form onSubmit={handleLogin} className="space-y-3">
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">email</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">email</span>
                       <input
                         type="email"
                         value={loginEmail}
@@ -222,7 +222,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">password</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">password</span>
                       <input
                         type="password"
                         value={loginPassword}
@@ -242,7 +242,7 @@ export default function LoginPage() {
                 ) : (
                   <form onSubmit={handleCreate} className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">first_name</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">first_name</span>
                       <input
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
@@ -251,7 +251,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">last_name</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">last_name</span>
                       <input
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
@@ -260,7 +260,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">username</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">username</span>
                       <input
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
@@ -269,7 +269,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">email</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">email</span>
                       <input
                         type="email"
                         value={createEmail}
@@ -279,7 +279,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">mobile_number</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">mobile_number</span>
                       <input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
@@ -289,7 +289,7 @@ export default function LoginPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="terminal-caps block text-[11px] text-[var(--terminal-secondary)] mb-1">password</span>
+                      <span className="terminal-caps block text-[11px] text-[#ffb000] mb-1">password</span>
                       <input
                         type="password"
                         value={createPassword}
@@ -311,11 +311,11 @@ export default function LoginPage() {
                 )}
 
                 <div className="terminal-line mt-6 border-t pt-4">
-                  <p className="terminal-caps text-[11px] text-[var(--terminal-secondary)] mb-3">google_signin</p>
+                  <p className="terminal-caps text-[11px] text-[#ffb000] mb-3">google_signin</p>
                   {googleClientId ? (
                     <div ref={googleButtonRef} className="min-h-[44px]" />
                   ) : (
-                    <p className="text-xs text-[var(--terminal-primary)]/80">Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to enable Google login.</p>
+                    <p className="text-xs text-[#7bd96a]">Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to enable Google login.</p>
                   )}
                 </div>
               </section>
