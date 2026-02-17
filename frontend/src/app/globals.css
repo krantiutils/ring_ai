@@ -20,6 +20,20 @@
   --terminal-secondary: #ffb000;
   --terminal-muted: #1f521f;
   --terminal-error: #ff3333;
+  --scanline-opacity: 0.12;
+  --terminal-text-shadow: 0 0 5px rgba(51, 255, 0, 0.35);
+}
+
+html[data-theme="light"] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --terminal-bg: #f8fafc;
+  --terminal-primary: #0f172a;
+  --terminal-secondary: #0052ff;
+  --terminal-muted: #cbd5e1;
+  --terminal-error: #b91c1c;
+  --scanline-opacity: 0.03;
+  --terminal-text-shadow: none;
 }
 
 @theme inline {
@@ -54,7 +68,7 @@ body {
   color: var(--terminal-primary);
   font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   overflow-x: hidden;
-  text-shadow: 0 0 5px rgba(51, 255, 0, 0.35);
+  text-shadow: var(--terminal-text-shadow);
 }
 
 body::before {
@@ -71,7 +85,7 @@ body::before {
       transparent 1px,
       transparent 3px
     );
-  opacity: 0.12;
+  opacity: var(--scanline-opacity);
 }
 
 .terminal-display {
@@ -198,4 +212,15 @@ textarea,
 input,
 button {
   font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+}
+
+/* Global dashboard mode switch without rewriting every dashboard utility color. */
+html[data-theme="dark"] .dashboard-shell {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html[data-theme="dark"] .dashboard-shell img,
+html[data-theme="dark"] .dashboard-shell video,
+html[data-theme="dark"] .dashboard-shell canvas {
+  filter: invert(1) hue-rotate(180deg);
 }
