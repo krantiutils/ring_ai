@@ -3,17 +3,26 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const qrcode = require("qrcode");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcodeTerminal = require("qrcode-terminal");
+const { Boom } = require("@hapi/boom");
+const pino = require("pino");
+const {
+  default: makeWASocket,
+  DisconnectReason,
+  useMultiFileAuthState,
+} = require("@whiskeysockets/baileys");
 
 const PORT = Number(process.env.PORT || 3010);
 const BRIDGE_TOKEN = process.env.WHATSAPP_BRIDGE_TOKEN || "";
 const BACKEND_WEBHOOK_URL = process.env.BACKEND_WEBHOOK_URL || "";
 const BACKEND_WEBHOOK_TOKEN = process.env.BACKEND_WEBHOOK_TOKEN || "";
+const AUTH_DIR = process.env.WHATSAPP_BAILEYS_AUTH_DIR || ".baileys_auth";
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+let sock = null;
 let state = "initializing";
 let currentQr = "";
 let lastError = "";
@@ -22,10 +31,10 @@ let readyAt = null;
 function normalizeTarget(to) {
   const raw = String(to || "").trim();
   if (!raw) return "";
-  if (raw.endsWith("@c.us") || raw.endsWith("@g.us")) return raw;
+  if (raw.endsWith("@s.whatsapp.net") || raw.endsWith("@g.us")) return raw;
   const digits = raw.replace(/\D/g, "");
   if (!digits) return raw;
-  return `${digits}@c.us`;
+  return `${digits}@s.whatsapp.net`;
 }
 
 function guard(req, res, next) {
@@ -38,52 +47,28 @@ function guard(req, res, next) {
   next();
 }
 
-const client = new Client({
-  authStrategy: new LocalAuth({ clientId: "agentshakti-linked" }),
-  puppeteer: {
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  },
-});
+function extractText(messageContent) {
+  if (!messageContent) return "";
+  if (typeof messageContent.conversation === "string") return messageContent.conversation;
+  if (typeof messageContent.extendedTextMessage?.text === "string") {
+    return messageContent.extendedTextMessage.text;
+  }
+  if (typeof messageContent.imageMessage?.caption === "string") {
+    return messageContent.imageMessage.caption;
+  }
+  return "";
+}
 
-client.on("qr", (qr) => {
-  currentQr = qr;
-  state = "pairing_required";
-  console.log("[whatsapp-bridge] QR updated");
-});
-
-client.on("authenticated", () => {
-  state = "authenticated";
-  console.log("[whatsapp-bridge] authenticated");
-});
-
-client.on("ready", () => {
-  state = "ready";
-  readyAt = new Date().toISOString();
-  currentQr = "";
-  console.log("[whatsapp-bridge] ready");
-});
-
-client.on("auth_failure", (msg) => {
-  state = "auth_failed";
-  lastError = String(msg || "auth failure");
-  console.error("[whatsapp-bridge] auth failure", msg);
-});
-
-client.on("disconnected", (reason) => {
-  state = "disconnected";
-  lastError = String(reason || "disconnected");
-  console.warn("[whatsapp-bridge] disconnected", reason);
-});
-
-client.on("message", async (message) => {
+async function forwardInboundMessage(message) {
   if (!BACKEND_WEBHOOK_URL) return;
+  const body = extractText(message.message);
+  if (!body) return;
   try {
     const payload = {
-      from: message.from,
-      body: message.body || "",
-      message_id: message.id?._serialized || null,
-      timestamp: message.timestamp || null,
+      from: message.key?.remoteJid || "",
+      body,
+      message_id: message.key?.id || null,
+      timestamp: message.messageTimestamp || null,
     };
     const headers = { "content-type": "application/json" };
     if (BACKEND_WEBHOOK_TOKEN) headers["x-bridge-token"] = BACKEND_WEBHOOK_TOKEN;
@@ -95,7 +80,74 @@ client.on("message", async (message) => {
   } catch (err) {
     console.error("[whatsapp-bridge] inbound forward failed", err?.message || err);
   }
-});
+}
+
+async function startSocket() {
+  const { state: authState, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  sock = makeWASocket({
+    auth: authState,
+    logger: pino({ level: "silent" }),
+    printQRInTerminal: false,
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
+    browser: ["AgentShakti", "Chrome", "1.0"],
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      currentQr = qr;
+      state = "pairing_required";
+      lastError = "";
+      console.log("[whatsapp-bridge] QR updated");
+      qrcodeTerminal.generate(qr, { small: true });
+    }
+
+    if (connection === "open") {
+      state = "ready";
+      readyAt = new Date().toISOString();
+      currentQr = "";
+      lastError = "";
+      console.log("[whatsapp-bridge] ready");
+      return;
+    }
+
+    if (connection !== "close") return;
+
+    const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+    const reason = String(lastDisconnect?.error?.message || "disconnected");
+    if (statusCode === DisconnectReason.loggedOut) {
+      state = "logged_out";
+      lastError = reason;
+      currentQr = "";
+      readyAt = null;
+      console.warn("[whatsapp-bridge] logged out; restart bridge to re-pair");
+      return;
+    }
+
+    state = "reconnecting";
+    lastError = reason;
+    console.warn("[whatsapp-bridge] disconnected, reconnecting");
+    setTimeout(() => {
+      startSocket().catch((err) => {
+        state = "init_failed";
+        lastError = String(err?.message || err);
+        console.error("[whatsapp-bridge] init failed", err);
+      });
+    }, 1000);
+  });
+
+  sock.ev.on("messages.upsert", async ({ type, messages }) => {
+    if (type !== "notify" || !Array.isArray(messages)) return;
+    for (const message of messages) {
+      if (!message?.key || message.key.fromMe) continue;
+      await forwardInboundMessage(message);
+    }
+  });
+}
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", state });
@@ -120,11 +172,11 @@ app.post("/send", guard, async (req, res) => {
     if (!to || !message) {
       return res.status(422).json({ error: "to and message are required" });
     }
-    if (state !== "ready") {
+    if (!sock || state !== "ready") {
       return res.status(503).json({ error: "whatsapp_not_ready", state });
     }
-    const sent = await client.sendMessage(to, message);
-    return res.json({ status: "sent", id: sent?.id?._serialized || null, to });
+    const sent = await sock.sendMessage(to, { text: message });
+    return res.json({ status: "sent", id: sent?.key?.id || null, to });
   } catch (err) {
     return res.status(502).json({ error: String(err?.message || err) });
   }
@@ -134,7 +186,7 @@ app.listen(PORT, () => {
   console.log(`[whatsapp-bridge] listening on :${PORT}`);
 });
 
-client.initialize().catch((err) => {
+startSocket().catch((err) => {
   state = "init_failed";
   lastError = String(err?.message || err);
   console.error("[whatsapp-bridge] init failed", err);

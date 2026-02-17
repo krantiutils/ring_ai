@@ -6,6 +6,7 @@ Uses Twilio WhatsApp when configured; otherwise simulated delivery.
 """
 
 import asyncio
+import base64
 import logging
 import threading
 import uuid
@@ -510,3 +511,26 @@ async def linked_whatsapp_qr(request: Request):
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     return response.json()
+
+
+@router.get("/linked/qr-image")
+async def linked_whatsapp_qr_image(request: Request):
+    _assert_internal_admin(request)
+    if not settings.WHATSAPP_BRIDGE_URL:
+        raise HTTPException(status_code=503, detail="Linked WhatsApp bridge is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.get(
+                f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/qr",
+                headers=_bridge_headers(),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Linked WhatsApp bridge unreachable: {exc}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    payload = response.json()
+    data_url = str(payload.get("qr_data_url") or "")
+    if not data_url.startswith("data:image/png;base64,"):
+        raise HTTPException(status_code=502, detail="Invalid QR payload")
+    raw = base64.b64decode(data_url.split(",", 1)[1])
+    return Response(content=raw, media_type="image/png")
