@@ -68,6 +68,16 @@ class DemoCallOtpVerifyRequest(BaseModel):
     otp: str = Field(..., min_length=4, max_length=10)
 
 
+class DemoCallMasterOtpRequest(BaseModel):
+    """POST /api/v1/voice/demo-call/master-otp request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    master_otp: str = Field(..., min_length=4, max_length=10)
+    from_number: str | None = None
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
 class DemoCallResponse(BaseModel):
     """POST /api/v1/voice/demo-call response."""
 

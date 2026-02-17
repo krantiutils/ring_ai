@@ -18,7 +18,7 @@ const copy = {
     callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
     textToSpeech: "Text to Speech",
     callDemo: "Request Demo Call",
-    sendOtp: "Send OTP",
+    sendOtp: "Send OTP & Call",
     verifyOtp: "Verify OTP",
     speak: "Generate Voice",
     name: "Name",
@@ -34,7 +34,7 @@ const copy = {
     callMessage: "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
     textToSpeech: "टेक्स्ट टु स्पीच",
     callDemo: "डेमो कल अनुरोध",
-    sendOtp: "OTP पठाउनुहोस्",
+    sendOtp: "OTP पठाउनुहोस् र कल गर्नुहोस्",
     verifyOtp: "OTP पुष्टि गर्नुहोस्",
     speak: "भ्वाइस बनाउनुहोस्",
     name: "नाम",
@@ -236,6 +236,9 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
               </div>
             )}
             {callError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{callError}</p>}
+            <a href="/masterotp" className="mt-3 inline-flex text-xs font-semibold text-[var(--accent)] underline-offset-4 hover:underline">
+              Use Master OTP Page
+            </a>
           </motion.article>
         </div>
       </div>

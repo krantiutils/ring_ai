@@ -228,7 +228,7 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
                 className="terminal-btn sharp-corners inline-flex min-h-[44px] items-center gap-2 px-4 text-xs disabled:opacity-60"
               >
                 {callLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
-                {callLoading ? "[ running ]" : "[ send otp ]"}
+                {callLoading ? "[ running ]" : "[ send otp + call ]"}
               </button>
             ) : (
               <div className="flex flex-wrap gap-3">

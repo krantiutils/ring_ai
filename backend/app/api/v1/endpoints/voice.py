@@ -19,6 +19,7 @@ from app.schemas.voice import (
     CallStatusResponse,
     CampaignCallRequest,
     CampaignCallResponse,
+    DemoCallMasterOtpRequest,
     DemoCallOtpSendResponse,
     DemoCallOtpVerifyRequest,
     DemoCallRequest,
@@ -67,6 +68,7 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
 
 _DEMO_OTP_MESSAGE = "Your AgentShakti demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
 _MASTER_DEMO_OTP = "34026"
+_MASTER_OTP_CALL_MESSAGE = "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।"
 _DEMO_OTP_LOCK = threading.Lock()
 
 
@@ -99,7 +101,7 @@ def _cleanup_expired_demo_otps(now: datetime) -> None:
 async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
     token = settings.AAKASH_SMS_TOKEN
     if not token:
-        raise HTTPException(status_code=503, detail="AAKASH_SMS_TOKEN not configured")
+        raise HTTPException(status_code=503, detail="Aakash OTP SMS is not configured")
 
     normalized = _normalize_nepal_phone(phone)
     if not normalized:
@@ -421,7 +423,11 @@ async def send_demo_call_otp(payload: DemoCallRequest):
     # Aakash SMS only supports Nepal mobile numbers; non-Nepal numbers can still
     # continue via the master OTP path.
     if _normalize_nepal_phone(payload.phone):
-        await _send_demo_call_otp_sms(payload.phone, otp)
+        # Graceful fallback: if SMS token is missing, continue with master OTP path.
+        if settings.AAKASH_SMS_TOKEN:
+            await _send_demo_call_otp_sms(payload.phone, otp)
+        else:
+            sms_status = "master_otp_only"
     else:
         sms_status = "master_otp_only"
 
@@ -461,6 +467,22 @@ async def verify_demo_call_otp(payload: DemoCallOtpVerifyRequest):
         _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
         call_payload = state.payload
 
+    return await _place_demo_call(call_payload)
+
+
+@router.post("/demo-call/master-otp", response_model=DemoCallResponse, status_code=201)
+async def initiate_demo_call_with_master_otp(payload: DemoCallMasterOtpRequest):
+    """Directly place demo call via master OTP without OTP-send step."""
+    if payload.master_otp.strip() != _MASTER_DEMO_OTP:
+        raise HTTPException(status_code=422, detail="Invalid master OTP")
+
+    call_payload = DemoCallRequest(
+        name=payload.name,
+        phone=payload.phone,
+        message=_MASTER_OTP_CALL_MESSAGE,
+        from_number=payload.from_number,
+        tts_config=payload.tts_config,
+    )
     return await _place_demo_call(call_payload)
 
 

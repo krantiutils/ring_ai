@@ -602,6 +602,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  initiateMasterOtpDemoCall: (data: {
+    name: string;
+    phone: string;
+    master_otp: string;
+    from_number?: string;
+    tts_config?: {
+      provider?: string;
+      voice?: string;
+      rate?: string;
+      pitch?: string;
+      fallback_provider?: string;
+    };
+  }) =>
+    request<{ call_id: string; status: string }>("/voice/demo-call/master-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   initiateDemoCall: (data: {
     name: string;
     phone: string;
