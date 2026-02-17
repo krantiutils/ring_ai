@@ -56,6 +56,38 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
 
   for (const node of nodes) {
     const cfg = node.data.config;
+    if ((node.data.kind === "source_url_json" || node.data.kind === "source_url_csv") && !cfg.url) {
+      issues.push({
+        id: `missing-url-${node.id}`,
+        severity: "error",
+        nodeId: node.id,
+        message: "URL source nodes require a source URL.",
+      });
+    }
+    if (node.data.kind === "action_webhook" && !cfg.webhook_url) {
+      issues.push({
+        id: `missing-webhook-${node.id}`,
+        severity: "error",
+        nodeId: node.id,
+        message: "Action Hook node requires webhook URL.",
+      });
+    }
+    if (node.data.kind === "enrich_columns" && !cfg.columns) {
+      issues.push({
+        id: `missing-columns-${node.id}`,
+        severity: "warning",
+        nodeId: node.id,
+        message: "Enrich Columns should define new columns to append.",
+      });
+    }
+    if (node.data.kind === "survey_ai" && !cfg.model) {
+      issues.push({
+        id: `missing-model-${node.id}`,
+        severity: "warning",
+        nodeId: node.id,
+        message: "Survey AI should set model (e.g. gemini-2.5-flash-native-audio).",
+      });
+    }
     if (node.data.kind === "condition" && (!cfg.field || !cfg.operator || !cfg.value)) {
       issues.push({
         id: `missing-condition-${node.id}`,
@@ -106,7 +138,9 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
       n.data.kind === "source_file" ||
       n.data.kind === "source_numbers" ||
       n.data.kind === "source_manual_table" ||
-      n.data.kind === "source_google_contacts",
+      n.data.kind === "source_google_contacts" ||
+      n.data.kind === "source_url_json" ||
+      n.data.kind === "source_url_csv",
     );
     if (!source) {
       issues.push({
@@ -184,7 +218,9 @@ export function simulateContactsCount(nodes: FlowNode[]): number {
       n.data.kind === "source_csv" ||
       n.data.kind === "source_xlsx" ||
       n.data.kind === "source_manual_table" ||
-      n.data.kind === "source_google_contacts",
+      n.data.kind === "source_google_contacts" ||
+      n.data.kind === "source_url_json" ||
+      n.data.kind === "source_url_csv",
   );
   if (!source) return 0;
   if (source.data.kind === "source_numbers") {
@@ -195,6 +231,9 @@ export function simulateContactsCount(nodes: FlowNode[]): number {
   }
   if (source.data.kind === "source_google_contacts") {
     return Number(source.data.config.estimated_contacts || 0);
+  }
+  if (source.data.kind === "source_url_json" || source.data.kind === "source_url_csv") {
+    return Number(source.data.config.estimated_rows || 0);
   }
   const sampleCsv = String(source.data.config.sample_csv || "");
   const parsed = parseCsv(sampleCsv);

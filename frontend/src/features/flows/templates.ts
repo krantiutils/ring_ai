@@ -23,6 +23,26 @@ const node = (
 
 export const FLOW_TEMPLATES: Template[] = [
   {
+    id: "simple-campaign",
+    name: "Simple Campaign",
+    description: "Manual/CSV source -> validation -> SMS blast",
+    nodes: [
+      node("ts", 20, 50, "trigger_manual", "Manual Trigger"),
+      node("ss", 20, 190, "source_manual_table", "Manual Table", { table_columns: "name,phone", sample_csv: "name,phone\nRam,+9779800000000" }),
+      node("vs", 20, 330, "validation", "Validate Contacts", { required_columns: "name,phone" }),
+      node("smss", 300, 330, "agent_sms", "SMS Agent", { message: "Namaste {{name}}, यो AgentShakti campaign सन्देश हो।" }),
+      node("oks", 560, 300, "end_success", "End Success"),
+      node("fails", 560, 420, "end_failure", "End Failure"),
+    ],
+    edges: [
+      edge("es1", "ts", "ss"),
+      edge("es2", "ss", "vs"),
+      edge("es3", "vs", "smss"),
+      edge("es4", "smss", "oks"),
+      edge("es5", "vs", "fails"),
+    ],
+  },
+  {
     id: "payment-reminder",
     name: "Payment Reminder",
     description: "CSV -> validate -> business hours -> SMS -> Voice fallback",

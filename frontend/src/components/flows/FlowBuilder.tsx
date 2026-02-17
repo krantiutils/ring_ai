@@ -49,6 +49,8 @@ const SOURCE_KINDS: FlowNodeKind[] = [
   "source_manual_table",
   "source_csv",
   "source_xlsx",
+  "source_url_json",
+  "source_url_csv",
   "source_google_contacts",
   "source_numbers",
 ];
@@ -59,9 +61,12 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   source_manual_table: <Table2 className="h-4 w-4" />,
   source_csv: <FileSpreadsheet className="h-4 w-4" />,
   source_xlsx: <FileSpreadsheet className="h-4 w-4" />,
+  source_url_json: <Upload className="h-4 w-4" />,
+  source_url_csv: <Upload className="h-4 w-4" />,
   source_numbers: <UsersRound className="h-4 w-4" />,
   source_google_contacts: <UsersRound className="h-4 w-4" />,
   source_file: <Upload className="h-4 w-4" />,
+  enrich_columns: <Plus className="h-4 w-4" />,
   validation: <CheckCircle2 className="h-4 w-4" />,
   condition: <GitBranch className="h-4 w-4" />,
   loop: <Workflow className="h-4 w-4" />,
@@ -72,6 +77,10 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   agent_sms: <MessageSquare className="h-4 w-4" />,
   agent_voice: <PhoneCall className="h-4 w-4" />,
   agent_whatsapp: <MessageSquare className="h-4 w-4" />,
+  survey_ai: <Volume2 className="h-4 w-4" />,
+  dtmf_menu: <GitBranch className="h-4 w-4" />,
+  response_capture: <MessageSquare className="h-4 w-4" />,
+  action_webhook: <Workflow className="h-4 w-4" />,
   merge: <Workflow className="h-4 w-4" />,
   error_handler: <AlertTriangle className="h-4 w-4" />,
   end_success: <CheckCircle2 className="h-4 w-4" />,
@@ -84,9 +93,12 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   { kind: "source_manual_table", label: "Manual Table", description: "Build contacts table manually" },
   { kind: "source_csv", label: "CSV Source", description: "Read CSV contacts" },
   { kind: "source_xlsx", label: "XLSX Source", description: "Read Excel contacts" },
+  { kind: "source_url_json", label: "JSON URL Hook", description: "Read JSON contacts from URL" },
+  { kind: "source_url_csv", label: "CSV URL Hook", description: "Read CSV contacts from URL" },
   { kind: "source_google_contacts", label: "Google Contacts", description: "Import from Google contacts" },
   { kind: "source_numbers", label: "Number Source", description: "Manual numbers" },
   { kind: "source_file", label: "File Upload", description: "Attach reusable file" },
+  { kind: "enrich_columns", label: "Enrich Columns", description: "Append extra computed/survey columns" },
   { kind: "validation", label: "Validation", description: "Schema + row checks" },
   { kind: "condition", label: "Decision", description: "if / else routing (diamond)" },
   { kind: "loop", label: "Loop / For-Each", description: "Iterative branch behavior" },
@@ -97,6 +109,10 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   { kind: "agent_sms", label: "SMS Agent", description: "Send SMS" },
   { kind: "agent_voice", label: "Voice Agent", description: "Place voice call" },
   { kind: "agent_whatsapp", label: "WhatsApp Agent", description: "Send WhatsApp message" },
+  { kind: "survey_ai", label: "Survey AI", description: "Conversational AI survey (Gemini/voice)" },
+  { kind: "dtmf_menu", label: "Press 1/2 Menu", description: "Phone keypad branching during calls" },
+  { kind: "response_capture", label: "Response Capture", description: "Capture reply text/intents/survey answers" },
+  { kind: "action_webhook", label: "Action Hook", description: "POST results to webhook after action" },
   { kind: "merge", label: "Merge", description: "Merge branches" },
   { kind: "error_handler", label: "Error Handler", description: "Retries/fail lane" },
   { kind: "end_success", label: "End Success", description: "Successful end (oval)" },
@@ -106,8 +122,11 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
 function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "source_manual_table") return { table_columns: "name,phone,age,gender", sample_csv: "name,phone,age,gender\nRam,+9779800000000,34,male" };
   if (kind === "source_csv" || kind === "source_xlsx") return { required_columns: "name,phone", sample_csv: "name,phone\nRam,+9779800000000" };
+  if (kind === "source_url_json") return { url: "https://example.com/contacts.json", mapping: "name,phone,age,gender", estimated_rows: "250" };
+  if (kind === "source_url_csv") return { url: "https://example.com/contacts.csv", mapping: "name,phone", estimated_rows: "250" };
   if (kind === "source_google_contacts") return { sync_mode: "labels:customers", estimated_contacts: "150" };
   if (kind === "source_numbers") return { numbers: "+9779800000000,+9779811111111" };
+  if (kind === "enrich_columns") return { columns: "survey_score:int,preferred_language:text", strategy: "append" };
   if (kind === "validation") return { required_columns: "name,phone" };
   if (kind === "condition") return { field: "age", operator: ">", value: "30" };
   if (kind === "loop") return { mode: "for_each_contact", max_iterations: "1" };
@@ -117,6 +136,10 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "sender_number") return { number: "+19704701940" };
   if (kind === "agent_sms" || kind === "agent_whatsapp") return { message: "Namaste {{name}}, यो AgentShakti automation सन्देश हो।" };
   if (kind === "agent_voice") return { script: "नमस्ते, AgentShakti बाट बोल्दैछु।" };
+  if (kind === "survey_ai") return { model: "gemini-2.5-flash-native-audio", mode: "voice+text", survey_id: "default-survey" };
+  if (kind === "dtmf_menu") return { option_1: "support", option_2: "sales", fallback: "repeat" };
+  if (kind === "response_capture") return { store_columns: "response_text,intent,sentiment,dtmf_choice" };
+  if (kind === "action_webhook") return { webhook_url: "https://example.com/hook", method: "POST", payload: "full_event" };
   if (kind === "trigger_schedule") return { cron: "0 10 * * *" };
   if (kind === "error_handler") return { retries: "2" };
   return {};
@@ -139,7 +162,7 @@ function makeNode(kind: FlowNodeKind, x: number, y: number): FlowNode {
 }
 
 function getNodeShape(kind: FlowNodeKind): "rectangle" | "diamond" | "oval" | "parallelogram" {
-  if (kind === "condition") return "diamond";
+  if (kind === "condition" || kind === "dtmf_menu") return "diamond";
   if (kind === "trigger_manual" || kind === "trigger_schedule" || kind === "end_success" || kind === "end_failure") return "oval";
   if (kind.startsWith("source_")) return "parallelogram";
   return "rectangle";
@@ -222,6 +245,8 @@ const sourceChoices: SourceChoice[] = [
   { kind: "source_manual_table", title: "Manual Table", description: "Build a contact table directly in the builder." },
   { kind: "source_csv", title: "Import CSV", description: "Upload and parse a CSV file as contacts." },
   { kind: "source_xlsx", title: "Import XLSX", description: "Upload Excel sheets and validate columns." },
+  { kind: "source_url_json", title: "JSON URL Hook", description: "Load contact records from JSON endpoint URL." },
+  { kind: "source_url_csv", title: "CSV URL Hook", description: "Load contact rows from CSV endpoint URL." },
   { kind: "source_google_contacts", title: "Google Contacts", description: "Sync contacts from Google account labels." },
   { kind: "source_numbers", title: "Paste Numbers", description: "Use manual phone list as a quick source." },
 ];
@@ -232,6 +257,8 @@ export default function FlowBuilder() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [runState, setRunState] = useState<"idle" | "running" | "finished">("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [selectedSourceKind, setSelectedSourceKind] = useState<FlowNodeKind | null>(null);
+  const [needsTemplatePick, setNeedsTemplatePick] = useState(false);
 
   const hasSource = useMemo(() => nodes.some((n) => SOURCE_KINDS.includes(n.data.kind)), [nodes]);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -252,6 +279,24 @@ export default function FlowBuilder() {
       { id: "e-start-3", source: validation.id, target: end.id, animated: true, markerEnd: { type: MarkerType.ArrowClosed } },
     ]);
     setSelectedNodeId(source.id);
+    setSelectedSourceKind(kind);
+    setNeedsTemplatePick(true);
+  }
+
+  function applyTemplate(tplId: string) {
+    const tpl = FLOW_TEMPLATES.find((t) => t.id === tplId);
+    if (!tpl) return;
+    const clonedNodes = tpl.nodes.map((n) => ({ ...n, data: { ...n.data, config: { ...n.data.config } }, position: { ...n.position } }));
+    const clonedEdges = tpl.edges.map((e) => ({ ...e }));
+    const sourceNode = clonedNodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+    if (sourceNode && selectedSourceKind) {
+      sourceNode.data.kind = selectedSourceKind;
+      sourceNode.data.config = defaultConfig(selectedSourceKind);
+    }
+    setNodes(clonedNodes);
+    setEdges(clonedEdges);
+    setSelectedNodeId(clonedNodes[0]?.id || null);
+    setNeedsTemplatePick(false);
   }
 
   function onConnect(params: Connection) {
@@ -261,6 +306,15 @@ export default function FlowBuilder() {
     if (!source || !target) return;
     if (source.data.kind.startsWith("agent_") && target.data.kind.startsWith("source_")) return;
     const isLoopback = wouldCreateCycle(params.source, params.target, edges);
+    const outgoingFromSource = edges.filter((e) => e.source === params.source).length;
+    let branchLabel: string | undefined;
+    if (source.data.kind === "condition") {
+      branchLabel = outgoingFromSource === 0 ? "true" : outgoingFromSource === 1 ? "false" : `branch_${outgoingFromSource + 1}`;
+    } else if (source.data.kind === "dtmf_menu") {
+      branchLabel = outgoingFromSource === 0 ? "press_1" : outgoingFromSource === 1 ? "press_2" : `press_${outgoingFromSource + 1}`;
+    } else if (outgoingFromSource >= 1) {
+      branchLabel = outgoingFromSource === 1 ? "path_b" : `path_${String.fromCharCode(65 + outgoingFromSource)}`.toLowerCase();
+    }
     setEdges((eds) =>
       addEdge(
         {
@@ -268,7 +322,7 @@ export default function FlowBuilder() {
           animated: true,
           markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
           style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
-          label: isLoopback ? "loopback" : undefined,
+          label: isLoopback ? "loopback" : branchLabel,
         },
         eds,
       ),
@@ -316,6 +370,9 @@ export default function FlowBuilder() {
       setNodes(parsed.nodes);
       setEdges(parsed.edges);
       setSelectedNodeId(parsed.nodes[0]?.id || null);
+      const foundSource = parsed.nodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+      setSelectedSourceKind(foundSource?.data.kind || null);
+      setNeedsTemplatePick(false);
     } catch {
       // ignore malformed local draft
     }
@@ -367,11 +424,7 @@ export default function FlowBuilder() {
               <button
                 key={tpl.id}
                 type="button"
-                onClick={() => {
-                  setNodes(tpl.nodes);
-                  setEdges(tpl.edges);
-                  setSelectedNodeId(tpl.nodes[0]?.id || null);
-                }}
+                onClick={() => applyTemplate(tpl.id)}
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-left hover:border-[var(--accent)]/35"
               >
                 <p className="text-sm font-semibold text-[var(--foreground)]">{tpl.name}</p>
@@ -405,6 +458,33 @@ export default function FlowBuilder() {
           </div>
         ) : (
           <>
+            {needsTemplatePick ? (
+              <div className="mb-3 rounded-xl border border-[var(--accent)]/35 bg-[color-mix(in_srgb,var(--accent)_8%,var(--card))] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Choose a template to continue</p>
+                  <button
+                    type="button"
+                    onClick={() => setNeedsTemplatePick(false)}
+                    className="ml-auto rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs text-[var(--muted-foreground)]"
+                  >
+                    Start Blank
+                  </button>
+                </div>
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {FLOW_TEMPLATES.map((tpl) => (
+                    <button
+                      key={`prompt-${tpl.id}`}
+                      type="button"
+                      onClick={() => applyTemplate(tpl.id)}
+                      className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-left hover:border-[var(--accent)]/35"
+                    >
+                      <p className="text-sm font-semibold text-[var(--foreground)]">{tpl.name}</p>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">{tpl.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-3">
               <button onClick={saveDraft} className="btn-outline-modern inline-flex h-10 items-center gap-2 px-4 text-sm">
                 <Save className="h-4 w-4" /> Save Draft
@@ -417,6 +497,8 @@ export default function FlowBuilder() {
                   setNodes([]);
                   setEdges([]);
                   setSelectedNodeId(null);
+                  setSelectedSourceKind(null);
+                  setNeedsTemplatePick(false);
                 }}
                 className="btn-outline-modern inline-flex h-10 items-center gap-2 px-4 text-sm"
               >
