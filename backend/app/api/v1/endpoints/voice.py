@@ -1,8 +1,13 @@
 """Voice call API endpoints — outbound campaign calls via Twilio."""
 
+import asyncio
 import logging
+import threading
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
@@ -15,7 +20,19 @@ from app.schemas.voice import (
     CallStatusResponse,
     CampaignCallRequest,
     CampaignCallResponse,
+    DemoCallMasterOtpRequest,
+    DemoCallOtpSendResponse,
+    DemoCallOtpVerifyRequest,
+    DemoCallRequest,
+    DemoCallResponse,
+    InteractiveDemoHandoffCallRequest,
+    InteractiveDemoMessageRequest,
+    InteractiveDemoMessageResponse,
+    InteractiveDemoStartRequest,
+    InteractiveDemoStartResponse,
 )
+from app.services.interactive_agent.models import OutputMode, SessionConfig
+from app.services.otp import generate_otp
 from app.services.telephony import (
     AudioEntry,
     CallContext,
@@ -56,6 +73,180 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
     CallStatus.FAILED: "failed",
 }
 
+_DEMO_OTP_MESSAGE = "Your AgentShakti demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
+_MASTER_DEMO_OTP = "34026"
+_MASTER_OTP_CALL_MESSAGE = "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।"
+_DEMO_OTP_LOCK = threading.Lock()
+_INTERACTIVE_DEMO_LOCK = threading.Lock()
+_INTERACTIVE_DEMO_TTL_SECONDS = 30 * 60
+_INTERACTIVE_DEMO_MAX_TURNS = 20
+
+
+@dataclass
+class InteractiveDemoState:
+    session_id: str
+    expires_at: datetime
+    provider: str = "gemini"
+    language: str = "ne"
+    turns: int = 0
+    last_assistant_message: str = ""
+
+
+_INTERACTIVE_DEMO_STORE: dict[str, InteractiveDemoState] = {}
+
+
+@dataclass
+class DemoCallOtpState:
+    otp: str
+    payload: DemoCallRequest
+    expires_at: datetime
+    attempts: int = 0
+
+
+_DEMO_CALL_OTP_STORE: dict[str, DemoCallOtpState] = {}
+
+
+def _normalize_nepal_phone(phone: str) -> str | None:
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if digits.startswith("977") and len(digits) == 13:
+        digits = digits[3:]
+    if len(digits) == 10 and digits.startswith("9"):
+        return digits
+    return None
+
+
+def _normalize_e164(phone: str) -> str:
+    raw = phone.strip()
+    if raw.startswith("+"):
+        return raw
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if digits.startswith("977") and len(digits) == 13:
+        return f"+{digits}"
+    if len(digits) == 10 and digits.startswith("9"):
+        return f"+977{digits}"
+    if digits:
+        return f"+{digits}"
+    return raw
+
+
+def _with_whatsapp_prefix(number: str) -> str:
+    raw = number.strip()
+    if raw.lower().startswith("whatsapp:"):
+        return raw
+    return f"whatsapp:{_normalize_e164(raw)}"
+
+
+def _cleanup_expired_demo_otps(now: datetime) -> None:
+    expired_ids = [req_id for req_id, state in _DEMO_CALL_OTP_STORE.items() if state.expires_at <= now]
+    for req_id in expired_ids:
+        _DEMO_CALL_OTP_STORE.pop(req_id, None)
+
+
+def _interactive_demo_system_prompt(language: str) -> str:
+    lang = language.strip().lower()
+    if lang.startswith("en"):
+        language_instruction = "Respond in English unless user asks for another language."
+    else:
+        language_instruction = "Respond in Nepali by default unless user asks for another language."
+    return (
+        "You are AgentShakti demo assistant. Keep replies concise, clear, and actionable. "
+        "Mention how AgentShakti helps with outbound voice, SMS, surveys, and human handoff when relevant. "
+        "End each turn with one clear next action question. "
+        f"{language_instruction}"
+    )
+
+
+async def _release_interactive_session(session_id: str, request: Request) -> None:
+    session_pool = getattr(request.app.state, "session_pool", None)
+    if session_pool is None:
+        return
+    try:
+        await session_pool.release(session_id)
+    except Exception:
+        logger.exception("Failed to release interactive demo session %s", session_id)
+
+
+async def _cleanup_expired_interactive_sessions(now: datetime, request: Request) -> None:
+    expired: list[str] = []
+    with _INTERACTIVE_DEMO_LOCK:
+        for session_id, state in _INTERACTIVE_DEMO_STORE.items():
+            if state.expires_at <= now:
+                expired.append(session_id)
+        for session_id in expired:
+            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+
+    for session_id in expired:
+        await _release_interactive_session(session_id, request)
+
+
+async def _send_demo_call_otp_sms(phone: str, otp: str) -> None:
+    token = settings.AAKASH_SMS_TOKEN
+    if not token:
+        raise HTTPException(status_code=503, detail="Aakash OTP SMS is not configured")
+
+    normalized = _normalize_nepal_phone(phone)
+    if not normalized:
+        raise HTTPException(status_code=422, detail="Phone must be a valid Nepal mobile number")
+
+    payload = {
+        "auth_token": token,
+        "to": normalized,
+        "text": _DEMO_OTP_MESSAGE.format(otp=otp),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(settings.AAKASH_SMS_API_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS provider returned invalid JSON: {exc}") from exc
+
+    if data.get("error"):
+        msg = data.get("message", "Aakash SMS rejected request")
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {msg}")
+    invalid = (data.get("data") or {}).get("invalid") or []
+    if invalid:
+        raise HTTPException(status_code=422, detail="OTP SMS delivery failed: invalid phone number")
+
+
+async def _send_demo_call_otp_whatsapp(phone: str, otp: str, from_number: str | None = None) -> None:
+    if settings.WHATSAPP_BRIDGE_URL:
+        payload = {"to": phone, "message": _DEMO_OTP_MESSAGE.format(otp=otp)}
+        headers = {"content-type": "application/json"}
+        if settings.WHATSAPP_BRIDGE_TOKEN:
+            headers["x-bridge-token"] = settings.WHATSAPP_BRIDGE_TOKEN
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(
+                    f"{settings.WHATSAPP_BRIDGE_URL.rstrip('/')}/send",
+                    json=payload,
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Linked WhatsApp OTP bridge unreachable: {exc}") from exc
+        if response.status_code < 400:
+            return
+
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=f"WhatsApp OTP is not configured: {exc}") from exc
+
+    sender = from_number or settings.TWILIO_WHATSAPP_NUMBER or settings.TWILIO_PHONE_NUMBER or provider.default_from_number
+    if not sender:
+        raise HTTPException(status_code=503, detail="WhatsApp OTP sender number is not configured")
+
+    try:
+        await provider.send_sms(
+            to=_with_whatsapp_prefix(phone),
+            from_number=_with_whatsapp_prefix(sender),
+            body=_DEMO_OTP_MESSAGE.format(otp=otp),
+        )
+    except TelephonyProviderError as exc:
+        raise HTTPException(status_code=502, detail=f"WhatsApp OTP delivery failed: {exc}") from exc
+
 
 async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
     """Background task: analyze sentiment for a completed interaction."""
@@ -69,6 +260,132 @@ async def _run_sentiment_analysis(interaction_id: uuid.UUID) -> None:
         logger.exception("Background sentiment analysis failed for %s", interaction_id)
     finally:
         db.close()
+
+
+async def _place_demo_call(payload: DemoCallRequest) -> DemoCallResponse:
+    script_text = f"Namaste {payload.name}. {payload.message}"
+    tts_config = TTSConfig(
+        provider=TTSProvider(payload.tts_config.provider),
+        voice=payload.tts_config.voice,
+        rate=payload.tts_config.rate,
+        pitch=payload.tts_config.pitch,
+        fallback_provider=(
+            TTSProvider(payload.tts_config.fallback_provider) if payload.tts_config.fallback_provider else None
+        ),
+    )
+
+    try:
+        tts_result = await tts_router.synthesize(script_text, tts_config)
+    except TTSError as exc:
+        logger.error("TTS synthesis failed for demo call: %s", exc)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {exc}") from exc
+
+    audio_id = str(uuid.uuid4())
+    audio_store.put(
+        audio_id,
+        AudioEntry(
+            audio_bytes=tts_result.audio_bytes,
+            content_type="audio/mpeg",
+        ),
+    )
+
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        audio_store.delete(audio_id)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    from_number = payload.from_number or provider.default_from_number
+    if not from_number:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=422,
+            detail="No from_number provided and no default Twilio number configured",
+        )
+
+    base_url = settings.TWILIO_BASE_URL
+    if not base_url:
+        audio_store.delete(audio_id)
+        raise HTTPException(
+            status_code=503,
+            detail="TWILIO_BASE_URL not configured. Set a publicly reachable URL for Twilio callbacks.",
+        )
+
+    temp_call_id = str(uuid.uuid4())
+    call_context_store.put(
+        temp_call_id,
+        CallContext(
+            call_id=temp_call_id,
+            audio_id=audio_id,
+            dtmf_routes=[],
+            record=False,
+            record_consent_text=None,
+        ),
+    )
+
+    twiml_url = f"{base_url}/api/v1/voice/twiml/{temp_call_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    try:
+        result = await provider.initiate_call(
+            to=payload.phone,
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError as exc:
+        logger.error("Twilio demo call initiation failed: %s", exc)
+        audio_store.delete(audio_id)
+        call_context_store.delete(temp_call_id)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    context = call_context_store.get(temp_call_id)
+    if context is not None:
+        context.call_id = result.call_id
+        call_context_store.put(result.call_id, context)
+
+    return DemoCallResponse(
+        call_id=result.call_id,
+        status=result.status,
+    )
+
+
+async def _collect_assistant_turn(session, timeout_seconds: float = 25.0) -> str:
+    chunks: list[str] = []
+    transcript_chunks: list[str] = []
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            async for response in session.receive():
+                if response.text:
+                    chunks.append(response.text.strip())
+                elif response.output_transcript:
+                    transcript_chunks.append(response.output_transcript.strip())
+                if response.is_turn_complete:
+                    break
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="Interactive agent timed out") from exc
+
+    content = " ".join(part for part in chunks if part)
+    if not content:
+        content = " ".join(part for part in transcript_chunks if part)
+    if not content:
+        raise HTTPException(status_code=502, detail="No assistant response received")
+    return content.strip()
+
+
+def _fallback_interactive_reply(message: str, language: str) -> str:
+    cleaned = message.strip()
+    if language.strip().lower().startswith("en"):
+        return (
+            f"I heard: \"{cleaned}\". AgentShakti can handle outbound voice calls, two-way SMS, "
+            "survey flows, and human handoff from one dashboard. "
+            "Would you like me to prepare this exact response as your demo call script?"
+        )
+    return (
+        f"मैले बुझें: \"{cleaned}\"। AgentShakti ले outbound voice call, two-way SMS, survey flow, "
+        "र human handoff एउटै dashboard बाट चलाउन मद्दत गर्छ। "
+        "यो जवाफलाई डेमो कल स्क्रिप्टमा राखेर अगाडि बढौं?"
+    )
 
 
 @router.post("/campaign-call", response_model=CampaignCallResponse, status_code=201)
@@ -235,6 +552,254 @@ async def initiate_campaign_call(
         status=result.status,
         interaction_id=interaction_id,
     )
+
+
+@router.post("/demo-call", response_model=DemoCallResponse, status_code=201)
+async def initiate_demo_call(payload: DemoCallRequest):
+    """Initiate a simple demo call from the homepage experience center.
+
+    This endpoint is intentionally lightweight:
+    - Synthesizes the message via TTS
+    - Places a Twilio call to the provided phone number
+    - Plays the synthesized message and hangs up
+    """
+    return await _place_demo_call(payload)
+
+
+@router.post("/demo-call/otp/send", response_model=DemoCallOtpSendResponse, status_code=201)
+async def send_demo_call_otp(payload: DemoCallRequest):
+    """Send OTP for homepage demo-call verification via Aakash SMS."""
+    otp = generate_otp(6)
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=settings.DEMO_CALL_OTP_TTL_SECONDS)
+    request_id = str(uuid.uuid4())
+    sms_status = "sent"
+    channel = payload.otp_channel.strip().lower() if payload.otp_channel else "auto"
+    if channel not in {"auto", "sms", "whatsapp"}:
+        raise HTTPException(status_code=422, detail="otp_channel must be one of: auto, sms, whatsapp")
+
+    delivery_errors: list[str] = []
+    delivered = False
+
+    # Channel priority:
+    # - whatsapp: try WhatsApp only
+    # - sms: try SMS only
+    # - auto: try WhatsApp first, then SMS fallback
+    if channel in {"auto", "whatsapp"}:
+        try:
+            await _send_demo_call_otp_whatsapp(
+                payload.phone,
+                otp,
+                from_number=payload.whatsapp_from_number,
+            )
+            sms_status = "sent_whatsapp"
+            delivered = True
+        except HTTPException as exc:
+            delivery_errors.append(str(exc.detail))
+            if channel == "whatsapp":
+                raise
+
+    if not delivered and channel in {"auto", "sms"}:
+        if _normalize_nepal_phone(payload.phone) and settings.AAKASH_SMS_TOKEN:
+            try:
+                await _send_demo_call_otp_sms(payload.phone, otp)
+                sms_status = "sent_sms"
+                delivered = True
+            except HTTPException as exc:
+                delivery_errors.append(str(exc.detail))
+        else:
+            delivery_errors.append("SMS OTP unavailable for this number/provider")
+
+    if not delivered:
+        # Keep demo usable with master OTP fallback.
+        sms_status = "master_otp_only"
+        if delivery_errors:
+            logger.warning("Demo OTP delivery fallback to master OTP only: %s", " | ".join(delivery_errors))
+
+    with _DEMO_OTP_LOCK:
+        _cleanup_expired_demo_otps(now)
+        _DEMO_CALL_OTP_STORE[request_id] = DemoCallOtpState(
+            otp=otp,
+            payload=payload,
+            expires_at=expires_at,
+        )
+
+    return DemoCallOtpSendResponse(
+        request_id=request_id,
+        status=sms_status,
+        expires_in_seconds=settings.DEMO_CALL_OTP_TTL_SECONDS,
+    )
+
+
+@router.post("/demo-call/otp/verify", response_model=DemoCallResponse, status_code=201)
+async def verify_demo_call_otp(payload: DemoCallOtpVerifyRequest):
+    """Verify OTP then place the homepage demo call."""
+    now = datetime.now(timezone.utc)
+    with _DEMO_OTP_LOCK:
+        _cleanup_expired_demo_otps(now)
+        state = _DEMO_CALL_OTP_STORE.get(payload.request_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="OTP request not found or expired")
+
+        provided_otp = payload.otp.strip()
+        if provided_otp != state.otp and provided_otp != _MASTER_DEMO_OTP:
+            state.attempts += 1
+            if state.attempts >= settings.DEMO_CALL_OTP_MAX_ATTEMPTS:
+                _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+                raise HTTPException(status_code=429, detail="OTP attempts exceeded, request a new code")
+            raise HTTPException(status_code=422, detail="Invalid OTP")
+
+        _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+        call_payload = state.payload
+
+    return await _place_demo_call(call_payload)
+
+
+@router.post("/demo-call/master-otp", response_model=DemoCallResponse, status_code=201)
+async def initiate_demo_call_with_master_otp(payload: DemoCallMasterOtpRequest):
+    """Directly place demo call via master OTP without OTP-send step."""
+    if payload.master_otp.strip() != _MASTER_DEMO_OTP:
+        raise HTTPException(status_code=422, detail="Invalid master OTP")
+
+    call_payload = DemoCallRequest(
+        name=payload.name,
+        phone=payload.phone,
+        message=(payload.message.strip() if payload.message else _MASTER_OTP_CALL_MESSAGE),
+        from_number=payload.from_number,
+        tts_config=payload.tts_config,
+    )
+    return await _place_demo_call(call_payload)
+
+
+@router.post("/interactive-demo/start", response_model=InteractiveDemoStartResponse, status_code=201)
+async def start_interactive_demo_session(payload: InteractiveDemoStartRequest, request: Request):
+    """Start a short-lived interactive chat session backed by Gemini."""
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    session_id = uuid.uuid4().hex
+    provider = "gemini"
+
+    if settings.GEMINI_API_KEY:
+        session_pool = getattr(request.app.state, "session_pool", None)
+        if session_pool is None:
+            raise HTTPException(status_code=503, detail="Interactive demo is unavailable")
+
+        config = SessionConfig(
+            session_id=session_id,
+            voice_name=payload.voice_name,
+            system_instruction=_interactive_demo_system_prompt(payload.language),
+            output_mode=OutputMode.HYBRID,
+            tool_names=None,
+            timeout_minutes=max(2, settings.GEMINI_SESSION_TIMEOUT_MINUTES),
+            temperature=0.5,
+        )
+        try:
+            await session_pool.acquire(config=config, timeout=8.0)
+        except Exception as exc:
+            logger.exception("Failed to start interactive demo session")
+            raise HTTPException(status_code=503, detail=f"Could not start interactive session: {exc}") from exc
+    else:
+        provider = "fallback"
+
+    with _INTERACTIVE_DEMO_LOCK:
+        _INTERACTIVE_DEMO_STORE[session_id] = InteractiveDemoState(
+            session_id=session_id,
+            expires_at=now + timedelta(seconds=_INTERACTIVE_DEMO_TTL_SECONDS),
+            provider=provider,
+            language=payload.language,
+        )
+
+    return InteractiveDemoStartResponse(session_id=session_id, status="ready")
+
+
+@router.post("/interactive-demo/{session_id}/message", response_model=InteractiveDemoMessageResponse)
+async def interactive_demo_message(session_id: str, payload: InteractiveDemoMessageRequest, request: Request):
+    """Send a user message and return one assistant turn."""
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    with _INTERACTIVE_DEMO_LOCK:
+        state = _INTERACTIVE_DEMO_STORE.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Interactive session not found or expired")
+
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Message cannot be empty")
+
+    if state.provider == "fallback":
+        assistant_message = _fallback_interactive_reply(message, state.language)
+    else:
+        session_pool = getattr(request.app.state, "session_pool", None)
+        session = await session_pool.get_session(session_id) if session_pool else None
+        if session is None:
+            with _INTERACTIVE_DEMO_LOCK:
+                _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+            raise HTTPException(status_code=404, detail="Interactive session is not active")
+
+        await session.send_text(message)
+        assistant_message = await _collect_assistant_turn(session)
+
+    should_release = False
+    with _INTERACTIVE_DEMO_LOCK:
+        fresh = _INTERACTIVE_DEMO_STORE.get(session_id)
+        if fresh:
+            fresh.turns += 1
+            fresh.last_assistant_message = assistant_message
+            fresh.expires_at = now + timedelta(seconds=_INTERACTIVE_DEMO_TTL_SECONDS)
+            if fresh.turns >= _INTERACTIVE_DEMO_MAX_TURNS:
+                _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+                should_release = True
+
+    if should_release:
+        await _release_interactive_session(session_id, request)
+
+    return InteractiveDemoMessageResponse(session_id=session_id, assistant_message=assistant_message)
+
+
+@router.post("/interactive-demo/{session_id}/handoff-call", response_model=DemoCallResponse, status_code=201)
+async def interactive_demo_handoff_call(
+    session_id: str,
+    payload: InteractiveDemoHandoffCallRequest,
+    request: Request,
+):
+    """Place a demo call using the latest assistant response or a custom message."""
+    now = datetime.now(timezone.utc)
+    await _cleanup_expired_interactive_sessions(now, request)
+
+    with _INTERACTIVE_DEMO_LOCK:
+        state = _INTERACTIVE_DEMO_STORE.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Interactive session not found or expired")
+
+    message = (payload.message or "").strip() or state.last_assistant_message
+    if not message:
+        raise HTTPException(status_code=422, detail="No assistant response available for handoff call")
+
+    call_payload = DemoCallRequest(
+        name=payload.name,
+        phone=payload.phone,
+        message=message,
+        from_number=payload.from_number,
+        tts_config=payload.tts_config,
+    )
+    return await _place_demo_call(call_payload)
+
+
+@router.delete("/interactive-demo/{session_id}", status_code=204)
+async def interactive_demo_end_session(session_id: str, request: Request):
+    """End an interactive demo session and release its Gemini connection."""
+    removed = False
+    with _INTERACTIVE_DEMO_LOCK:
+        if session_id in _INTERACTIVE_DEMO_STORE:
+            _INTERACTIVE_DEMO_STORE.pop(session_id, None)
+            removed = True
+
+    if removed:
+        await _release_interactive_session(session_id, request)
+    return Response(status_code=204)
 
 
 @router.post("/twiml/{call_id}")

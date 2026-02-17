@@ -24,7 +24,7 @@ SEED_TEMPLATES = [
     {
         "name": "OTP प्रमाणीकरण (OTP Verification)",
         "content": (
-            "तपाईंको Ring AI प्रमाणीकरण कोड {otp_code} हो। "
+            "तपाईंको AgentShakti प्रमाणीकरण कोड {otp_code} हो। "
             "यो कोड {expiry_minutes|५} मिनेटमा समाप्त हुनेछ। "
             "कसैलाई यो कोड नदिनुहोस्।"
         ),
@@ -34,7 +34,7 @@ SEED_TEMPLATES = [
     {
         "name": "ग्राहक सन्तुष्टि सर्वेक्षण (Customer Satisfaction Survey)",
         "content": (
-            "नमस्ते {customer_name} जी। म Ring AI बाट बोल्दैछु। "
+            "नमस्ते {customer_name} जी। म AgentShakti बाट बोल्दैछु। "
             "तपाईंले हालै {service_name} सेवा प्रयोग गर्नुभएको थियो। "
             "तपाईंको अनुभवबारे केही प्रश्नहरू सोध्न चाहन्छु। "
             "{?agent_name}तपाईंको सेवा प्रदायक {agent_name} हुनुहुन्थ्यो। {/agent_name}"
@@ -86,7 +86,7 @@ def seed_templates() -> list[Template]:
         # Get or create a default organization for seeding
         org = db.query(Organization).first()
         if org is None:
-            org = Organization(name="Ring AI (Seed)")
+            org = Organization(name="AgentShakti (Seed)")
             db.add(org)
             db.flush()
 

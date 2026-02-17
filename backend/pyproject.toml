@@ -1,7 +1,7 @@
 [project]
 name = "ring-ai-backend"
 version = "0.1.0"
-description = "Ring AI backend — FastAPI service for voice campaigns, SMS, and TTS"
+description = "AgentShakti backend — FastAPI service for voice campaigns, SMS, and TTS"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

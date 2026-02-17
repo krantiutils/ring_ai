@@ -22,6 +22,9 @@ API_KEYS_GEN_URL = "/api/v1/auth/api-keys/generate"
 API_KEYS_URL = "/api/v1/auth/api-keys"
 PROFILE_URL = "/api/v1/auth/user-profile"
 GOOGLE_LOGIN_URL = "/api/v1/auth/google-login"
+MOBILE_SEND_OTP_URL = "/api/v1/auth/mobile/send-otp"
+MOBILE_VERIFY_OTP_URL = "/api/v1/auth/mobile/verify-otp"
+MOBILE_COMPLETE_URL = "/api/v1/auth/mobile/complete"
 
 
 def _register_payload(**overrides):
@@ -243,6 +246,56 @@ class TestRefresh:
         resp = client.post(REFRESH_URL)
         assert resp.status_code == 401
         assert "Invalid token type" in resp.json()["detail"]
+
+
+class TestMobileSignup:
+    def test_mobile_signup_happy_path(self, client: TestClient, monkeypatch):
+        async def _fake_send_sms(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr("app.api.v1.endpoints.auth._send_mobile_signup_otp_sms", _fake_send_sms)
+        monkeypatch.setattr(settings, "AAKASH_SMS_TOKEN", "token")
+
+        send = client.post(MOBILE_SEND_OTP_URL, json={"phone": "+9779800000000"})
+        assert send.status_code == 201
+        request_id = send.json()["request_id"]
+
+        # Use master OTP for deterministic test path
+        verify = client.post(MOBILE_VERIFY_OTP_URL, json={"request_id": request_id, "otp": "34026"})
+        assert verify.status_code == 200
+        assert verify.json()["status"] == "verified"
+
+        complete = client.post(
+            MOBILE_COMPLETE_URL,
+            json={
+                "request_id": request_id,
+                "first_name": "Mobile",
+                "last_name": "User",
+                "username": "mobileuser",
+                "email": "mobile@example.com",
+                "password": "strongpassword123",
+            },
+        )
+        assert complete.status_code == 200
+        assert "access_token" in complete.json()
+
+    def test_mobile_complete_requires_verified_otp(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(settings, "AAKASH_SMS_TOKEN", "")
+        send = client.post(MOBILE_SEND_OTP_URL, json={"phone": "+9779800000000"})
+        request_id = send.json()["request_id"]
+
+        complete = client.post(
+            MOBILE_COMPLETE_URL,
+            json={
+                "request_id": request_id,
+                "first_name": "No",
+                "last_name": "Verify",
+                "username": "noverif",
+                "email": "noverif@example.com",
+                "password": "strongpassword123",
+            },
+        )
+        assert complete.status_code == 422
 
 
 # ===========================================================================

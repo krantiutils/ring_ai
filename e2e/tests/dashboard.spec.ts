@@ -6,7 +6,7 @@ test.describe("Dashboard Overview", () => {
     await page.goto("/dashboard");
 
     // Assert sidebar navigation is visible
-    await expect(page.getByText("Ring AI").first()).toBeVisible();
+    await expect(page.getByText("AgentShakti").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Campaigns" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Analytics" })).toBeVisible();
@@ -109,7 +109,7 @@ test.describe("Dashboard Overview", () => {
     await patchListApiResponses(page);
 
     await page.goto("/dashboard");
-    await expect(page.getByText("Ring AI").first()).toBeVisible();
+    await expect(page.getByText("AgentShakti").first()).toBeVisible();
 
     // Click "Campaigns" in sidebar
     await page.getByRole("link", { name: "Campaigns" }).click();

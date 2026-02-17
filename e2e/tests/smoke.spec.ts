@@ -12,7 +12,7 @@ test.describe("Smoke Tests", () => {
 
   test("frontend loads successfully", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Ring AI/i);
+    await expect(page).toHaveTitle(/AgentShakti/i);
   });
 
   test("frontend renders without console errors", async ({ page }) => {
@@ -35,14 +35,14 @@ test.describe("Smoke Tests", () => {
     expect(response.ok()).toBeTruthy();
     const spec = await response.json();
     expect(spec.openapi).toBeDefined();
-    expect(spec.info.title).toBe("Ring AI");
+    expect(spec.info.title).toBe("AgentShakti");
   });
 
   test("dashboard loads when authenticated", async ({ page }) => {
     await page.goto("/dashboard");
 
     // Should render dashboard (not redirect to login)
-    await expect(page.getByText("Ring AI")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("AgentShakti")).toBeVisible({ timeout: 10_000 });
     await expect(
       page.locator("h1", { hasText: "Dashboard" })
     ).toBeVisible();

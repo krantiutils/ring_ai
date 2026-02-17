@@ -15,6 +15,7 @@ import {
   Settings,
   Mic,
   BookOpen,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/dashboard/templates", label: "Message Templates", icon: MessageSquare },
   { href: "/dashboard/knowledge-bases", label: "Knowledge Base", icon: BookOpen },
   { href: "/dashboard/tts-providers", label: "TTS Providers", icon: Mic },
+  { href: "/dashboard/flows", label: "Flow Builder", icon: Workflow },
   { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
@@ -38,15 +40,15 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="fixed left-0 top-0 z-50 hidden h-screen w-[260px] flex-col border-r border-[#E2E8F0] bg-[#FAFAFA] text-[#0F172A] md:flex"
+      className="fixed left-0 top-0 z-50 hidden h-screen w-[260px] flex-col border-r border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] md:flex"
     >
-      <div className="flex h-16 items-center gap-3 border-b border-[#E2E8F0] px-5">
+      <div className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#0052FF] to-[#4D7CFF] text-sm font-bold text-white shadow-[0_4px_14px_rgba(0,82,255,0.28)]">
-          R
+          A
         </div>
         <div>
-          <span className="text-lg font-semibold tracking-tight text-[#0F172A]">Ring AI</span>
-          <p className="font-mono-label text-[10px] uppercase tracking-[0.15em] text-[#64748B]">Operations</p>
+          <span className="text-lg font-semibold tracking-tight text-[var(--foreground)]">AgentShakti</span>
+          <p className="font-mono-label text-[10px] uppercase tracking-[0.15em] text-[var(--muted-foreground)]">Operations</p>
         </div>
       </div>
 
@@ -67,7 +69,7 @@ export default function Sidebar() {
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-gradient-to-r from-[#0052FF] to-[#4D7CFF] text-white shadow-[0_4px_14px_rgba(0,82,255,0.28)]"
-                      : "text-[#0F172A]/65 hover:bg-[#F1F5F9] hover:text-[#0F172A]",
+                      : "text-[color-mix(in_srgb,var(--foreground)_68%,transparent)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]",
                   )}
                 >
                   <Icon className="w-5 h-5 shrink-0" />

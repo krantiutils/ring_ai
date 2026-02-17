@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ring AI — One Platform. Every Conversation. Understood.",
+  title: "AgentShakti — One Platform. Every Conversation. Understood.",
   description:
     "AI-powered business communication platform for voice, SMS, and surveys. Powered by AI, spoken in नेपाली.",
 };
@@ -23,8 +23,26 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const initThemeScript = `
+    (function () {
+      try {
+        var key = "ring_theme_mode";
+        var stored = localStorage.getItem(key);
+        var theme = (stored === "light" || stored === "dark")
+          ? stored
+          : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  `;
+
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initThemeScript }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

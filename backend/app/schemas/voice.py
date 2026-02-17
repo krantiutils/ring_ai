@@ -43,6 +43,91 @@ class CampaignCallResponse(BaseModel):
     interaction_id: uuid.UUID | None = None
 
 
+class DemoCallRequest(BaseModel):
+    """POST /api/v1/voice/demo-call request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    message: str = Field(..., min_length=1, max_length=299)
+    from_number: str | None = None
+    whatsapp_from_number: str | None = None
+    otp_channel: str = Field(
+        default="auto",
+        description="OTP channel preference: auto, sms, or whatsapp",
+    )
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
+class DemoCallOtpSendResponse(BaseModel):
+    """POST /api/v1/voice/demo-call/otp/send response."""
+
+    request_id: str
+    status: str
+    expires_in_seconds: int
+
+
+class DemoCallOtpVerifyRequest(BaseModel):
+    """POST /api/v1/voice/demo-call/otp/verify request body."""
+
+    request_id: str = Field(..., min_length=1)
+    otp: str = Field(..., min_length=4, max_length=10)
+
+
+class DemoCallMasterOtpRequest(BaseModel):
+    """POST /api/v1/voice/demo-call/master-otp request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    message: str | None = Field(None, min_length=1, max_length=299)
+    master_otp: str = Field(..., min_length=4, max_length=10)
+    from_number: str | None = None
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
+class DemoCallResponse(BaseModel):
+    """POST /api/v1/voice/demo-call response."""
+
+    call_id: str
+    status: CallStatus
+
+
+class InteractiveDemoStartRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/start request body."""
+
+    language: str = Field(default="ne", min_length=2, max_length=8)
+    voice_name: str = Field(default="Kore", min_length=1, max_length=64)
+
+
+class InteractiveDemoStartResponse(BaseModel):
+    """POST /api/v1/voice/interactive-demo/start response."""
+
+    session_id: str
+    status: str
+
+
+class InteractiveDemoMessageRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/message request body."""
+
+    message: str = Field(..., min_length=1, max_length=299)
+
+
+class InteractiveDemoMessageResponse(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/message response."""
+
+    session_id: str
+    assistant_message: str
+
+
+class InteractiveDemoHandoffCallRequest(BaseModel):
+    """POST /api/v1/voice/interactive-demo/{session_id}/handoff-call request body."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
+    message: str | None = Field(None, min_length=1, max_length=299)
+    from_number: str | None = None
+    tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
+
+
 class CallStatusResponse(BaseModel):
     """GET /api/v1/voice/calls/{call_id} response."""
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Plus, Search, Filter, ArrowUpDown, Calendar, Megaphone } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn, formatDate } from "@/lib/utils";
@@ -100,11 +101,21 @@ export default function CampaignsPage() {
           Date
         </button>
 
-        <button className="ml-auto flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors">
+        <Link
+          href="/dashboard/get-started"
+          className="ml-auto flex items-center gap-2 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Add New Campaign
-        </button>
+        </Link>
       </div>
+      <p className="text-xs text-[#0F172A]/50">
+        Use{" "}
+        <Link href="/dashboard/get-started" className="text-[#0052FF] hover:underline">
+          Get Started
+        </Link>{" "}
+        to create SMS or Phone campaigns in a guided 4-step flow.
+      </p>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#0052FF]/15 overflow-hidden">
@@ -139,10 +150,13 @@ export default function CampaignsPage() {
                       <p className="text-sm font-medium text-[#0F172A]/60">No campaigns yet</p>
                       <p className="text-xs text-[#0F172A]/40 mt-1">Create your first campaign to get started</p>
                     </div>
-                    <button className="mt-2 flex items-center gap-1.5 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors">
+                    <Link
+                      href="/dashboard/get-started"
+                      className="mt-2 flex items-center gap-1.5 bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0048D9] transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                       Add New Campaign
-                    </button>
+                    </Link>
                   </div>
                 </td>
               </tr>

@@ -1,6 +1,6 @@
 import { clearAccessToken, getAccessToken } from "@/lib/auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+const ORG_STORAGE_KEY = "org_id";
 
 class ApiError extends Error {
   constructor(
@@ -14,6 +14,23 @@ class ApiError extends Error {
 
 function getToken(): string | null {
   return getAccessToken();
+}
+
+function getStoredOrgId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ORG_STORAGE_KEY);
+}
+
+function storeOrgId(orgId?: string | null): void {
+  if (typeof window === "undefined" || !orgId) return;
+  localStorage.setItem(ORG_STORAGE_KEY, orgId);
+}
+
+function withOrgId(path: string, orgId?: string | null): string {
+  const resolvedOrgId = orgId || getStoredOrgId();
+  if (!resolvedOrgId) return path;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${path}${joiner}org_id=${encodeURIComponent(resolvedOrgId)}`;
 }
 
 async function request<T>(
@@ -75,6 +92,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id_token: idToken }),
     }),
+  mobileSignupSendOtp: (phone: string) =>
+    request<{ request_id: string; status: string; expires_in_seconds: number }>("/auth/mobile/send-otp", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+  mobileSignupVerifyOtp: (requestId: string, otp: string) =>
+    request<{ request_id: string; status: string }>("/auth/mobile/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, otp }),
+    }),
+  mobileSignupComplete: (data: {
+    request_id: string;
+    first_name: string;
+    last_name: string;
+    username: string;
+    email: string;
+    password: string;
+  }) =>
+    request<{ access_token: string; token_type: string }>("/auth/mobile/complete", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getProfile: () => request<import("@/types/dashboard").UserProfile>("/auth/user-profile"),
   getApiKeys: () => request<import("@/types/dashboard").APIKeyInfo>("/auth/api-keys"),
   generateApiKey: () => request<{ api_key: string }>("/auth/api-keys/generate", { method: "POST" }),
@@ -83,19 +122,200 @@ export const api = {
   getKycStatus: () => request<import("@/types/dashboard").KYCStatus>("/auth/kyc/status"),
 
   // Campaigns
-  getCampaigns: (params?: string) =>
-    request<import("@/types/dashboard").CampaignListResponse>(`/campaigns/${params ? `?${params}` : ""}`),
+  getCampaigns: async (params?: string) => {
+    const raw = await request<{
+      items?: import("@/types/dashboard").Campaign[];
+      campaigns?: import("@/types/dashboard").Campaign[];
+      total?: number;
+      page?: number;
+      page_size?: number;
+      per_page?: number;
+    }>(`/campaigns/${params ? `?${params}` : ""}`);
+    const campaigns = raw.campaigns ?? raw.items ?? [];
+    const inferredOrgId = (campaigns[0] as { org_id?: string } | undefined)?.org_id;
+    storeOrgId(inferredOrgId);
+    return {
+      campaigns,
+      total: raw.total ?? campaigns.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? campaigns.length,
+    } as import("@/types/dashboard").CampaignListResponse;
+  },
   getCampaign: (id: string) => request<import("@/types/dashboard").Campaign>(`/campaigns/${id}`),
+  createCampaign: async (data: {
+    name: string;
+    type: "voice" | "text";
+    category?: "voice" | "text" | "survey" | "combined";
+    template_id?: string | null;
+    schedule_config?: Record<string, unknown> | null;
+  }) => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      throw new ApiError(422, "Missing org_id. Open Campaigns once so organization context can be loaded.");
+    }
+    return request<import("@/types/dashboard").Campaign>("/campaigns/", {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        type: data.type,
+        category: data.category ?? (data.type === "voice" ? "voice" : "text"),
+        org_id: orgId,
+        template_id: data.template_id ?? null,
+        schedule_config: data.schedule_config ?? null,
+      }),
+    });
+  },
+  uploadCampaignContacts: async (campaignId: string, file: File) => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/campaigns/${campaignId}/contacts`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new ApiError(res.status, body);
+    }
+    return res.json() as Promise<{ created: number; skipped: number; errors: string[] }>;
+  },
+  startCampaign: (campaignId: string, schedule?: string) =>
+    request<import("@/types/dashboard").Campaign>(`/campaigns/${campaignId}/start`, {
+      method: "POST",
+      body: JSON.stringify(schedule ? { schedule } : {}),
+    }),
 
   // Analytics
-  getOverview: () => request<import("@/types/dashboard").OverviewAnalytics>("/analytics/overview"),
+  getOverview: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        total_campaigns: 0,
+        campaigns_by_status: {},
+        campaigns_by_category: {},
+        total_reach: 0,
+        delivery_rate: 0,
+        total_credits_consumed: 0,
+      } as import("@/types/dashboard").OverviewAnalytics;
+    }
+    try {
+      const raw = await request<{
+        campaigns_by_status?: Record<string, number>;
+        campaigns_by_category?: Record<string, number>;
+        total_campaigns?: number;
+        total_reach?: number;
+        total_contacts_reached?: number;
+        delivery_rate?: number | null;
+        overall_delivery_rate?: number | null;
+        total_credits_consumed?: number;
+        credits_consumed?: number;
+      }>(withOrgId("/analytics/overview", orgId));
+      return {
+        total_campaigns: raw.total_campaigns ?? 0,
+        campaigns_by_status: raw.campaigns_by_status ?? {},
+        campaigns_by_category: raw.campaigns_by_category ?? {},
+        total_reach: raw.total_reach ?? raw.total_contacts_reached ?? 0,
+        delivery_rate: raw.delivery_rate ?? raw.overall_delivery_rate ?? 0,
+        total_credits_consumed: raw.total_credits_consumed ?? raw.credits_consumed ?? 0,
+      } as import("@/types/dashboard").OverviewAnalytics;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return {
+          total_campaigns: 0,
+          campaigns_by_status: {},
+          campaigns_by_category: {},
+          total_reach: 0,
+          delivery_rate: 0,
+          total_credits_consumed: 0,
+        } as import("@/types/dashboard").OverviewAnalytics;
+      }
+      throw error;
+    }
+  },
   getCampaignAnalytics: (id: string) =>
     request<import("@/types/dashboard").CampaignAnalytics>(`/analytics/campaigns/${id}`),
-  getCarrierBreakdown: () => request<import("@/types/dashboard").CarrierStat[]>("/analytics/carrier-breakdown"),
+  getCarrierBreakdown: async () => {
+    const raw = await request<Array<{
+      carrier: string;
+      total: number;
+      success?: number;
+      successful?: number;
+      fail?: number;
+      failed?: number;
+      pickup_pct?: number;
+      pickup_rate?: number;
+    }>>("/analytics/carrier-breakdown");
+    return raw.map((item) => ({
+      carrier: item.carrier,
+      total: item.total,
+      successful: item.successful ?? item.success ?? 0,
+      failed: item.failed ?? item.fail ?? 0,
+      pickup_rate: item.pickup_rate ?? item.pickup_pct ?? 0,
+    })) as import("@/types/dashboard").CarrierStat[];
+  },
   getCategoryBreakdown: () =>
     request<import("@/types/dashboard").CategoryBreakdown[]>("/analytics/campaigns/by-category"),
-  getDashboardPlayback: () =>
-    request<import("@/types/dashboard").DashboardPlaybackWidget>("/analytics/dashboard/playback"),
+  getDashboardPlayback: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        average_playback_percentage: 0,
+        distribution: {
+          bucket_0_25: 0,
+          bucket_26_50: 0,
+          bucket_51_75: 0,
+          bucket_76_100: 0,
+        },
+      } as import("@/types/dashboard").DashboardPlaybackWidget;
+    }
+    try {
+      const raw = await request<{
+        average_playback_percentage?: number | null;
+        avg_playback_percentage?: number | null;
+        distribution?: Record<string, number> | Array<{ bucket: string; count: number }>;
+      }>(withOrgId("/analytics/dashboard/playback", orgId));
+      const distribution = raw.distribution;
+      const normalized = {
+        bucket_0_25: 0,
+        bucket_26_50: 0,
+        bucket_51_75: 0,
+        bucket_76_100: 0,
+      };
+      if (Array.isArray(distribution)) {
+        for (const entry of distribution) {
+          if (entry.bucket === "0-25") normalized.bucket_0_25 = entry.count;
+          if (entry.bucket === "26-50") normalized.bucket_26_50 = entry.count;
+          if (entry.bucket === "51-75") normalized.bucket_51_75 = entry.count;
+          if (entry.bucket === "76-100") normalized.bucket_76_100 = entry.count;
+        }
+      } else if (distribution && typeof distribution === "object") {
+        normalized.bucket_0_25 = distribution.bucket_0_25 ?? 0;
+        normalized.bucket_26_50 = distribution.bucket_26_50 ?? 0;
+        normalized.bucket_51_75 = distribution.bucket_51_75 ?? 0;
+        normalized.bucket_76_100 = distribution.bucket_76_100 ?? 0;
+      }
+      return {
+        average_playback_percentage: raw.average_playback_percentage ?? raw.avg_playback_percentage ?? 0,
+        distribution: normalized,
+      } as import("@/types/dashboard").DashboardPlaybackWidget;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return {
+          average_playback_percentage: 0,
+          distribution: {
+            bucket_0_25: 0,
+            bucket_26_50: 0,
+            bucket_51_75: 0,
+            bucket_76_100: 0,
+          },
+        } as import("@/types/dashboard").DashboardPlaybackWidget;
+      }
+      throw error;
+    }
+  },
   getIntentDistribution: (campaignId?: string) =>
     request<import("@/types/dashboard").IntentDistribution>(
       `/analytics/intents${campaignId ? `?campaign_id=${campaignId}` : ""}`,
@@ -104,19 +324,134 @@ export const api = {
     request<import("@/types/dashboard").CampaignIntentSummary>(`/analytics/campaigns/${id}/intents`),
 
   // Credits
-  getCreditBalance: () => request<import("@/types/dashboard").CreditBalance>("/credits/balance"),
-  getCreditHistory: (params?: string) =>
-    request<import("@/types/dashboard").CreditHistoryResponse>(`/credits/history${params ? `?${params}` : ""}`),
+  getCreditBalance: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return { balance: 0, total_purchased: 0, total_consumed: 0 } as import("@/types/dashboard").CreditBalance;
+    }
+    try {
+      const raw = await request<import("@/types/dashboard").CreditBalance & { org_id?: string }>(
+        withOrgId("/credits/balance", orgId),
+      );
+      storeOrgId(raw.org_id || orgId);
+      return raw;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        return { balance: 0, total_purchased: 0, total_consumed: 0 } as import("@/types/dashboard").CreditBalance;
+      }
+      throw error;
+    }
+  },
+  getCreditHistory: async (params?: string) => {
+    const orgId = getStoredOrgId();
+    if (!orgId) {
+      return {
+        transactions: [],
+        total: 0,
+        page: 1,
+        per_page: 20,
+      } as import("@/types/dashboard").CreditHistoryResponse;
+    }
+    const raw = await request<{
+      transactions?: import("@/types/dashboard").CreditTransaction[];
+      items?: import("@/types/dashboard").CreditTransaction[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(withOrgId(`/credits/history${params ? `?${params}` : ""}`, orgId));
+    const transactions = raw.transactions ?? raw.items ?? [];
+    return {
+      transactions,
+      total: raw.total ?? transactions.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? transactions.length,
+    } as import("@/types/dashboard").CreditHistoryResponse;
+  },
 
   // Templates
-  getTemplates: (params?: string) =>
-    request<import("@/types/dashboard").TemplateListResponse>(`/templates/${params ? `?${params}` : ""}`),
+  getTemplates: async (params?: string) => {
+    const raw = await request<{
+      templates?: import("@/types/dashboard").Template[];
+      items?: import("@/types/dashboard").Template[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(`/templates/${params ? `?${params}` : ""}`);
+    const templates = raw.templates ?? raw.items ?? [];
+    const inferredOrgId = (templates[0] as { org_id?: string } | undefined)?.org_id;
+    storeOrgId(inferredOrgId);
+    return {
+      templates,
+      total: raw.total ?? templates.length,
+      page: raw.page ?? 1,
+      per_page: raw.per_page ?? raw.page_size ?? templates.length,
+    } as import("@/types/dashboard").TemplateListResponse;
+  },
   createTemplate: (data: { name: string; type: string; content: string }) =>
     request<import("@/types/dashboard").Template>("/templates/", { method: "POST", body: JSON.stringify(data) }),
   updateTemplate: (id: string, data: { name?: string; content?: string }) =>
     request<import("@/types/dashboard").Template>(`/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteTemplate: (id: string) =>
     request<void>(`/templates/${id}`, { method: "DELETE" }),
+
+  // Flow sources
+  previewFlowUrlSource: (data: {
+    url: string;
+    source_kind: "source_url_json" | "source_url_csv";
+    max_preview_rows?: number;
+    max_rows?: number;
+  }) =>
+    request<{
+      headers: string[];
+      preview_rows: string[][];
+      total_rows: number;
+      mapping: string;
+      sample_csv: string;
+    }>("/flows/sources/url-preview", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  createManualTableSource: (data: { name: string; headers: string[]; rows: string[][] }) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>("/flows/sources/manual-table", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getManualTableSource: (id: string) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/flows/sources/manual-table/${id}`),
+  updateManualTableSource: (id: string, data: { name: string; headers: string[]; rows: string[][] }) =>
+    request<{
+      id: string;
+      user_id: string;
+      name: string;
+      headers: string[];
+      rows: string[][];
+      row_count: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/flows/sources/manual-table/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Phone Numbers
   getActivePhoneNumbers: () => request<import("@/types/dashboard").PhoneNumber[]>("/phone-numbers/active"),
@@ -271,6 +606,8 @@ export const api = {
     name: string;
     phone: string;
     message: string;
+    otp_channel?: "auto" | "sms" | "whatsapp";
+    whatsapp_from_number?: string;
     from_number?: string;
     tts_config?: {
       provider?: string;
@@ -286,6 +623,24 @@ export const api = {
     }),
   verifyDemoCallOtp: (data: { request_id: string; otp: string }) =>
     request<{ call_id: string; status: string }>("/voice/demo-call/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  initiateMasterOtpDemoCall: (data: {
+    name: string;
+    phone: string;
+    message?: string;
+    master_otp: string;
+    from_number?: string;
+    tts_config?: {
+      provider?: string;
+      voice?: string;
+      rate?: string;
+      pitch?: string;
+      fallback_provider?: string;
+    };
+  }) =>
+    request<{ call_id: string; status: string }>("/voice/demo-call/master-otp", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -306,6 +661,114 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  startInteractiveDemoSession: (data?: { language?: string; voice_name?: string }) =>
+    request<{ session_id: string; status: string }>("/voice/interactive-demo/start", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+  sendInteractiveDemoMessage: (sessionId: string, message: string) =>
+    request<{ session_id: string; assistant_message: string }>(`/voice/interactive-demo/${sessionId}/message`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+  handoffInteractiveDemoCall: (
+    sessionId: string,
+    data: {
+      name: string;
+      phone: string;
+      message?: string;
+      from_number?: string;
+      tts_config?: {
+        provider?: string;
+        voice?: string;
+        rate?: string;
+        pitch?: string;
+        fallback_provider?: string;
+      };
+    },
+  ) =>
+    request<{ call_id: string; status: string }>(`/voice/interactive-demo/${sessionId}/handoff-call`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  endInteractiveDemoSession: async (sessionId: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/voice/interactive-demo/${sessionId}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.status !== 204) {
+      const body = await res.text();
+      throw new ApiError(res.status, body || "Failed to end interactive session");
+    }
+  },
+  createWhatsAppDemoSession: (data?: {
+    language?: string;
+    voice_name?: string;
+    from_number?: string;
+    to_number?: string;
+  }) =>
+    request<{ session_id: string; provider: string; status: string; created_at: string }>("/whatsapp/demo/session", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+  sendWhatsAppDemoMessage: (
+    sessionId: string,
+    data: {
+      message: string;
+      from_number?: string;
+      to_number?: string;
+    },
+  ) =>
+    request<{
+      session_id: string;
+      assistant_message: string;
+      provider: string;
+      delivery_status: string;
+      delivery_id?: string | null;
+    }>(`/whatsapp/demo/session/${sessionId}/message`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  endWhatsAppDemoSession: async (sessionId: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/whatsapp/demo/session/${sessionId}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.status !== 204) {
+      const body = await res.text();
+      throw new ApiError(res.status, body || "Failed to end WhatsApp session");
+    }
+  },
+  startWhatsAppSurvey: (data: {
+    from_number: string;
+    to_numbers: string[];
+    question: string;
+    options: string[];
+  }) =>
+    request<{ survey_id: string; status: string; recipients: number }>("/whatsapp/demo/survey/start", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getWhatsAppSurveyResults: (surveyId: string) =>
+    request<{
+      survey_id: string;
+      question: string;
+      options: string[];
+      counts: Record<string, number>;
+      responses: Record<string, string>;
+    }>(`/whatsapp/demo/survey/${surveyId}/results`),
+  getLinkedWhatsAppStatus: () =>
+    request<{ state: string; ready_at?: string | null; has_qr?: boolean; last_error?: string | null }>(
+      "/whatsapp/linked/status",
+    ),
+  getLinkedWhatsAppQr: () =>
+    request<{ qr: string; qr_data_url: string }>("/whatsapp/linked/qr"),
 };
 
 export { ApiError };

@@ -10,7 +10,7 @@ type HowItWorksProps = {
 const content = {
   en: {
     label: "Workflow",
-    title: "How Ring AI Operates End to End",
+    title: "How AgentShakti Operates End to End",
     intro: "The flow is designed for clarity: trigger, automate, escalate, and measure.",
     steps: [
       ["Connect channels and upload campaign context"],
@@ -22,7 +22,7 @@ const content = {
   },
   ne: {
     label: "कार्यप्रवाह",
-    title: "Ring AI को end-to-end सञ्चालन",
+    title: "AgentShakti को end-to-end सञ्चालन",
     intro: "Flow स्पष्ट छ: trigger, automate, escalate, अनि measure।",
     steps: [
       ["च्यानल जोड्नुहोस् र अभियान सन्दर्भ राख्नुहोस्"],

@@ -346,18 +346,18 @@ class TestKnowledgeBaseAPI:
                 "chunk_id": uuid.uuid4(),
                 "document_id": uuid.uuid4(),
                 "file_name": "faq.txt",
-                "content": "Ring AI helps businesses...",
+                "content": "AgentShakti helps businesses...",
                 "score": 0.92,
             },
         ]
 
         resp = client.post(
             f"/api/v1/knowledge-bases/{kb_id}/search?org_id={org_id}",
-            json={"query": "What does Ring AI do?"},
+            json={"query": "What does AgentShakti do?"},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["query"] == "What does Ring AI do?"
+        assert data["query"] == "What does AgentShakti do?"
         assert len(data["results"]) == 1
         assert data["results"][0]["score"] == 0.92
 
@@ -406,13 +406,13 @@ class TestRAGContext:
         chunk = KnowledgeChunk(
             document_id=doc.id,
             chunk_index=0,
-            content="Ring AI is a voice campaign platform.",
+            content="AgentShakti is a voice campaign platform.",
         )
         db.add(chunk)
         db.commit()
 
         result = retrieve_context_for_session(db, kb.id)
-        assert "Ring AI is a voice campaign platform." in result
+        assert "AgentShakti is a voice campaign platform." in result
         assert "KNOWLEDGE BASE CONTEXT" in result
         assert "info.txt" in result
 

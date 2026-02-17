@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import type { LandingLanguage } from "@/app/page";
@@ -9,65 +9,82 @@ type ExperienceDemoProps = {
   language: LandingLanguage;
 };
 
+type DemoTab = "call" | "survey";
+
 const copy = {
   en: {
     label: "Interactive Demo",
-    title: "Try Ring AI Before Signup",
-    desc: "Run a quick flow: type text, hear Nepali TTS, request OTP, verify, and queue a demo call.",
-    message: "Ring AI ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
-    textToSpeech: "Text to Speech",
-    callDemo: "Request Demo Call",
-    sendOtp: "Send OTP",
-    verifyOtp: "Verify OTP",
-    speak: "Generate Voice",
-    name: "Name",
-    phone: "Phone Number",
-    callScript: "Call Script",
-    otp: "OTP",
+    title: "Try AgentShakti Before Signup",
+    desc: "Mainly for demo calling, with survey tools.",
+    tabs: {
+      call: "Demo Call",
+      survey: "Questions for Survey",
+    },
   },
   ne: {
     label: "इण्टरएक्टिभ डेमो",
-    title: "साइनअप अघि Ring AI चलाएर हेर्नुहोस्",
-    desc: "छोटो flow चलाउनुहोस्: टेक्स्ट टाइप गर्नुहोस्, Nepali TTS सुन्नुहोस्, OTP माग्नुहोस्, verify गर्नुहोस् र डेमो कल queue गर्नुहोस्।",
-    message: "Ring AI ले तपाईंको व्यवसायिक संवादलाई छिटो, स्पष्ट र प्रभावकारी बनाउँछ।",
-    callMessage: "यो Ring AI को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
-    textToSpeech: "टेक्स्ट टु स्पीच",
-    callDemo: "डेमो कल अनुरोध",
-    sendOtp: "OTP पठाउनुहोस्",
-    verifyOtp: "OTP पुष्टि गर्नुहोस्",
-    speak: "भ्वाइस बनाउनुहोस्",
-    name: "नाम",
-    phone: "फोन नम्बर",
-    callScript: "कल स्क्रिप्ट",
-    otp: "OTP",
+    title: "साइनअप अघि AgentShakti चलाएर हेर्नुहोस्",
+    desc: "मुख्य रूपमा डेमो कल, साथै survey tool।",
+    tabs: {
+      call: "डेमो कल",
+      survey: "Survey का प्रश्नहरू",
+    },
   },
 };
 
+const defaultSurveyQuestions = [
+  "के हजुरले सेवा प्रयोग गर्दा आवश्यक जानकारी स्पष्ट रूपमा प्राप्त गर्नुभयो? (प्राप्त गर्नुभयो भने १ दबाउनुहोस्, प्राप्त गर्नुभएन भने २ दबाउनुहोस्।)",
+  "के हजुरलाई समग्र सेवाको सहजता र गुणस्तर सन्तोषजनक लाग्यो? (सन्तोषजनक लाग्यो भने १ दबाउनुहोस्, लागेन भने २ दबाउनुहोस्।)",
+  "तपाईं हाम्रो सेवालाई १ देखि ५ को स्केलमा कति मूल्याङ्कन गर्नुहुन्छ? (१ नराम्रो, ५ धेरै राम्रो)",
+];
+
 export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const t = copy[language];
-  const [demoText, setDemoText] = useState(t.message);
+  const [activeTab, setActiveTab] = useState<DemoTab>("call");
+
+  const [voiceText, setVoiceText] = useState(
+    "नमस्ते! AgentShakti मा स्वागत छ। हामी voice call र SMS automation सजिलो बनाउँछौं।",
+  );
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  const [showCallFields, setShowCallFields] = useState(false);
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [callMessage, setCallMessage] = useState(t.callMessage);
+  const [callName, setCallName] = useState("");
+  const [callPhone, setCallPhone] = useState("");
+  const [callScript, setCallScript] = useState(
+    "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।",
+  );
+  const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
   const [callLoading, setCallLoading] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
-  const [otpRequestId, setOtpRequestId] = useState<string | null>(null);
-  const [otpValue, setOtpValue] = useState("");
 
-  const canSpeak = useMemo(() => demoText.trim().length > 0, [demoText]);
-  const canCall = useMemo(
-    () => name.trim().length > 0 && phone.trim().length > 0 && callMessage.trim().length > 0,
-    [name, phone, callMessage],
+  const [surveyQuestionsText, setSurveyQuestionsText] = useState(defaultSurveyQuestions.join("\n\n"));
+  const [surveyType, setSurveyType] = useState<"DTMF" | "Speech">("DTMF");
+  const [surveyContentType, setSurveyContentType] = useState<"Say" | "Text">("Say");
+  const [surveySayText, setSurveySayText] = useState(defaultSurveyQuestions[0]);
+  const [surveyCallerName, setSurveyCallerName] = useState("");
+  const [surveyCallerPhone, setSurveyCallerPhone] = useState("");
+  const [surveyCallingNow, setSurveyCallingNow] = useState(false);
+  const [surveyCallError, setSurveyCallError] = useState<string | null>(null);
+  const MAX_TEXT = 299;
+
+  const canGenerateVoice = useMemo(() => voiceText.trim().length > 0, [voiceText]);
+  const canSendOtp = useMemo(
+    () => callName.trim().length > 0 && callPhone.trim().length > 0 && callScript.trim().length > 0,
+    [callName, callPhone, callScript],
   );
-  const canVerifyOtp = useMemo(() => (otpRequestId ? otpValue.trim().length >= 4 : false), [otpRequestId, otpValue]);
+  const canVerifyOtp = useMemo(() => (otpRequestId ? otpCode.trim().length >= 4 : false), [otpRequestId, otpCode]);
 
-  async function handleSpeak() {
-    if (!canSpeak) return;
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
+  async function handleGenerateVoice() {
+    if (!canGenerateVoice) return;
     setTtsLoading(true);
     setTtsError(null);
     if (audioUrl) {
@@ -76,27 +93,28 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     }
     try {
       const result = await api.synthesizeTTS({
-        text: demoText.trim(),
+        text: voiceText.trim(),
         provider: "edge_tts",
         voice: "ne-NP-HemkalaNeural",
       });
       setAudioUrl(URL.createObjectURL(result.audioBlob));
     } catch {
-      setTtsError("TTS failed. Please try again.");
+      setTtsError("TTS failed. फेरि प्रयास गर्नुहोस्।");
     } finally {
       setTtsLoading(false);
     }
   }
 
-  async function handleCall() {
-    if (!canCall) return;
+  async function handleSendOtp() {
+    if (!canSendOtp) return;
     setCallLoading(true);
     setCallError(null);
     try {
       const result = await api.sendDemoCallOtp({
-        name: name.trim(),
-        phone: phone.trim(),
-        message: callMessage.trim(),
+        name: callName.trim(),
+        phone: callPhone.trim(),
+        message: callScript.trim(),
+        otp_channel: "sms",
         tts_config: { provider: "edge_tts", voice: "ne-NP-HemkalaNeural" },
       });
       setOtpRequestId(result.request_id);
@@ -108,14 +126,14 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     }
   }
 
-  async function handleVerify() {
+  async function handleVerifyOtpAndCall() {
     if (!otpRequestId || !canVerifyOtp) return;
     setCallLoading(true);
     setCallError(null);
     try {
-      await api.verifyDemoCallOtp({ request_id: otpRequestId, otp: otpValue.trim() });
+      await api.verifyDemoCallOtp({ request_id: otpRequestId, otp: otpCode.trim() });
       setOtpRequestId(null);
-      setOtpValue("");
+      setOtpCode("");
     } catch (err) {
       if (err instanceof ApiError) setCallError(`OTP verification failed (${err.status}).`);
       else setCallError("OTP verification failed.");
@@ -124,6 +142,35 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     }
   }
 
+  async function handleCallMeNowSurvey() {
+    if (!surveyCallerName.trim() || !surveyCallerPhone.trim() || !surveySayText.trim()) {
+      setSurveyCallError("नाम, फोन र Text to say भर्नुहोस्।");
+      return;
+    }
+    setSurveyCallingNow(true);
+    setSurveyCallError(null);
+    try {
+      await api.initiateDemoCall({
+        name: surveyCallerName.trim(),
+        phone: surveyCallerPhone.trim(),
+        message: surveySayText.trim(),
+        tts_config: { provider: "edge_tts", voice: "ne-NP-HemkalaNeural" },
+      });
+    } catch (err) {
+      if (err instanceof ApiError) setSurveyCallError(`Call now failed (${err.status}).`);
+      else setSurveyCallError("Call now failed.");
+    } finally {
+      setSurveyCallingNow(false);
+    }
+  }
+
+  const tabButtonClass = (tab: DemoTab) =>
+    `relative inline-flex h-11 items-center justify-center rounded-t-xl border px-5 text-sm font-semibold transition ${
+      activeTab === tab
+        ? "bg-[var(--card)] text-[var(--foreground)] border-[var(--accent)] shadow-[0_-2px_0_0_var(--accent)_inset]"
+        : "bg-[var(--muted)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+    }`;
+
   return (
     <section id="demo" className="py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -131,113 +178,104 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           <span className="pulse-dot" />
           {t.label}
         </div>
-        <h2 className="font-display mt-5 text-4xl leading-tight text-[#0F172A] md:text-5xl">{t.title}</h2>
-        <p className="mt-3 max-w-3xl text-[#64748B]">{t.desc}</p>
+        <h2 className="font-display mt-5 text-4xl leading-tight text-[var(--foreground)] md:text-5xl">{t.title}</h2>
+        <p className="mt-3 max-w-3xl text-[var(--muted-foreground)]">{t.desc}</p>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <motion.article
-            className="surface-card rounded-2xl p-6"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ duration: 0.6 }}
-          >
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">{t.textToSpeech}</p>
-            <textarea
-              value={demoText}
-              onChange={(e) => setDemoText(e.target.value)}
-              rows={7}
-              className="input-modern mt-4 w-full px-4 py-3 text-sm"
-            />
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                onClick={handleSpeak}
-                disabled={!canSpeak || ttsLoading}
-                className="btn-primary-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
-              >
-                {ttsLoading ? "Working..." : t.speak}
+        <div className="mt-8 flex flex-wrap gap-2 border-b border-[var(--border)] pb-0">
+          <button type="button" className={tabButtonClass("call")} onClick={() => setActiveTab("call")}>
+            {t.tabs.call}
+          </button>
+          <button type="button" className={tabButtonClass("survey")} onClick={() => setActiveTab("survey")}>
+            {t.tabs.survey}
+          </button>
+        </div>
+
+        {activeTab === "call" && (
+          <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">पहिले आवाज सुन्नुहोस्</p>
+            <textarea value={voiceText} maxLength={MAX_TEXT} onChange={(e) => setVoiceText(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button onClick={handleGenerateVoice} disabled={!canGenerateVoice || ttsLoading} className="btn-primary-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
+                {ttsLoading ? "Working..." : "Generate Voice"}
               </button>
-              <a href="/login" className="btn-outline-modern inline-flex h-11 items-center px-5 text-sm font-medium">
-                Login
-              </a>
+              <button onClick={() => setShowCallFields(true)} className="btn-outline-modern inline-flex h-11 items-center px-5 text-sm font-medium">
+                Call setup खोल्नुहोस्
+              </button>
             </div>
-            {ttsError && <p className="mt-3 text-sm text-[#DC2626]">{ttsError}</p>}
+            {ttsError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{ttsError}</p>}
             {audioUrl && (
-              <div className="mt-4 rounded-xl border border-[#E2E8F0] p-3">
+              <div className="mt-4 rounded-xl border border-[var(--border)] p-3">
                 <audio controls autoPlay className="w-full">
                   <source src={audioUrl} type="audio/mpeg" />
                 </audio>
               </div>
             )}
-          </motion.article>
 
-          <motion.article
-            className="surface-card rounded-2xl p-6"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ duration: 0.6, delay: 0.08 }}
-          >
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[#0052FF]">{t.callDemo}</p>
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t.name}
-                className="input-modern h-11 px-4 text-sm"
-              />
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+97798XXXXXXXX"
-                className="input-modern h-11 px-4 text-sm"
-              />
-              <textarea
-                value={callMessage}
-                onChange={(e) => setCallMessage(e.target.value)}
-                rows={4}
-                placeholder={t.callScript}
-                className="input-modern px-4 py-3 text-sm"
-              />
-              {otpRequestId && (
-                <input
-                  value={otpValue}
-                  onChange={(e) => setOtpValue(e.target.value)}
-                  placeholder={t.otp}
-                  className="input-modern h-11 px-4 text-sm"
-                />
-              )}
-            </div>
+            {showCallFields && (
+              <div className="mt-6 border-t border-[var(--border)] pt-6">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input value={callName} onChange={(e) => setCallName(e.target.value)} placeholder="नाम" className="input-modern h-11 px-4 text-sm" />
+                  <input value={callPhone} onChange={(e) => setCallPhone(e.target.value)} placeholder="फोन नम्बर (+977...)" className="input-modern h-11 px-4 text-sm" />
+                </div>
+                <textarea value={callScript} maxLength={MAX_TEXT} onChange={(e) => setCallScript(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                  OTP delivery: SMS
+                </p>
 
-            {!otpRequestId ? (
-              <button
-                onClick={handleCall}
-                disabled={!canCall || callLoading}
-                className="btn-primary-modern mt-4 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
-              >
-                {callLoading ? "Working..." : t.sendOtp}
-              </button>
-            ) : (
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  onClick={handleVerify}
-                  disabled={!canVerifyOtp || callLoading}
-                  className="btn-primary-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
-                >
-                  {callLoading ? "Working..." : t.verifyOtp}
-                </button>
-                <button
-                  onClick={handleCall}
-                  disabled={!canCall || callLoading}
-                  className="btn-outline-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50"
-                >
-                  {t.sendOtp}
-                </button>
+                {otpRequestId && <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="OTP" className="input-modern mt-3 h-11 w-full px-4 text-sm" />}
+
+                {!otpRequestId ? (
+                  <button onClick={handleSendOtp} disabled={!canSendOtp || callLoading} className="btn-primary-modern mt-4 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
+                    {callLoading ? "Working..." : "Send OTP"}
+                  </button>
+                ) : (
+                  <button onClick={handleVerifyOtpAndCall} disabled={!canVerifyOtp || callLoading} className="btn-primary-modern mt-4 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
+                    {callLoading ? "Working..." : "Verify OTP & Call"}
+                  </button>
+                )}
+
+                {callError && <p className="mt-3 text-sm text-[var(--terminal-error,#DC2626)]">{callError}</p>}
               </div>
             )}
-            {callError && <p className="mt-3 text-sm text-[#DC2626]">{callError}</p>}
           </motion.article>
-        </div>
+        )}
+
+        {activeTab === "survey" && (
+          <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">Questions for survey</p>
+            <textarea value={surveyQuestionsText} maxLength={MAX_TEXT} onChange={(e) => setSurveyQuestionsText(e.target.value.slice(0, MAX_TEXT))} rows={8} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold text-[var(--foreground)]">Survey Type</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setSurveyType("DTMF")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyType === "DTMF" ? "btn-primary-modern" : "btn-outline-modern"}`}>DTMF</button>
+                  <button type="button" onClick={() => setSurveyType("Speech")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyType === "Speech" ? "btn-primary-modern" : "btn-outline-modern"}`}>Speech</button>
+                </div>
+
+                <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Content type</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setSurveyContentType("Say")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyContentType === "Say" ? "btn-primary-modern" : "btn-outline-modern"}`}>Say</button>
+                  <button type="button" onClick={() => setSurveyContentType("Text")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyContentType === "Text" ? "btn-primary-modern" : "btn-outline-modern"}`}>Text</button>
+                </div>
+
+                <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Text to say</p>
+                <textarea value={surveySayText} maxLength={MAX_TEXT} onChange={(e) => setSurveySayText(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-2 w-full px-4 py-3 text-sm" />
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold text-[var(--foreground)]">Call me now</p>
+                <input value={surveyCallerName} onChange={(e) => setSurveyCallerName(e.target.value)} placeholder="नाम" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
+                <input value={surveyCallerPhone} onChange={(e) => setSurveyCallerPhone(e.target.value)} placeholder="फोन नम्बर (+977...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
+                <button onClick={handleCallMeNowSurvey} disabled={surveyCallingNow} className="btn-primary-modern mt-3 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
+                  {surveyCallingNow ? "Working..." : "Call me now"}
+                </button>
+                {surveyCallError && <p className="mt-2 text-sm text-[var(--terminal-error,#DC2626)]">{surveyCallError}</p>}
+              </div>
+            </div>
+          </motion.article>
+        )}
+
       </div>
     </section>
   );

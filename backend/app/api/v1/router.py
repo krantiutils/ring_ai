@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     campaigns,
     contacts,
     credits,
+    flows,
     forms,
     gateway,
     inbound,
@@ -21,6 +22,7 @@ from app.api.v1.endpoints import (
     tts,
     voice,
     voice_models,
+    whatsapp,
 )
 
 api_v1_router = APIRouter()
@@ -32,6 +34,7 @@ api_v1_router.include_router(voice.router, prefix="/voice", tags=["voice"])
 api_v1_router.include_router(agent_call.router, prefix="/voice", tags=["agent-call"])
 api_v1_router.include_router(voice_models.router, prefix="/voice-models", tags=["voice-models"])
 api_v1_router.include_router(text.router, prefix="/text", tags=["text"])
+api_v1_router.include_router(flows.router, prefix="/flows", tags=["flows"])
 api_v1_router.include_router(forms.router, prefix="/forms", tags=["forms"])
 api_v1_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 api_v1_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
@@ -46,3 +49,4 @@ api_v1_router.include_router(roi.router, prefix="/roi", tags=["roi"])
 api_v1_router.include_router(gateway.router, prefix="/gateway", tags=["gateway"])
 api_v1_router.include_router(inbound.router, prefix="/inbound", tags=["inbound"])
 api_v1_router.include_router(knowledge_bases.router, prefix="/knowledge-bases", tags=["knowledge-bases"])
+api_v1_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
