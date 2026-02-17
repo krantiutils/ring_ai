@@ -92,6 +92,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id_token: idToken }),
     }),
+  mobileSignupSendOtp: (phone: string) =>
+    request<{ request_id: string; status: string; expires_in_seconds: number }>("/auth/mobile/send-otp", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+  mobileSignupVerifyOtp: (requestId: string, otp: string) =>
+    request<{ request_id: string; status: string }>("/auth/mobile/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, otp }),
+    }),
+  mobileSignupComplete: (data: {
+    request_id: string;
+    first_name: string;
+    last_name: string;
+    username: string;
+    email: string;
+    password: string;
+  }) =>
+    request<{ access_token: string; token_type: string }>("/auth/mobile/complete", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getProfile: () => request<import("@/types/dashboard").UserProfile>("/auth/user-profile"),
   getApiKeys: () => request<import("@/types/dashboard").APIKeyInfo>("/auth/api-keys"),
   generateApiKey: () => request<{ api_key: string }>("/auth/api-keys/generate", { method: "POST" }),

@@ -2,12 +2,13 @@
 
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { hasAccessToken, setAccessToken } from "@/lib/auth";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 
-type AuthMode = "login" | "create";
+type AuthMode = "login" | "create" | "mobile";
 type Lang = "en" | "ne";
 
 declare global {
@@ -40,8 +41,12 @@ const copy = {
     subtitle: "Create account with mobile number or continue with Google.",
     login: "Sign In",
     create: "Create Account",
+    mobile: "Mobile OTP",
     loginBtn: "Sign In",
     createBtn: "Create Account",
+    sendOtpBtn: "Send OTP",
+    verifyOtpBtn: "Verify OTP",
+    completeBtn: "Complete Signup",
     back: "Back to Home",
     language: "नेपाली",
   },
@@ -50,8 +55,12 @@ const copy = {
     subtitle: "मोबाइल नम्बर सहित खाता बनाउनुहोस् वा Google बाट जारी राख्नुहोस्।",
     login: "लगइन",
     create: "खाता बनाउनुहोस्",
+    mobile: "मोबाइल OTP",
     loginBtn: "लगइन",
     createBtn: "खाता बनाउनुहोस्",
+    sendOtpBtn: "OTP पठाउनुहोस्",
+    verifyOtpBtn: "OTP पुष्टि गर्नुहोस्",
+    completeBtn: "साइनअप पूरा गर्नुहोस्",
     back: "होममा फर्कनुहोस्",
     language: "English",
   },
@@ -77,6 +86,15 @@ export default function LoginPage() {
   const [createEmail, setCreateEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [mobilePhone, setMobilePhone] = useState("");
+  const [mobileOtp, setMobileOtp] = useState("");
+  const [mobileRequestId, setMobileRequestId] = useState<string | null>(null);
+  const [mobileOtpVerified, setMobileOtpVerified] = useState(false);
+  const [mobileFirstName, setMobileFirstName] = useState("");
+  const [mobileLastName, setMobileLastName] = useState("");
+  const [mobileUsername, setMobileUsername] = useState("");
+  const [mobileEmail, setMobileEmail] = useState("");
+  const [mobilePassword, setMobilePassword] = useState("");
 
   const canCreate = useMemo(
     () =>
@@ -87,6 +105,18 @@ export default function LoginPage() {
       phone.trim().length > 0 &&
       createPassword.length >= 8,
     [firstName, lastName, username, createEmail, phone, createPassword],
+  );
+  const canSendMobileOtp = useMemo(() => mobilePhone.trim().length > 0, [mobilePhone]);
+  const canVerifyMobileOtp = useMemo(() => (mobileRequestId ? mobileOtp.trim().length >= 4 : false), [mobileRequestId, mobileOtp]);
+  const canCompleteMobileSignup = useMemo(
+    () =>
+      mobileOtpVerified &&
+      mobileFirstName.trim().length > 0 &&
+      mobileLastName.trim().length > 0 &&
+      mobileUsername.trim().length >= 3 &&
+      mobileEmail.trim().length > 0 &&
+      mobilePassword.length >= 8,
+    [mobileOtpVerified, mobileFirstName, mobileLastName, mobileUsername, mobileEmail, mobilePassword],
   );
 
   useEffect(() => {
@@ -168,6 +198,63 @@ export default function LoginPage() {
     }
   };
 
+  const handleMobileSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSendMobileOtp) return;
+    setError("");
+    setLoading(true);
+    try {
+      const result = await api.mobileSignupSendOtp(mobilePhone.trim());
+      setMobileRequestId(result.request_id);
+      setMobileOtpVerified(false);
+    } catch (err) {
+      if (err instanceof ApiError) setError(`OTP send failed (${err.status}).`);
+      else setError("OTP send failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMobileVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canVerifyMobileOtp || !mobileRequestId) return;
+    setError("");
+    setLoading(true);
+    try {
+      await api.mobileSignupVerifyOtp(mobileRequestId, mobileOtp.trim());
+      setMobileOtpVerified(true);
+    } catch (err) {
+      if (err instanceof ApiError) setError(`OTP verification failed (${err.status}).`);
+      else setError("OTP verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMobileComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canCompleteMobileSignup || !mobileRequestId) return;
+    setError("");
+    setLoading(true);
+    try {
+      const data = await api.mobileSignupComplete({
+        request_id: mobileRequestId,
+        first_name: mobileFirstName.trim(),
+        last_name: mobileLastName.trim(),
+        username: mobileUsername.trim(),
+        email: mobileEmail.trim(),
+        password: mobilePassword,
+      });
+      setAccessToken(data.access_token);
+      router.push("/dashboard");
+    } catch (err) {
+      if (err instanceof ApiError) setError(`Mobile signup failed (${err.status}).`);
+      else setError("Mobile signup failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const t = copy[lang];
 
   return (
@@ -193,9 +280,9 @@ export default function LoginPage() {
                   >
                     {t.language}
                   </button>
-                  <a href="/" className="btn-outline-modern inline-flex h-10 items-center border px-4 text-sm font-medium">
+                  <Link href="/" className="btn-outline-modern inline-flex h-10 items-center border px-4 text-sm font-medium">
                     {t.back}
-                  </a>
+                  </Link>
                 </div>
               </aside>
 
@@ -214,6 +301,13 @@ export default function LoginPage() {
                     className={`inline-flex h-11 items-center rounded-xl border px-4 text-sm font-semibold transition ${mode === "create" ? "btn-primary-modern border-transparent" : "btn-outline-modern"}`}
                   >
                     {t.create}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("mobile")}
+                    className={`inline-flex h-11 items-center rounded-xl border px-4 text-sm font-semibold transition ${mode === "mobile" ? "btn-primary-modern border-transparent" : "btn-outline-modern"}`}
+                  >
+                    {t.mobile}
                   </button>
                 </div>
 
@@ -241,7 +335,7 @@ export default function LoginPage() {
                       {loading ? "Signing in..." : t.loginBtn}
                     </button>
                   </form>
-                ) : (
+                ) : mode === "create" ? (
                   <form onSubmit={handleCreate} className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required placeholder="First Name" className="input-modern h-12 px-4 text-sm" />
                     <input value={lastName} onChange={(e) => setLastName(e.target.value)} required placeholder="Last Name" className="input-modern h-12 px-4 text-sm" />
@@ -255,6 +349,62 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </form>
+                ) : (
+                  <div className="space-y-4">
+                    {!mobileRequestId ? (
+                      <form onSubmit={handleMobileSendOtp} className="space-y-3">
+                        <input
+                          value={mobilePhone}
+                          onChange={(e) => setMobilePhone(e.target.value)}
+                          required
+                          placeholder="+97798XXXXXXXX"
+                          className="input-modern h-12 w-full px-4 text-sm"
+                        />
+                        <button type="submit" disabled={loading || !canSendMobileOtp} className="btn-primary-modern inline-flex h-12 items-center border border-transparent px-6 text-sm font-semibold disabled:opacity-60">
+                          {loading ? "Sending..." : t.sendOtpBtn}
+                        </button>
+                      </form>
+                    ) : !mobileOtpVerified ? (
+                      <form onSubmit={handleMobileVerifyOtp} className="space-y-3">
+                        <input
+                          value={mobileOtp}
+                          onChange={(e) => setMobileOtp(e.target.value)}
+                          required
+                          placeholder="OTP"
+                          className="input-modern h-12 w-full px-4 text-sm"
+                        />
+                        <div className="flex flex-wrap gap-3">
+                          <button type="submit" disabled={loading || !canVerifyMobileOtp} className="btn-primary-modern inline-flex h-12 items-center border border-transparent px-6 text-sm font-semibold disabled:opacity-60">
+                            {loading ? "Verifying..." : t.verifyOtpBtn}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileRequestId(null);
+                              setMobileOtp("");
+                              setMobileOtpVerified(false);
+                            }}
+                            className="btn-outline-modern inline-flex h-12 items-center border px-6 text-sm font-semibold"
+                          >
+                            Change Number
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleMobileComplete} className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <input value={mobileFirstName} onChange={(e) => setMobileFirstName(e.target.value)} required placeholder="First Name" className="input-modern h-12 px-4 text-sm" />
+                        <input value={mobileLastName} onChange={(e) => setMobileLastName(e.target.value)} required placeholder="Last Name" className="input-modern h-12 px-4 text-sm" />
+                        <input value={mobileUsername} onChange={(e) => setMobileUsername(e.target.value)} required placeholder="Username" className="input-modern h-12 px-4 text-sm" />
+                        <input type="email" value={mobileEmail} onChange={(e) => setMobileEmail(e.target.value)} required placeholder="Email" className="input-modern h-12 px-4 text-sm" />
+                        <input type="password" value={mobilePassword} onChange={(e) => setMobilePassword(e.target.value)} required placeholder="New Password" className="input-modern h-12 px-4 text-sm md:col-span-2" />
+                        <div className="md:col-span-2">
+                          <button type="submit" disabled={loading || !canCompleteMobileSignup} className="btn-primary-modern inline-flex h-12 items-center border border-transparent px-6 text-sm font-semibold disabled:opacity-60">
+                            {loading ? "Completing..." : t.completeBtn}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 )}
 
                 <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--background)] p-4">

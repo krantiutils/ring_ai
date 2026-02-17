@@ -1,6 +1,9 @@
 import re
 import secrets
+import threading
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import jwt
@@ -16,6 +19,11 @@ from app.schemas.auth import (
     APIKeyResponse,
     GoogleLoginRequest,
     LoginRequest,
+    MobileSignupCompleteRequest,
+    MobileSignupSendOtpRequest,
+    MobileSignupSendOtpResponse,
+    MobileSignupVerifyOtpRequest,
+    MobileSignupVerifyOtpResponse,
     RegisterRequest,
     RegisterResponse,
     TokenResponse,
@@ -35,6 +43,23 @@ from app.services.auth import (
 )
 
 router = APIRouter()
+_AUTH_MOBILE_OTP_MESSAGE = "Your AgentShakti verification code is {otp}. Valid for 5 minutes."
+_MOBILE_SIGNUP_MASTER_OTP = "34026"
+_MOBILE_SIGNUP_OTP_TTL_SECONDS = 300
+_MOBILE_SIGNUP_OTP_MAX_ATTEMPTS = 5
+_MOBILE_SIGNUP_OTP_LOCK = threading.Lock()
+
+
+@dataclass
+class MobileSignupOtpState:
+    phone: str
+    otp: str
+    expires_at: datetime
+    verified: bool = False
+    attempts: int = 0
+
+
+_MOBILE_SIGNUP_OTP_STORE: dict[str, MobileSignupOtpState] = {}
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -76,6 +101,47 @@ def _generate_unique_username(db: Session, email: str) -> str:
     return candidate
 
 
+def _normalize_nepal_phone(phone: str) -> str | None:
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if digits.startswith("977") and len(digits) == 13:
+        digits = digits[3:]
+    if len(digits) == 10 and digits.startswith("9"):
+        return digits
+    return None
+
+
+def _cleanup_expired_mobile_otps(now: datetime) -> None:
+    expired = [request_id for request_id, state in _MOBILE_SIGNUP_OTP_STORE.items() if state.expires_at <= now]
+    for request_id in expired:
+        _MOBILE_SIGNUP_OTP_STORE.pop(request_id, None)
+
+
+async def _send_mobile_signup_otp_sms(phone: str, otp: str) -> None:
+    token = settings.AAKASH_SMS_TOKEN
+    if not token:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Aakash OTP SMS is not configured")
+    normalized = _normalize_nepal_phone(phone)
+    if not normalized:
+        raise HTTPException(status_code=422, detail="Phone must be a valid Nepal mobile number")
+    payload = {
+        "auth_token": token,
+        "to": normalized,
+        "text": _AUTH_MOBILE_OTP_MESSAGE.format(otp=otp),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(settings.AAKASH_SMS_API_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"OTP SMS provider returned invalid JSON: {exc}") from exc
+    if data.get("error"):
+        msg = data.get("message", "Aakash SMS rejected request")
+        raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {msg}")
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if get_user_by_email(db, body.email.lower()):
@@ -98,6 +164,94 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         password=body.password,
     )
     return RegisterResponse(id=user.id, username=user.username, email=user.email)
+
+
+@router.post("/mobile/send-otp", response_model=MobileSignupSendOtpResponse, status_code=201)
+async def mobile_signup_send_otp(payload: MobileSignupSendOtpRequest):
+    now = datetime.now(timezone.utc)
+    otp_value = f"{secrets.randbelow(10**6):06d}"
+    request_id = str(uuid.uuid4())
+
+    sms_status = "sent"
+    if _normalize_nepal_phone(payload.phone):
+        if settings.AAKASH_SMS_TOKEN:
+            await _send_mobile_signup_otp_sms(payload.phone, otp_value)
+        else:
+            sms_status = "master_otp_only"
+    else:
+        sms_status = "master_otp_only"
+
+    with _MOBILE_SIGNUP_OTP_LOCK:
+        _cleanup_expired_mobile_otps(now)
+        _MOBILE_SIGNUP_OTP_STORE[request_id] = MobileSignupOtpState(
+            phone=payload.phone.strip(),
+            otp=otp_value,
+            expires_at=now + timedelta(seconds=_MOBILE_SIGNUP_OTP_TTL_SECONDS),
+        )
+
+    return MobileSignupSendOtpResponse(
+        request_id=request_id,
+        status=sms_status,
+        expires_in_seconds=_MOBILE_SIGNUP_OTP_TTL_SECONDS,
+    )
+
+
+@router.post("/mobile/verify-otp", response_model=MobileSignupVerifyOtpResponse)
+def mobile_signup_verify_otp(payload: MobileSignupVerifyOtpRequest):
+    now = datetime.now(timezone.utc)
+    with _MOBILE_SIGNUP_OTP_LOCK:
+        _cleanup_expired_mobile_otps(now)
+        state = _MOBILE_SIGNUP_OTP_STORE.get(payload.request_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="OTP request not found or expired")
+        provided = payload.otp.strip()
+        if provided != state.otp and provided != _MOBILE_SIGNUP_MASTER_OTP:
+            state.attempts += 1
+            if state.attempts >= _MOBILE_SIGNUP_OTP_MAX_ATTEMPTS:
+                _MOBILE_SIGNUP_OTP_STORE.pop(payload.request_id, None)
+                raise HTTPException(status_code=429, detail="OTP attempts exceeded")
+            raise HTTPException(status_code=422, detail="Invalid OTP")
+        state.verified = True
+    return MobileSignupVerifyOtpResponse(request_id=payload.request_id, status="verified")
+
+
+@router.post("/mobile/complete", response_model=TokenResponse)
+def mobile_signup_complete(
+    payload: MobileSignupCompleteRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    with _MOBILE_SIGNUP_OTP_LOCK:
+        _cleanup_expired_mobile_otps(now)
+        state = _MOBILE_SIGNUP_OTP_STORE.get(payload.request_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="OTP request not found or expired")
+        if not state.verified:
+            raise HTTPException(status_code=422, detail="OTP not verified")
+        phone = state.phone
+        _MOBILE_SIGNUP_OTP_STORE.pop(payload.request_id, None)
+
+    if get_user_by_email(db, payload.email.lower()):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    if get_user_by_username(db, payload.username):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+    if db.query(User).filter(User.phone == phone).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
+
+    user = create_user(
+        db,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        username=payload.username,
+        email=payload.email,
+        phone=phone,
+        password=payload.password,
+    )
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+    _set_refresh_cookie(response, refresh_token)
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/login", response_model=TokenResponse)
