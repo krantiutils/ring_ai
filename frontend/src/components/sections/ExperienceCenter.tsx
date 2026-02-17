@@ -1,20 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, PhoneCall, Play, Volume2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 
 type ExperienceCenterProps = {
   embedded?: boolean;
 };
-
-const TTS_CACHE = "ring-ai-tts-cache-v1";
-const TTS_PROVIDER = "edge_tts";
-const TTS_VOICE = "ne-NP-HemkalaNeural";
-
-function cacheRequestKey(text: string) {
-  return `/tts-cache/${encodeURIComponent(`${TTS_PROVIDER}|${TTS_VOICE}|${text}`)}`;
-}
 
 export default function ExperienceCenter({ embedded = false }: ExperienceCenterProps) {
   const [demoText, setDemoText] = useState(
@@ -41,55 +33,21 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
   );
   const canVerifyOtp = useMemo(() => (otpRequestId ? otpValue.trim().length >= 4 : false), [otpRequestId, otpValue]);
 
-  useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-    };
-  }, [audioUrl]);
-
   async function handleSpeak() {
     if (!canSpeak) return;
     setTtsLoading(true);
     setTtsError(null);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
     try {
-      const text = demoText.trim();
-      const req = new Request(cacheRequestKey(text));
-      let blob: Blob | null = null;
-
-      if (typeof window !== "undefined" && "caches" in window) {
-        const cache = await caches.open(TTS_CACHE);
-        const hit = await cache.match(req);
-        if (hit) {
-          blob = await hit.blob();
-        } else {
-          const result = await api.synthesizeTTS({
-            text,
-            provider: TTS_PROVIDER,
-            voice: TTS_VOICE,
-          });
-          blob = result.audioBlob;
-          await cache.put(
-            req,
-            new Response(blob, {
-              headers: {
-                "Content-Type": "audio/mpeg",
-              },
-            }),
-          );
-        }
-      }
-
-      if (!blob) {
-        const result = await api.synthesizeTTS({
-          text,
-          provider: TTS_PROVIDER,
-          voice: TTS_VOICE,
-        });
-        blob = result.audioBlob;
-      }
-
-      setAudioUrl(URL.createObjectURL(blob));
+      const result = await api.synthesizeTTS({
+        text: demoText.trim(),
+        provider: "edge_tts",
+        voice: "ne-NP-HemkalaNeural",
+      });
+      setAudioUrl(URL.createObjectURL(result.audioBlob));
     } catch (err) {
       if (err instanceof ApiError) {
         setTtsError(`TTS failed (${err.status}).`);
@@ -111,8 +69,8 @@ export default function ExperienceCenter({ embedded = false }: ExperienceCenterP
         phone: phone.trim(),
         message: callMessage.trim(),
         tts_config: {
-          provider: TTS_PROVIDER,
-          voice: TTS_VOICE,
+          provider: "edge_tts",
+          voice: "ne-NP-HemkalaNeural",
         },
       });
       setOtpRequestId(result.request_id);
