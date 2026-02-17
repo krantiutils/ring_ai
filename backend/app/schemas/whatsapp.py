@@ -20,7 +20,7 @@ class WhatsAppDemoSessionCreateResponse(BaseModel):
 
 
 class WhatsAppDemoMessageRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=2000)
+    message: str = Field(..., min_length=1, max_length=299)
     from_number: str | None = None
     to_number: str | None = None
 
@@ -46,7 +46,7 @@ class WhatsAppDemoSessionInfoResponse(BaseModel):
 class WhatsAppSurveyStartRequest(BaseModel):
     from_number: str = Field(..., min_length=7, max_length=32)
     to_numbers: list[str] = Field(..., min_length=1)
-    question: str = Field(..., min_length=3, max_length=500)
+    question: str = Field(..., min_length=3, max_length=299)
     options: list[str] = Field(..., min_length=2, max_length=9)
 
 

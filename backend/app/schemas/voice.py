@@ -48,7 +48,7 @@ class DemoCallRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=120)
     phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
-    message: str = Field(..., min_length=1, max_length=400)
+    message: str = Field(..., min_length=1, max_length=299)
     from_number: str | None = None
     whatsapp_from_number: str | None = None
     otp_channel: str = Field(
@@ -78,7 +78,7 @@ class DemoCallMasterOtpRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=120)
     phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
-    message: str | None = Field(None, min_length=1, max_length=400)
+    message: str | None = Field(None, min_length=1, max_length=299)
     master_otp: str = Field(..., min_length=4, max_length=10)
     from_number: str | None = None
     tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
@@ -108,7 +108,7 @@ class InteractiveDemoStartResponse(BaseModel):
 class InteractiveDemoMessageRequest(BaseModel):
     """POST /api/v1/voice/interactive-demo/{session_id}/message request body."""
 
-    message: str = Field(..., min_length=1, max_length=2000)
+    message: str = Field(..., min_length=1, max_length=299)
 
 
 class InteractiveDemoMessageResponse(BaseModel):
@@ -123,7 +123,7 @@ class InteractiveDemoHandoffCallRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=120)
     phone: str = Field(..., min_length=7, max_length=32, description="Destination number, ideally E.164 format")
-    message: str | None = Field(None, min_length=1, max_length=400)
+    message: str | None = Field(None, min_length=1, max_length=299)
     from_number: str | None = None
     tts_config: "TTSCallConfig" = Field(default_factory=lambda: TTSCallConfig())
 

@@ -87,6 +87,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [waTestTo, setWaTestTo] = useState("");
   const [waTestLoading, setWaTestLoading] = useState(false);
   const [waTestStatus, setWaTestStatus] = useState<string | null>(null);
+  const MAX_TEXT = 299;
 
   const canGenerateVoice = useMemo(() => voiceText.trim().length > 0, [voiceText]);
   const canSendOtp = useMemo(
@@ -317,7 +318,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
         {activeTab === "call" && (
           <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">पहिले आवाज सुन्नुहोस्</p>
-            <textarea value={voiceText} onChange={(e) => setVoiceText(e.target.value)} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+            <textarea value={voiceText} maxLength={MAX_TEXT} onChange={(e) => setVoiceText(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
             <div className="mt-3 flex flex-wrap gap-3">
               <button onClick={handleGenerateVoice} disabled={!canGenerateVoice || ttsLoading} className="btn-primary-modern inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
                 {ttsLoading ? "Working..." : "Generate Voice"}
@@ -341,7 +342,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                   <input value={callName} onChange={(e) => setCallName(e.target.value)} placeholder="नाम" className="input-modern h-11 px-4 text-sm" />
                   <input value={callPhone} onChange={(e) => setCallPhone(e.target.value)} placeholder="फोन नम्बर (+977...)" className="input-modern h-11 px-4 text-sm" />
                 </div>
-                <textarea value={callScript} onChange={(e) => setCallScript(e.target.value)} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+                <textarea value={callScript} maxLength={MAX_TEXT} onChange={(e) => setCallScript(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
 
                 <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">OTP delivery</p>
                 <div className="mt-2 flex gap-2">
@@ -383,7 +384,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
         {activeTab === "survey" && (
           <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">Questions for survey</p>
-            <textarea value={surveyQuestionsText} onChange={(e) => setSurveyQuestionsText(e.target.value)} rows={8} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+            <textarea value={surveyQuestionsText} maxLength={MAX_TEXT} onChange={(e) => setSurveyQuestionsText(e.target.value.slice(0, MAX_TEXT))} rows={8} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-[var(--border)] p-4">
@@ -400,7 +401,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
                 </div>
 
                 <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Text to say</p>
-                <textarea value={surveySayText} onChange={(e) => setSurveySayText(e.target.value)} rows={4} className="input-modern mt-2 w-full px-4 py-3 text-sm" />
+                <textarea value={surveySayText} maxLength={MAX_TEXT} onChange={(e) => setSurveySayText(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-2 w-full px-4 py-3 text-sm" />
               </div>
 
               <div className="rounded-xl border border-[var(--border)] p-4">
