@@ -251,6 +251,22 @@ const sourceChoices: SourceChoice[] = [
   { kind: "source_numbers", title: "Paste Numbers", description: "Use manual phone list as a quick source." },
 ];
 
+function parseCsvText(text: string): { headers: string[]; rows: string[][] } {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) return { headers: [], rows: [] };
+  const split = (line: string) => line.split(",").map((c) => c.trim());
+  return { headers: split(lines[0]), rows: lines.slice(1).map(split) };
+}
+
+function toCsvText(headers: string[], rows: string[][]): string {
+  const safeHeaders = headers.map((h) => h.trim()).filter(Boolean);
+  const body = rows.map((row) => safeHeaders.map((_, i) => (row[i] || "").trim()).join(","));
+  return [safeHeaders.join(","), ...body].join("\n");
+}
+
 export default function FlowBuilder() {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -259,6 +275,10 @@ export default function FlowBuilder() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [selectedSourceKind, setSelectedSourceKind] = useState<FlowNodeKind | null>(null);
   const [needsTemplatePick, setNeedsTemplatePick] = useState(false);
+  const [urlTestLoading, setUrlTestLoading] = useState(false);
+  const [urlTestError, setUrlTestError] = useState<string | null>(null);
+  const [urlPreviewHeaders, setUrlPreviewHeaders] = useState<string[]>([]);
+  const [urlPreviewRows, setUrlPreviewRows] = useState<string[][]>([]);
 
   const hasSource = useMemo(() => nodes.some((n) => SOURCE_KINDS.includes(n.data.kind)), [nodes]);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -382,6 +402,65 @@ export default function FlowBuilder() {
     setRunState("running");
     await new Promise((r) => setTimeout(r, 900));
     setRunState("finished");
+  }
+
+  function applyManualTable(headers: string[], rows: string[][]) {
+    const safeHeaders = headers.map((h) => h.trim()).filter(Boolean);
+    updateNodeConfig("table_columns", safeHeaders.join(","));
+    updateNodeConfig("sample_csv", toCsvText(safeHeaders, rows));
+  }
+
+  async function testUrlSource() {
+    if (!selectedNode || (selectedNode.data.kind !== "source_url_json" && selectedNode.data.kind !== "source_url_csv")) return;
+    const url = String(selectedNode.data.config.url || "").trim();
+    if (!url) {
+      setUrlTestError("URL is required.");
+      return;
+    }
+    setUrlTestLoading(true);
+    setUrlTestError(null);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      let headers: string[] = [];
+      let rows: string[][] = [];
+      if (selectedNode.data.kind === "source_url_csv") {
+        const text = await res.text();
+        const parsed = parseCsvText(text);
+        headers = parsed.headers;
+        rows = parsed.rows;
+      } else {
+        const payload = await res.json();
+        const arr = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.items)
+          ? payload.items
+          : [];
+        if (!arr.length || typeof arr[0] !== "object") throw new Error("JSON must be an array of objects.");
+        headers = Object.keys(arr[0] as Record<string, unknown>);
+        rows = arr.map((item: Record<string, unknown>) => headers.map((h) => String(item[h] ?? "")));
+      }
+
+      if (!headers.length) throw new Error("No columns found.");
+      setUrlPreviewHeaders(headers);
+      setUrlPreviewRows(rows.slice(0, 6));
+      updateNodeConfig("mapping", headers.join(","));
+      updateNodeConfig("estimated_rows", String(rows.length));
+      updateNodeConfig("sample_csv", toCsvText(headers, rows.slice(0, 20)));
+    } catch (err) {
+      setUrlTestError(
+        err instanceof Error
+          ? `${err.message}. If this is a browser CORS issue, use backend proxy for URL fetching.`
+          : "URL fetch failed.",
+      );
+      setUrlPreviewHeaders([]);
+      setUrlPreviewRows([]);
+    } finally {
+      setUrlTestLoading(false);
+    }
   }
 
   return (
@@ -608,6 +687,128 @@ export default function FlowBuilder() {
                   ))
                 )}
               </div>
+
+              {selectedNode.data.kind === "source_manual_table" ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Manual Table Editor</p>
+                  {(() => {
+                    const parsed = parseCsvText(String(selectedNode.data.config.sample_csv || ""));
+                    const headers =
+                      parsed.headers.length > 0
+                        ? parsed.headers
+                        : String(selectedNode.data.config.table_columns || "name,phone")
+                            .split(",")
+                            .map((h) => h.trim())
+                            .filter(Boolean);
+                    const rows = parsed.rows.length > 0 ? parsed.rows : [["", ""]];
+                    return (
+                      <div className="mt-2 space-y-2">
+                        <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-[var(--border)] bg-[var(--muted)]">
+                                {headers.map((h, idx) => (
+                                  <th key={idx} className="px-2 py-2">
+                                    <input
+                                      value={h}
+                                      onChange={(e) => {
+                                        const nextHeaders = [...headers];
+                                        nextHeaders[idx] = e.target.value;
+                                        applyManualTable(nextHeaders, rows);
+                                      }}
+                                      className="input-modern h-8 w-32 px-2 text-xs"
+                                    />
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row, rIdx) => (
+                                <tr key={rIdx} className="border-b border-[var(--border)] last:border-b-0">
+                                  {headers.map((_, cIdx) => (
+                                    <td key={cIdx} className="px-2 py-1.5">
+                                      <input
+                                        value={row[cIdx] || ""}
+                                        onChange={(e) => {
+                                          const nextRows = rows.map((r) => [...r]);
+                                          if (!nextRows[rIdx]) nextRows[rIdx] = [];
+                                          nextRows[rIdx][cIdx] = e.target.value;
+                                          applyManualTable(headers, nextRows);
+                                        }}
+                                        className="input-modern h-8 w-32 px-2 text-xs"
+                                      />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyManualTable([...headers, `col_${headers.length + 1}`], rows.map((r) => [...r, ""]))}
+                            className="btn-outline-modern inline-flex h-9 items-center px-3 text-xs"
+                          >
+                            Add Column
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyManualTable(headers, [...rows, headers.map(() => "")])}
+                            className="btn-outline-modern inline-flex h-9 items-center px-3 text-xs"
+                          >
+                            Add Row
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : null}
+
+              {selectedNode.data.kind === "source_url_json" || selectedNode.data.kind === "source_url_csv" ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">URL Source Tester</p>
+                    <button
+                      type="button"
+                      onClick={testUrlSource}
+                      disabled={urlTestLoading}
+                      className="btn-outline-modern ml-auto inline-flex h-8 items-center px-3 text-xs disabled:opacity-60"
+                    >
+                      {urlTestLoading ? "Testing..." : "Fetch & Preview"}
+                    </button>
+                  </div>
+                  {urlTestError ? <p className="mt-2 text-xs text-[#B91C1C]">{urlTestError}</p> : null}
+                  {urlPreviewHeaders.length > 0 ? (
+                    <div className="mt-2 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[var(--border)] bg-[var(--muted)]">
+                            {urlPreviewHeaders.map((h) => (
+                              <th key={h} className="px-2 py-1.5 text-left font-semibold text-[var(--foreground)]">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {urlPreviewRows.map((row, idx) => (
+                            <tr key={idx} className="border-b border-[var(--border)] last:border-b-0">
+                              {urlPreviewHeaders.map((_, cIdx) => (
+                                <td key={cIdx} className="px-2 py-1.5 text-[var(--muted-foreground)]">
+                                  {row[cIdx] || ""}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id))}
