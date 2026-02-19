@@ -3,11 +3,13 @@ import io
 import ipaddress
 import json
 import socket
+import tempfile
 import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -15,6 +17,7 @@ from app.core.database import get_db
 from app.models.manual_table_source import ManualTableSource
 from app.models.user import User
 from app.schemas.flows import (
+    FileUploadResponse,
     ManualTableSourceResponse,
     ManualTableSourceUpsert,
     UrlSourcePreviewRequest,
@@ -189,6 +192,70 @@ def preview_url_source(
         total_rows=len(rows),
         mapping=",".join(headers),
         sample_csv=_to_csv_text(headers, rows[:20]),
+    )
+
+
+@router.post("/sources/file-upload", response_model=FileUploadResponse)
+async def upload_source_file(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(get_current_user),
+):
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="Filename is required.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in (".csv", ".xlsx"):
+        raise HTTPException(status_code=422, detail="Only .csv and .xlsx files are supported.")
+
+    content = await file.read()
+    if len(content) > MAX_SOURCE_DOWNLOAD_BYTES:
+        raise HTTPException(status_code=422, detail="File exceeds 2MB limit.")
+
+    headers: list[str] = []
+    all_rows: list[list[str]] = []
+
+    if ext == ".csv":
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=422, detail="CSV file must be valid UTF-8.")
+        reader = csv.reader(io.StringIO(text))
+        parsed_rows = list(reader)
+        if not parsed_rows:
+            raise HTTPException(status_code=422, detail="CSV file is empty.")
+        headers = _sanitize_headers([cell.strip() for cell in parsed_rows[0]])
+        all_rows = _sanitize_rows(parsed_rows[1:], headers, max_rows=10000)
+    else:
+        try:
+            import openpyxl
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl is not installed on this server.")
+        with tempfile.NamedTemporaryFile(suffix=".xlsx") as tmp:
+            tmp.write(content)
+            tmp.flush()
+            wb = openpyxl.load_workbook(tmp.name, read_only=True)
+            ws = wb.active
+            if ws is None:
+                raise HTTPException(status_code=422, detail="XLSX file has no active sheet.")
+            row_iter = ws.iter_rows(values_only=True)
+            first_row = next(row_iter, None)
+            if first_row is None:
+                raise HTTPException(status_code=422, detail="XLSX file is empty.")
+            headers = _sanitize_headers([str(cell or "").strip() for cell in first_row])
+            raw_rows = [[str(cell or "").strip() for cell in row] for row in row_iter]
+            all_rows = _sanitize_rows(raw_rows, headers, max_rows=10000)
+            wb.close()
+
+    if not headers:
+        raise HTTPException(status_code=422, detail="File header row is missing or empty.")
+
+    file_id = str(uuid.uuid4())
+
+    return FileUploadResponse(
+        file_id=file_id,
+        headers=headers,
+        preview_rows=all_rows[:10],
+        total_rows=len(all_rows),
     )
 
 
