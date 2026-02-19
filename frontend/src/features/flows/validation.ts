@@ -10,7 +10,7 @@ function getOutgoing(nodeId: string, edges: FlowEdge[], nodes: FlowNode[]) {
   return edges.map((e) => e.source === nodeId ? byId.get(e.target) : undefined).filter(Boolean) as FlowNode[];
 }
 
-function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return { headers: [], rows: [] };
   const split = (line: string) => line.split(",").map((c) => c.trim());
@@ -112,7 +112,7 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
         message: "Business Hours node requires timezone.",
       });
     }
-    if (node.data.kind === "agent_sms" && !cfg.message) {
+    if ((node.data.kind === "agent_sms" || node.data.kind === "agent_whatsapp") && !cfg.message) {
       issues.push({
         id: `missing-msg-${node.id}`,
         severity: "error",

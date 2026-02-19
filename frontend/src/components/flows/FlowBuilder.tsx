@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addEdge,
   Background,
@@ -21,12 +21,15 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
+  CopyX,
   FileSpreadsheet,
   Filter,
   GitBranch,
   Loader2,
+  MessageCircle,
   MessageSquare,
   PhoneCall,
+  PhoneForwarded,
   PlayCircle,
   Plus,
   Save,
@@ -38,10 +41,11 @@ import {
   Volume2,
   Workflow,
   XCircle,
+  Zap,
 } from "lucide-react";
 import type { FlowEdge, FlowNode, FlowNodeKind } from "@/features/flows/builderTypes";
 import { FLOW_TEMPLATES } from "@/features/flows/templates";
-import { reachableNodeCount, simulateContactsCount, validateFlow } from "@/features/flows/validation";
+import { parseCsv, reachableNodeCount, simulateContactsCount, validateFlow } from "@/features/flows/validation";
 import { api } from "@/lib/api";
 
 const STORAGE_KEY = "agentshakti_flow_builder_v1";
@@ -59,6 +63,7 @@ const SOURCE_KINDS: FlowNodeKind[] = [
 const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   trigger_manual: <PlayCircle className="h-4 w-4" />,
   trigger_schedule: <CalendarClock className="h-4 w-4" />,
+  trigger_event: <Zap className="h-4 w-4" />,
   source_manual_table: <Table2 className="h-4 w-4" />,
   source_csv: <FileSpreadsheet className="h-4 w-4" />,
   source_xlsx: <FileSpreadsheet className="h-4 w-4" />,
@@ -69,6 +74,8 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   source_file: <Upload className="h-4 w-4" />,
   enrich_columns: <Plus className="h-4 w-4" />,
   validation: <CheckCircle2 className="h-4 w-4" />,
+  deduplicate: <CopyX className="h-4 w-4" />,
+  normalize_phone: <PhoneForwarded className="h-4 w-4" />,
   condition: <GitBranch className="h-4 w-4" />,
   loop: <Workflow className="h-4 w-4" />,
   wait: <Clock3 className="h-4 w-4" />,
@@ -77,6 +84,7 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
   sender_number: <Smartphone className="h-4 w-4" />,
   agent_sms: <MessageSquare className="h-4 w-4" />,
   agent_voice: <PhoneCall className="h-4 w-4" />,
+  agent_whatsapp: <MessageCircle className="h-4 w-4" />,
   survey_ai: <Volume2 className="h-4 w-4" />,
   dtmf_menu: <GitBranch className="h-4 w-4" />,
   response_capture: <MessageSquare className="h-4 w-4" />,
@@ -90,6 +98,7 @@ const nodeIcon: Record<FlowNodeKind, React.ReactNode> = {
 const palette: Array<{ kind: FlowNodeKind; label: string; description: string }> = [
   { kind: "trigger_manual", label: "Manual Trigger", description: "Start manually" },
   { kind: "trigger_schedule", label: "Schedule Trigger", description: "Cron/timed trigger" },
+  { kind: "trigger_event", label: "Event Trigger", description: "Triggered by external event/webhook" },
   { kind: "source_manual_table", label: "Manual Table", description: "Build contacts table manually" },
   { kind: "source_csv", label: "CSV Source", description: "Read CSV contacts" },
   { kind: "source_xlsx", label: "XLSX Source", description: "Read Excel contacts" },
@@ -100,6 +109,8 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   { kind: "source_file", label: "File Upload", description: "Attach reusable file" },
   { kind: "enrich_columns", label: "Enrich Columns", description: "Append extra computed/survey columns" },
   { kind: "validation", label: "Validation", description: "Schema + row checks" },
+  { kind: "deduplicate", label: "Deduplicate", description: "Remove duplicate contacts by column" },
+  { kind: "normalize_phone", label: "Normalize Phone", description: "Standardize phone format and language" },
   { kind: "condition", label: "Decision", description: "if / else routing (diamond)" },
   { kind: "loop", label: "Loop / For-Each", description: "Iterative branch behavior" },
   { kind: "wait", label: "Wait", description: "Delay execution" },
@@ -108,6 +119,7 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   { kind: "sender_number", label: "Sender Number", description: "Pick outbound number" },
   { kind: "agent_sms", label: "SMS Agent", description: "Send SMS" },
   { kind: "agent_voice", label: "Voice Agent", description: "Place voice call" },
+  { kind: "agent_whatsapp", label: "WhatsApp Agent", description: "Send WhatsApp message" },
   { kind: "survey_ai", label: "Survey AI", description: "Conversational AI survey (Gemini/voice)" },
   { kind: "dtmf_menu", label: "Press 1/2 Menu", description: "Phone keypad branching during calls" },
   { kind: "response_capture", label: "Response Capture", description: "Capture reply text/intents/survey answers" },
@@ -127,6 +139,8 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "source_numbers") return { numbers: "+9779800000000,+9779811111111" };
   if (kind === "enrich_columns") return { columns: "survey_score:int,preferred_language:text", strategy: "append" };
   if (kind === "validation") return { required_columns: "name,phone" };
+  if (kind === "deduplicate") return { dedup_column: "phone", keep: "first" };
+  if (kind === "normalize_phone") return { country_code: "+977", format: "e164" };
   if (kind === "condition") return { field: "age", operator: ">", value: "30" };
   if (kind === "loop") return { mode: "for_each_contact", max_iterations: "1" };
   if (kind === "wait") return { duration_minutes: "30" };
@@ -135,11 +149,13 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "sender_number") return { number: "+19704701940" };
   if (kind === "agent_sms") return { message: "Namaste {{name}}, यो AgentShakti automation सन्देश हो।" };
   if (kind === "agent_voice") return { script: "नमस्ते, AgentShakti बाट बोल्दैछु।" };
+  if (kind === "agent_whatsapp") return { message: "Namaste {{name}}, यो AgentShakti WhatsApp सन्देश हो।", template_name: "" };
   if (kind === "survey_ai") return { model: "gemini-2.5-flash-native-audio", mode: "voice+text", survey_id: "default-survey" };
   if (kind === "dtmf_menu") return { option_1: "support", option_2: "sales", fallback: "repeat" };
   if (kind === "response_capture") return { store_columns: "response_text,intent,sentiment,dtmf_choice" };
   if (kind === "action_webhook") return { webhook_url: "https://example.com/hook", method: "POST", payload: "full_event" };
   if (kind === "trigger_schedule") return { cron: "0 10 * * *" };
+  if (kind === "trigger_event") return { event_type: "webhook", event_filter: "" };
   if (kind === "error_handler") return { retries: "2" };
   return {};
 }
@@ -162,7 +178,7 @@ function makeNode(kind: FlowNodeKind, x: number, y: number): FlowNode {
 
 function getNodeShape(kind: FlowNodeKind): "rectangle" | "diamond" | "oval" | "parallelogram" {
   if (kind === "condition" || kind === "dtmf_menu") return "diamond";
-  if (kind === "trigger_manual" || kind === "trigger_schedule" || kind === "end_success" || kind === "end_failure") return "oval";
+  if (kind === "trigger_manual" || kind === "trigger_schedule" || kind === "trigger_event" || kind === "end_success" || kind === "end_failure") return "oval";
   if (kind.startsWith("source_")) return "parallelogram";
   return "rectangle";
 }
@@ -171,7 +187,7 @@ function shapeClass(shape: ReturnType<typeof getNodeShape>, selected: boolean) {
   const selectedClass = selected ? "border-[var(--accent)] shadow-[0_8px_22px_rgba(0,82,255,0.18)]" : "border-[var(--border)]";
   if (shape === "diamond") return `h-[128px] w-[128px] rotate-45 rounded-xl border bg-[var(--card)] shadow-sm ${selectedClass}`;
   if (shape === "oval") return `min-h-[74px] min-w-[208px] rounded-full border bg-[var(--card)] px-5 py-3 shadow-sm ${selectedClass}`;
-  if (shape === "parallelogram") return `min-h-[84px] min-w-[220px] border bg-[var(--card)] px-5 py-3 shadow-sm ${selectedClass}`;
+  if (shape === "parallelogram") return `min-h-[84px] min-w-[220px] border bg-[var(--card)] pl-10 pr-8 py-3 shadow-sm ${selectedClass}`;
   return `min-h-[86px] min-w-[220px] rounded-xl border bg-[var(--card)] px-5 py-3 shadow-sm ${selectedClass}`;
 }
 
@@ -250,16 +266,6 @@ const sourceChoices: SourceChoice[] = [
   { kind: "source_numbers", title: "Paste Numbers", description: "Use manual phone list as a quick source." },
 ];
 
-function parseCsvText(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (!lines.length) return { headers: [], rows: [] };
-  const split = (line: string) => line.split(",").map((c) => c.trim());
-  return { headers: split(lines[0]), rows: lines.slice(1).map(split) };
-}
-
 function toCsvText(headers: string[], rows: string[][]): string {
   const safeHeaders = headers.map((h) => h.trim()).filter(Boolean);
   const body = rows.map((row) => safeHeaders.map((_, i) => (row[i] || "").trim()).join(","));
@@ -280,6 +286,16 @@ export default function FlowBuilder() {
   const [urlPreviewRows, setUrlPreviewRows] = useState<string[][]>([]);
   const [manualSourceLoading, setManualSourceLoading] = useState(false);
   const [manualSourceMessage, setManualSourceMessage] = useState<string | null>(null);
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setColorMode(root.classList.contains("dark") ? "dark" : "light");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   const hasSource = useMemo(() => nodes.some((n) => SOURCE_KINDS.includes(n.data.kind)), [nodes]);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -327,14 +343,21 @@ export default function FlowBuilder() {
     if (!source || !target) return;
     if (source.data.kind.startsWith("agent_") && target.data.kind.startsWith("source_")) return;
     const isLoopback = wouldCreateCycle(params.source, params.target, edges);
-    const outgoingFromSource = edges.filter((e) => e.source === params.source).length;
+    const existingLabels = new Set(
+      edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
+    );
     let branchLabel: string | undefined;
     if (source.data.kind === "condition") {
-      branchLabel = outgoingFromSource === 0 ? "true" : outgoingFromSource === 1 ? "false" : `branch_${outgoingFromSource + 1}`;
+      branchLabel = !existingLabels.has("true") ? "true" : !existingLabels.has("false") ? "false" : `branch_${existingLabels.size + 1}`;
     } else if (source.data.kind === "dtmf_menu") {
-      branchLabel = outgoingFromSource === 0 ? "press_1" : outgoingFromSource === 1 ? "press_2" : `press_${outgoingFromSource + 1}`;
-    } else if (outgoingFromSource >= 1) {
-      branchLabel = outgoingFromSource === 1 ? "path_b" : `path_${String.fromCharCode(65 + outgoingFromSource)}`.toLowerCase();
+      for (let i = 1; i <= existingLabels.size + 1; i++) {
+        if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
+      }
+    } else if (existingLabels.size >= 1) {
+      for (let i = 1; i <= existingLabels.size + 1; i++) {
+        const label = `path_${String.fromCharCode(96 + i)}`;
+        if (!existingLabels.has(label)) { branchLabel = label; break; }
+      }
     }
     setEdges((eds) =>
       addEdge(
@@ -401,7 +424,9 @@ export default function FlowBuilder() {
 
   async function runSimulation() {
     setRunState("running");
-    await new Promise((r) => setTimeout(r, 900));
+    // Run validation checks (brief delay for visual feedback)
+    await new Promise((r) => setTimeout(r, 200));
+    // Force a re-render so issues/contactEstimate/reachableCount are fresh
     setRunState("finished");
   }
 
@@ -414,7 +439,7 @@ export default function FlowBuilder() {
 
   function currentManualTableData(): { name: string; headers: string[]; rows: string[][] } | null {
     if (!selectedNode || selectedNode.data.kind !== "source_manual_table") return null;
-    const parsed = parseCsvText(String(selectedNode.data.config.sample_csv || ""));
+    const parsed = parseCsv(String(selectedNode.data.config.sample_csv || ""));
     const headers =
       parsed.headers.length > 0
         ? parsed.headers
@@ -647,7 +672,7 @@ export default function FlowBuilder() {
                 nodeTypes={NODE_TYPES}
                 fitView
                 onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-                colorMode="light"
+                colorMode={colorMode}
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#94A3B8" />
                 <MiniMap pannable zoomable />
@@ -733,7 +758,7 @@ export default function FlowBuilder() {
                 <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
                   <p className="text-sm font-semibold text-[var(--foreground)]">Manual Table Editor</p>
                   {(() => {
-                    const parsed = parseCsvText(String(selectedNode.data.config.sample_csv || ""));
+                    const parsed = parseCsv(String(selectedNode.data.config.sample_csv || ""));
                     const headers =
                       parsed.headers.length > 0
                         ? parsed.headers
@@ -871,7 +896,12 @@ export default function FlowBuilder() {
 
               <button
                 type="button"
-                onClick={() => setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id))}
+                onClick={() => {
+                  const id = selectedNode.id;
+                  setNodes((prev) => prev.filter((n) => n.id !== id));
+                  setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
+                  setSelectedNodeId(null);
+                }}
                 className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-[#FCA5A5] bg-[#FFF1F2] px-4 text-sm text-[#B91C1C]"
               >
                 <XCircle className="h-4 w-4" /> Delete Node
@@ -904,8 +934,14 @@ export default function FlowBuilder() {
           </ul>
           <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-2 text-sm">
             {runState === "idle" && "No run yet. Use Simulate Run to test graph readiness."}
-            {runState === "running" && "Simulating flow execution..."}
-            {runState === "finished" && "Simulation complete. Review warnings before publish."}
+            {runState === "running" && "Validating flow graph..."}
+            {runState === "finished" && (
+              fatalIssues.length > 0
+                ? `Blocked: ${fatalIssues.length} error(s) found. Fix before publish.`
+                : issues.length > 0
+                  ? `Ready with ${issues.length} warning(s). ${contactEstimate} contacts, ${reachableCount} reachable nodes.`
+                  : `Ready to publish. ${contactEstimate} contacts, ${reachableCount}/${nodes.length} nodes reachable.`
+            )}
           </div>
         </div>
       </aside>

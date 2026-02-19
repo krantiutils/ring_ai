@@ -142,45 +142,6 @@ async def _send_mobile_signup_otp_sms(phone: str, otp: str) -> None:
         raise HTTPException(status_code=502, detail=f"OTP SMS delivery failed: {msg}")
 
 
-def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-        path="/api/v1/auth/refresh",
-    )
-
-
-def _fetch_google_tokeninfo(id_token: str) -> dict:
-    with httpx.Client(timeout=8.0) as client:
-        resp = client.get("https://oauth2.googleapis.com/tokeninfo", params={"id_token": id_token})
-    if resp.status_code != 200:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token")
-    data = resp.json()
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token response")
-    return data
-
-
-def _generate_unique_username(db: Session, email: str) -> str:
-    seed = email.split("@")[0].lower()
-    seed = re.sub(r"[^a-z0-9_]", "", seed) or "google_user"
-    seed = seed[:30]
-    candidate = seed
-    attempts = 0
-    while get_user_by_username(db, candidate):
-        suffix = secrets.token_hex(2)
-        candidate = f"{seed[:24]}_{suffix}"
-        attempts += 1
-        if attempts > 8:
-            candidate = f"google_{secrets.token_hex(4)}"
-            break
-    return candidate
-
-
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if get_user_by_email(db, body.email.lower()):
