@@ -475,6 +475,41 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Flow Definitions
+  createFlowDefinition: (payload: { name: string; nodes: unknown[]; edges: unknown[]; trigger_config?: unknown; status?: string }) =>
+    request<{ id: string; name: string; nodes: unknown[]; edges: unknown[]; status: string; created_at: string; updated_at: string }>(
+      "/flows/definitions",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+  listFlowDefinitions: () =>
+    request<Array<{ id: string; name: string; status: string; updated_at: string }>>(
+      "/flows/definitions",
+    ),
+
+  getFlowDefinition: (flowId: string) =>
+    request<{ id: string; name: string; nodes: unknown[]; edges: unknown[]; trigger_config: unknown; status: string }>(
+      `/flows/definitions/${flowId}`,
+    ),
+
+  updateFlowDefinition: (flowId: string, payload: { name: string; nodes: unknown[]; edges: unknown[]; trigger_config?: unknown; status?: string }) =>
+    request<{ id: string; name: string; nodes: unknown[]; edges: unknown[]; status: string }>(
+      `/flows/definitions/${flowId}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+    ),
+
+  triggerFlowRun: (flowId: string) =>
+    request<{ id: string; flow_id: string; status: string }>(
+      `/flows/definitions/${flowId}/run`,
+      { method: "POST" },
+    ),
+
+  cancelFlowRun: (runId: string) =>
+    request<{ id: string; status: string }>(
+      `/flows/runs/${runId}/cancel`,
+      { method: "POST" },
+    ),
+
   // Phone Numbers
   getActivePhoneNumbers: () => request<import("@/types/dashboard").PhoneNumber[]>("/phone-numbers/active"),
   getBrokerPhoneNumbers: () => request<import("@/types/dashboard").PhoneNumber[]>("/phone-numbers/broker"),
