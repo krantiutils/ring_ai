@@ -40,3 +40,10 @@ class ManualTableSourceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class FileUploadResponse(BaseModel):
+    file_id: str
+    headers: list[str]
+    preview_rows: list[list[str]]
+    total_rows: int
+

@@ -96,6 +96,28 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
         message: "Condition node needs field, operator, and value.",
       });
     }
+    if (node.data.kind === "condition" && cfg.field) {
+      const sourceNode = nodes.find((n) =>
+        n.data.kind === "source_csv" ||
+        n.data.kind === "source_xlsx" ||
+        n.data.kind === "source_file" ||
+        n.data.kind === "source_numbers" ||
+        n.data.kind === "source_manual_table" ||
+        n.data.kind === "source_google_contacts" ||
+        n.data.kind === "source_url_json" ||
+        n.data.kind === "source_url_csv",
+      );
+      if (sourceNode?.data.columns && sourceNode.data.columns.length > 0) {
+        if (!sourceNode.data.columns.includes(String(cfg.field))) {
+          issues.push({
+            id: `condition-bad-field-${node.id}`,
+            severity: "warning",
+            nodeId: node.id,
+            message: `Condition field "${cfg.field}" is not in source columns: ${sourceNode.data.columns.join(", ")}`,
+          });
+        }
+      }
+    }
     if (node.data.kind === "wait" && !cfg.duration_minutes) {
       issues.push({
         id: `missing-wait-${node.id}`,

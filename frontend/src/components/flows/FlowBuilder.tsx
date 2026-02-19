@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   addEdge,
   Background,
@@ -215,6 +215,8 @@ function wouldCreateCycle(sourceId: string, targetId: string, edges: Array<{ sou
 function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
   const shape = getNodeShape(data.kind);
   const baseClass = shapeClass(shape, selected);
+  const isBranching = data.kind === "condition" || data.kind === "validation";
+
   const content = (
     <div className="flex items-center gap-2 text-[var(--foreground)]">
       <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]">
@@ -226,8 +228,16 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
           {data.kind.replaceAll("_", " ")}
         </p>
       </div>
+      {data.kind.startsWith("source_") && data.columns && data.columns.length > 0 ? (
+        <span className="ml-auto rounded-full bg-[var(--accent)] px-2 py-0.5 text-[9px] font-bold text-white">
+          {data.columns.length} cols
+        </span>
+      ) : null}
     </div>
   );
+
+  const trueLabel = data.kind === "validation" ? "valid" : "true";
+  const falseLabel = data.kind === "validation" ? "invalid" : "false";
 
   return (
     <div className="relative">
@@ -243,12 +253,129 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
       ) : (
         <div className={baseClass}>{content}</div>
       )}
-      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border !border-[var(--border)] !bg-[var(--card)]" />
+      {isBranching ? (
+        <>
+          <Handle
+            type="source"
+            position={Position.Left}
+            id={trueLabel}
+            className="!h-3 !w-3 !border-2 !border-[#16A34A] !bg-[#22C55E]"
+          />
+          <span className="absolute left-0 top-[calc(50%+12px)] -translate-x-full pr-1 text-[9px] font-bold text-[#16A34A]">
+            {trueLabel}
+          </span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={falseLabel}
+            className="!h-3 !w-3 !border-2 !border-[#DC2626] !bg-[#EF4444]"
+          />
+          <span className="absolute right-0 top-[calc(50%+12px)] translate-x-full pl-1 text-[9px] font-bold text-[#DC2626]">
+            {falseLabel}
+          </span>
+        </>
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border !border-[var(--border)] !bg-[var(--card)]" />
+      )}
     </div>
   );
 }
 
 const NODE_TYPES = { flowNode: FlowNodeCard };
+
+function ColumnDropdown({
+  columns,
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  columns: string[];
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input-modern h-10 w-full px-3 text-sm"
+      >
+        <option value="">{placeholder || "Select column..."}</option>
+        {columns.map((col) => (
+          <option key={col} value={col}>{col}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ColumnAutocompleteTextarea({
+  columns,
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  columns: string[];
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  const [showPopup, setShowPopup] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value;
+    const pos = e.target.selectionStart || 0;
+    onChange(v);
+    setCursorPos(pos);
+    const before = v.slice(0, pos);
+    setShowPopup(before.endsWith("{{"));
+  }
+
+  function insertColumn(col: string) {
+    const before = value.slice(0, cursorPos);
+    const after = value.slice(cursorPos);
+    onChange(`${before}${col}}}${after}`);
+    setShowPopup(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  return (
+    <label className="relative block space-y-1">
+      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</span>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={handleInput}
+        className="input-modern min-h-[80px] w-full resize-y px-3 py-2 text-sm"
+        placeholder={placeholder}
+      />
+      {showPopup && columns.length > 0 ? (
+        <div className="absolute left-0 z-50 mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg">
+          {columns.map((col) => (
+            <button
+              key={col}
+              type="button"
+              onClick={() => insertColumn(col)}
+              className="block w-full px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+            >
+              {"{{"}
+              {col}
+              {"}}"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </label>
+  );
+}
 
 type SourceChoice = {
   kind: FlowNodeKind;
@@ -287,6 +414,10 @@ export default function FlowBuilder() {
   const [manualSourceLoading, setManualSourceLoading] = useState(false);
   const [manualSourceMessage, setManualSourceMessage] = useState<string | null>(null);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const [fileUploadLoading, setFileUploadLoading] = useState(false);
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const [filePreviewHeaders, setFilePreviewHeaders] = useState<string[]>([]);
+  const [filePreviewRows, setFilePreviewRows] = useState<string[][]>([]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -303,6 +434,47 @@ export default function FlowBuilder() {
   const fatalIssues = issues.filter((i) => i.severity === "error");
   const contactEstimate = useMemo(() => simulateContactsCount(nodes as FlowNode[]), [nodes]);
   const reachableCount = useMemo(() => reachableNodeCount(nodes as FlowNode[], edges), [nodes, edges]);
+
+  const sourceColumns = useMemo<string[]>(() => {
+    const sourceNode = nodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+    if (!sourceNode) return [];
+    const kind = sourceNode.data.kind;
+
+    if (sourceNode.data.columns && sourceNode.data.columns.length > 0) {
+      return sourceNode.data.columns;
+    }
+
+    if (kind === "source_numbers") return ["phone"];
+    if (kind === "source_google_contacts") return ["name", "phone", "email"];
+
+    const sampleCsv = String(sourceNode.data.config.sample_csv || "");
+    if (sampleCsv) {
+      const parsed = parseCsv(sampleCsv);
+      if (parsed.headers.length > 0) return parsed.headers;
+    }
+    const tableColumns = String(sourceNode.data.config.table_columns || "");
+    if (tableColumns) {
+      return tableColumns.split(",").map((c) => c.trim()).filter(Boolean);
+    }
+    const fileHeaders = String(sourceNode.data.config.file_headers || "");
+    if (fileHeaders) {
+      return fileHeaders.split(",").map((c) => c.trim()).filter(Boolean);
+    }
+    return [];
+  }, [nodes]);
+
+  useEffect(() => {
+    if (sourceColumns.length === 0) return;
+    const sourceNode = nodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+    if (!sourceNode) return;
+    const existing = sourceNode.data.columns;
+    if (existing && existing.length === sourceColumns.length && existing.every((c, i) => c === sourceColumns[i])) return;
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === sourceNode.id ? { ...n, data: { ...n.data, columns: sourceColumns } } : n,
+      ),
+    );
+  }, [sourceColumns]);
 
   function startWithSource(kind: FlowNodeKind) {
     const trigger = makeNode("trigger_manual", 100, 80);
@@ -345,31 +517,49 @@ export default function FlowBuilder() {
     if (!source || !target) return;
     if (source.data.kind.startsWith("agent_") && target.data.kind.startsWith("source_")) return;
     const isLoopback = wouldCreateCycle(params.source, params.target, edges);
-    const existingLabels = new Set(
-      edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
-    );
+
+    const isBranching = source.data.kind === "condition" || source.data.kind === "validation";
+    let sourceHandle = params.sourceHandle || undefined;
+
+    if (isBranching && !sourceHandle) {
+      const trueLabel = source.data.kind === "validation" ? "valid" : "true";
+      const falseLabel = source.data.kind === "validation" ? "invalid" : "false";
+      const existingHandles = new Set(
+        edges.filter((e) => e.source === params.source).map((e) => e.sourceHandle).filter(Boolean),
+      );
+      sourceHandle = !existingHandles.has(trueLabel) ? trueLabel : !existingHandles.has(falseLabel) ? falseLabel : undefined;
+    }
+
     let branchLabel: string | undefined;
-    if (source.data.kind === "condition") {
-      branchLabel = !existingLabels.has("true") ? "true" : !existingLabels.has("false") ? "false" : `branch_${existingLabels.size + 1}`;
-    } else if (source.data.kind === "dtmf_menu") {
-      for (let i = 1; i <= existingLabels.size + 1; i++) {
-        if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
-      }
-    } else if (existingLabels.size >= 1) {
-      for (let i = 1; i <= existingLabels.size + 1; i++) {
-        const label = `path_${String.fromCharCode(96 + i)}`;
-        if (!existingLabels.has(label)) { branchLabel = label; break; }
+    if (!isBranching) {
+      const existingLabels = new Set(
+        edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
+      );
+      if (source.data.kind === "dtmf_menu") {
+        for (let i = 1; i <= existingLabels.size + 1; i++) {
+          if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
+        }
+      } else if (existingLabels.size >= 1) {
+        for (let i = 1; i <= existingLabels.size + 1; i++) {
+          const label = `path_${String.fromCharCode(96 + i)}`;
+          if (!existingLabels.has(label)) { branchLabel = label; break; }
+        }
       }
     }
+
     setEdges((eds) =>
       addEdge(
         {
           ...params,
+          sourceHandle,
           animated: true,
           markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
           style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
-          label: isLoopback ? "loopback" : branchLabel,
-        },
+          label: isBranching ? sourceHandle : (isLoopback ? "loopback" : branchLabel),
+          labelStyle: isBranching
+            ? { fill: sourceHandle === "true" || sourceHandle === "valid" ? "#16A34A" : "#DC2626", fontWeight: 700, fontSize: 11 }
+            : undefined,
+        } as FlowEdge | Connection,
         eds,
       ),
     );
@@ -528,6 +718,26 @@ export default function FlowBuilder() {
       setUrlPreviewRows([]);
     } finally {
       setUrlTestLoading(false);
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setFileUploadLoading(true);
+    setFileUploadError(null);
+    try {
+      const result = await api.uploadSourceFile(file);
+      setFilePreviewHeaders(result.headers);
+      setFilePreviewRows(result.preview_rows);
+      updateNodeConfig("file_id", result.file_id);
+      updateNodeConfig("file_headers", result.headers.join(","));
+      updateNodeConfig("total_rows", String(result.total_rows));
+      updateNodeConfig("sample_csv", [result.headers.join(","), ...result.preview_rows.map((r) => r.join(","))].join("\n"));
+    } catch (err) {
+      setFileUploadError(err instanceof Error ? err.message : "Upload failed.");
+      setFilePreviewHeaders([]);
+      setFilePreviewRows([]);
+    } finally {
+      setFileUploadLoading(false);
     }
   }
 
@@ -738,7 +948,144 @@ export default function FlowBuilder() {
                 </p>
               </div>
               <div className="mt-3 space-y-2">
-                {Object.entries(selectedNode.data.config).length === 0 ? (
+                {selectedNode.data.kind === "condition" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.field || "")}
+                      onChange={(v) => updateNodeConfig("field", v)}
+                      label="Field"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Operator</span>
+                      <select
+                        value={String(selectedNode.data.config.operator || "")}
+                        onChange={(e) => updateNodeConfig("operator", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="">Select...</option>
+                        {[">", "<", "==", "!=", ">=", "<=", "contains", "startsWith"].map((op) => (
+                          <option key={op} value={op}>{op}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Value</span>
+                      <input
+                        value={String(selectedNode.data.config.value || "")}
+                        onChange={(e) => updateNodeConfig("value", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                        placeholder="e.g. 30"
+                      />
+                    </label>
+                  </>
+                ) : selectedNode.data.kind === "validation" ? (
+                  <>
+                    <div className="space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Required Columns</span>
+                      {sourceColumns.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {sourceColumns.map((col) => {
+                            const required = String(selectedNode.data.config.required_columns || "").split(",").map((c) => c.trim()).filter(Boolean);
+                            const isChecked = required.includes(col);
+                            return (
+                              <label key={col} className="inline-flex items-center gap-1 text-sm text-[var(--foreground)]">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const next = isChecked ? required.filter((c) => c !== col) : [...required, col];
+                                    updateNodeConfig("required_columns", next.join(","));
+                                  }}
+                                  className="h-4 w-4 rounded border-[var(--border)]"
+                                />
+                                {col}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input
+                          value={String(selectedNode.data.config.required_columns || "")}
+                          onChange={(e) => updateNodeConfig("required_columns", e.target.value)}
+                          className="input-modern h-10 w-full px-3 text-sm"
+                          placeholder="name,phone"
+                        />
+                      )}
+                    </div>
+                  </>
+                ) : selectedNode.data.kind === "deduplicate" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.dedup_column || "")}
+                      onChange={(v) => updateNodeConfig("dedup_column", v)}
+                      label="Dedup Column"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Keep</span>
+                      <select
+                        value={String(selectedNode.data.config.keep || "first")}
+                        onChange={(e) => updateNodeConfig("keep", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="first">first</option>
+                        <option value="last">last</option>
+                      </select>
+                    </label>
+                  </>
+                ) : selectedNode.data.kind === "normalize_phone" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.phone_column || "phone")}
+                      onChange={(v) => updateNodeConfig("phone_column", v)}
+                      label="Phone Column"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Country Code</span>
+                      <input
+                        value={String(selectedNode.data.config.country_code || "+977")}
+                        onChange={(e) => updateNodeConfig("country_code", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                        placeholder="+977"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Format</span>
+                      <select
+                        value={String(selectedNode.data.config.format || "e164")}
+                        onChange={(e) => updateNodeConfig("format", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="e164">E.164</option>
+                        <option value="national">National</option>
+                        <option value="international">International</option>
+                      </select>
+                    </label>
+                  </>
+                ) : selectedNode.data.kind === "agent_sms" || selectedNode.data.kind === "agent_whatsapp" ? (
+                  <>
+                    <ColumnAutocompleteTextarea
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.message || "")}
+                      onChange={(v) => updateNodeConfig("message", v)}
+                      label="Message"
+                      placeholder="Namaste {{name}}, type {{ for column autocomplete"
+                    />
+                    {selectedNode.data.kind === "agent_whatsapp" ? (
+                      <label className="block space-y-1">
+                        <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Template Name</span>
+                        <input
+                          value={String(selectedNode.data.config.template_name || "")}
+                          onChange={(e) => updateNodeConfig("template_name", e.target.value)}
+                          className="input-modern h-10 w-full px-3 text-sm"
+                          placeholder="Optional WhatsApp template"
+                        />
+                      </label>
+                    ) : null}
+                  </>
+                ) : Object.entries(selectedNode.data.config).length === 0 ? (
                   <p className="text-sm text-[var(--muted-foreground)]">No configurable settings for this node.</p>
                 ) : (
                   Object.entries(selectedNode.data.config).map(([key, value]) => (
@@ -886,6 +1233,68 @@ export default function FlowBuilder() {
                                 <td key={cIdx} className="px-2 py-1.5 text-[var(--muted-foreground)]">
                                   {row[cIdx] || ""}
                                 </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {selectedNode.data.kind === "source_csv" || selectedNode.data.kind === "source_xlsx" ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {selectedNode.data.kind === "source_csv" ? "CSV" : "XLSX"} File Upload
+                  </p>
+                  <div
+                    className="mt-2 flex min-h-[80px] cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)]/50"
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = selectedNode.data.kind === "source_csv" ? ".csv" : ".xlsx";
+                      input.onchange = () => {
+                        const file = input.files?.[0];
+                        if (file) handleFileUpload(file);
+                      };
+                      input.click();
+                    }}
+                  >
+                    {fileUploadLoading ? (
+                      <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</span>
+                    ) : (
+                      <span>Drop {selectedNode.data.kind === "source_csv" ? ".csv" : ".xlsx"} file here or click to browse</span>
+                    )}
+                  </div>
+                  {fileUploadError ? <p className="mt-2 text-xs text-[#B91C1C]">{fileUploadError}</p> : null}
+                  {selectedNode.data.config.total_rows ? (
+                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                      {selectedNode.data.config.total_rows} rows, {filePreviewHeaders.length || String(selectedNode.data.config.file_headers || "").split(",").filter(Boolean).length} columns
+                    </p>
+                  ) : null}
+                  {filePreviewHeaders.length > 0 ? (
+                    <div className="mt-2 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[var(--border)] bg-[var(--muted)]">
+                            {filePreviewHeaders.map((h) => (
+                              <th key={h} className="px-2 py-1.5 text-left font-semibold text-[var(--foreground)]">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filePreviewRows.map((row, idx) => (
+                            <tr key={idx} className="border-b border-[var(--border)] last:border-b-0">
+                              {filePreviewHeaders.map((_, cIdx) => (
+                                <td key={cIdx} className="px-2 py-1.5 text-[var(--muted-foreground)]">{row[cIdx] || ""}</td>
                               ))}
                             </tr>
                           ))}

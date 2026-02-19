@@ -39,6 +39,7 @@ export type FlowNodeData = {
   kind: FlowNodeKind;
   description?: string;
   config: Record<string, string | number | boolean>;
+  columns?: string[];
 };
 
 export type FlowNode = Node<FlowNodeData>;
