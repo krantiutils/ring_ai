@@ -332,6 +332,34 @@ export default function FlowBuilder() {
   const contactEstimate = useMemo(() => simulateContactsCount(nodes as FlowNode[]), [nodes]);
   const reachableCount = useMemo(() => reachableNodeCount(nodes as FlowNode[], edges), [nodes, edges]);
 
+  const sourceColumns = useMemo<string[]>(() => {
+    const sourceNode = nodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+    if (!sourceNode) return [];
+    const kind = sourceNode.data.kind;
+
+    if (sourceNode.data.columns && sourceNode.data.columns.length > 0) {
+      return sourceNode.data.columns;
+    }
+
+    if (kind === "source_numbers") return ["phone"];
+    if (kind === "source_google_contacts") return ["name", "phone", "email"];
+
+    const sampleCsv = String(sourceNode.data.config.sample_csv || "");
+    if (sampleCsv) {
+      const parsed = parseCsv(sampleCsv);
+      if (parsed.headers.length > 0) return parsed.headers;
+    }
+    const tableColumns = String(sourceNode.data.config.table_columns || "");
+    if (tableColumns) {
+      return tableColumns.split(",").map((c) => c.trim()).filter(Boolean);
+    }
+    const fileHeaders = String(sourceNode.data.config.file_headers || "");
+    if (fileHeaders) {
+      return fileHeaders.split(",").map((c) => c.trim()).filter(Boolean);
+    }
+    return [];
+  }, [nodes]);
+
   function startWithSource(kind: FlowNodeKind) {
     const trigger = makeNode("trigger_manual", 100, 80);
     const source = makeNode(kind, 100, 250);
