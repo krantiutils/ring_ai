@@ -6,6 +6,7 @@ from app.models.contact import Contact
 from app.models.credit import Credit
 from app.models.credit_transaction import CreditTransaction
 from app.models.flow_definition import FlowDefinition
+from app.models.flow_run import FlowRun, FlowStepResult
 from app.models.form import Form
 from app.models.form_response import FormResponse
 from app.models.gateway_phone import GatewayPhone
@@ -35,6 +36,8 @@ __all__ = [
     "Credit",
     "CreditTransaction",
     "FlowDefinition",
+    "FlowRun",
+    "FlowStepResult",
     "Form",
     "FormResponse",
     "GatewayPhone",
