@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   addEdge,
   Background,
@@ -304,6 +304,70 @@ function ColumnDropdown({
           <option key={col} value={col}>{col}</option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function ColumnAutocompleteTextarea({
+  columns,
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  columns: string[];
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  const [showPopup, setShowPopup] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value;
+    const pos = e.target.selectionStart || 0;
+    onChange(v);
+    setCursorPos(pos);
+    const before = v.slice(0, pos);
+    setShowPopup(before.endsWith("{{"));
+  }
+
+  function insertColumn(col: string) {
+    const before = value.slice(0, cursorPos);
+    const after = value.slice(cursorPos);
+    onChange(`${before}${col}}}${after}`);
+    setShowPopup(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  return (
+    <label className="relative block space-y-1">
+      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</span>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={handleInput}
+        className="input-modern min-h-[80px] w-full resize-y px-3 py-2 text-sm"
+        placeholder={placeholder}
+      />
+      {showPopup && columns.length > 0 ? (
+        <div className="absolute left-0 z-50 mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg">
+          {columns.map((col) => (
+            <button
+              key={col}
+              type="button"
+              onClick={() => insertColumn(col)}
+              className="block w-full px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+            >
+              {"{{"}
+              {col}
+              {"}}"}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </label>
   );
 }
@@ -981,6 +1045,27 @@ export default function FlowBuilder() {
                         <option value="international">International</option>
                       </select>
                     </label>
+                  </>
+                ) : selectedNode.data.kind === "agent_sms" || selectedNode.data.kind === "agent_whatsapp" ? (
+                  <>
+                    <ColumnAutocompleteTextarea
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.message || "")}
+                      onChange={(v) => updateNodeConfig("message", v)}
+                      label="Message"
+                      placeholder="Namaste {{name}}, type {{ for column autocomplete"
+                    />
+                    {selectedNode.data.kind === "agent_whatsapp" ? (
+                      <label className="block space-y-1">
+                        <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Template Name</span>
+                        <input
+                          value={String(selectedNode.data.config.template_name || "")}
+                          onChange={(e) => updateNodeConfig("template_name", e.target.value)}
+                          className="input-modern h-10 w-full px-3 text-sm"
+                          placeholder="Optional WhatsApp template"
+                        />
+                      </label>
+                    ) : null}
                   </>
                 ) : Object.entries(selectedNode.data.config).length === 0 ? (
                   <p className="text-sm text-[var(--muted-foreground)]">No configurable settings for this node.</p>
