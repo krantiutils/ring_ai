@@ -345,6 +345,10 @@ export default function FlowBuilder() {
   const [manualSourceLoading, setManualSourceLoading] = useState(false);
   const [manualSourceMessage, setManualSourceMessage] = useState<string | null>(null);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const [fileUploadLoading, setFileUploadLoading] = useState(false);
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const [filePreviewHeaders, setFilePreviewHeaders] = useState<string[]>([]);
+  const [filePreviewRows, setFilePreviewRows] = useState<string[][]>([]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -632,6 +636,26 @@ export default function FlowBuilder() {
       setUrlPreviewRows([]);
     } finally {
       setUrlTestLoading(false);
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setFileUploadLoading(true);
+    setFileUploadError(null);
+    try {
+      const result = await api.uploadSourceFile(file);
+      setFilePreviewHeaders(result.headers);
+      setFilePreviewRows(result.preview_rows);
+      updateNodeConfig("file_id", result.file_id);
+      updateNodeConfig("file_headers", result.headers.join(","));
+      updateNodeConfig("total_rows", String(result.total_rows));
+      updateNodeConfig("sample_csv", [result.headers.join(","), ...result.preview_rows.map((r) => r.join(","))].join("\n"));
+    } catch (err) {
+      setFileUploadError(err instanceof Error ? err.message : "Upload failed.");
+      setFilePreviewHeaders([]);
+      setFilePreviewRows([]);
+    } finally {
+      setFileUploadLoading(false);
     }
   }
 
@@ -1106,6 +1130,68 @@ export default function FlowBuilder() {
                                 <td key={cIdx} className="px-2 py-1.5 text-[var(--muted-foreground)]">
                                   {row[cIdx] || ""}
                                 </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {selectedNode.data.kind === "source_csv" || selectedNode.data.kind === "source_xlsx" ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {selectedNode.data.kind === "source_csv" ? "CSV" : "XLSX"} File Upload
+                  </p>
+                  <div
+                    className="mt-2 flex min-h-[80px] cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-sm text-[var(--muted-foreground)] transition hover:border-[var(--accent)]/50"
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = selectedNode.data.kind === "source_csv" ? ".csv" : ".xlsx";
+                      input.onchange = () => {
+                        const file = input.files?.[0];
+                        if (file) handleFileUpload(file);
+                      };
+                      input.click();
+                    }}
+                  >
+                    {fileUploadLoading ? (
+                      <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</span>
+                    ) : (
+                      <span>Drop {selectedNode.data.kind === "source_csv" ? ".csv" : ".xlsx"} file here or click to browse</span>
+                    )}
+                  </div>
+                  {fileUploadError ? <p className="mt-2 text-xs text-[#B91C1C]">{fileUploadError}</p> : null}
+                  {selectedNode.data.config.total_rows ? (
+                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                      {selectedNode.data.config.total_rows} rows, {filePreviewHeaders.length || String(selectedNode.data.config.file_headers || "").split(",").filter(Boolean).length} columns
+                    </p>
+                  ) : null}
+                  {filePreviewHeaders.length > 0 ? (
+                    <div className="mt-2 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[var(--border)] bg-[var(--muted)]">
+                            {filePreviewHeaders.map((h) => (
+                              <th key={h} className="px-2 py-1.5 text-left font-semibold text-[var(--foreground)]">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filePreviewRows.map((row, idx) => (
+                            <tr key={idx} className="border-b border-[var(--border)] last:border-b-0">
+                              {filePreviewHeaders.map((_, cIdx) => (
+                                <td key={cIdx} className="px-2 py-1.5 text-[var(--muted-foreground)]">{row[cIdx] || ""}</td>
                               ))}
                             </tr>
                           ))}
