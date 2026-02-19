@@ -215,6 +215,8 @@ function wouldCreateCycle(sourceId: string, targetId: string, edges: Array<{ sou
 function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
   const shape = getNodeShape(data.kind);
   const baseClass = shapeClass(shape, selected);
+  const isBranching = data.kind === "condition" || data.kind === "validation";
+
   const content = (
     <div className="flex items-center gap-2 text-[var(--foreground)]">
       <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]">
@@ -228,6 +230,9 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
       </div>
     </div>
   );
+
+  const trueLabel = data.kind === "validation" ? "valid" : "true";
+  const falseLabel = data.kind === "validation" ? "invalid" : "false";
 
   return (
     <div className="relative">
@@ -243,7 +248,30 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
       ) : (
         <div className={baseClass}>{content}</div>
       )}
-      <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border !border-[var(--border)] !bg-[var(--card)]" />
+      {isBranching ? (
+        <>
+          <Handle
+            type="source"
+            position={Position.Left}
+            id={trueLabel}
+            className="!h-3 !w-3 !border-2 !border-[#16A34A] !bg-[#22C55E]"
+          />
+          <span className="absolute left-0 top-[calc(50%+12px)] -translate-x-full pr-1 text-[9px] font-bold text-[#16A34A]">
+            {trueLabel}
+          </span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={falseLabel}
+            className="!h-3 !w-3 !border-2 !border-[#DC2626] !bg-[#EF4444]"
+          />
+          <span className="absolute right-0 top-[calc(50%+12px)] translate-x-full pl-1 text-[9px] font-bold text-[#DC2626]">
+            {falseLabel}
+          </span>
+        </>
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !border !border-[var(--border)] !bg-[var(--card)]" />
+      )}
     </div>
   );
 }
@@ -345,30 +373,48 @@ export default function FlowBuilder() {
     if (!source || !target) return;
     if (source.data.kind.startsWith("agent_") && target.data.kind.startsWith("source_")) return;
     const isLoopback = wouldCreateCycle(params.source, params.target, edges);
-    const existingLabels = new Set(
-      edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
-    );
+
+    const isBranching = source.data.kind === "condition" || source.data.kind === "validation";
+    let sourceHandle = params.sourceHandle || undefined;
+
+    if (isBranching && !sourceHandle) {
+      const trueLabel = source.data.kind === "validation" ? "valid" : "true";
+      const falseLabel = source.data.kind === "validation" ? "invalid" : "false";
+      const existingHandles = new Set(
+        edges.filter((e) => e.source === params.source).map((e) => e.sourceHandle).filter(Boolean),
+      );
+      sourceHandle = !existingHandles.has(trueLabel) ? trueLabel : !existingHandles.has(falseLabel) ? falseLabel : undefined;
+    }
+
     let branchLabel: string | undefined;
-    if (source.data.kind === "condition") {
-      branchLabel = !existingLabels.has("true") ? "true" : !existingLabels.has("false") ? "false" : `branch_${existingLabels.size + 1}`;
-    } else if (source.data.kind === "dtmf_menu") {
-      for (let i = 1; i <= existingLabels.size + 1; i++) {
-        if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
-      }
-    } else if (existingLabels.size >= 1) {
-      for (let i = 1; i <= existingLabels.size + 1; i++) {
-        const label = `path_${String.fromCharCode(96 + i)}`;
-        if (!existingLabels.has(label)) { branchLabel = label; break; }
+    if (!isBranching) {
+      const existingLabels = new Set(
+        edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
+      );
+      if (source.data.kind === "dtmf_menu") {
+        for (let i = 1; i <= existingLabels.size + 1; i++) {
+          if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
+        }
+      } else if (existingLabels.size >= 1) {
+        for (let i = 1; i <= existingLabels.size + 1; i++) {
+          const label = `path_${String.fromCharCode(96 + i)}`;
+          if (!existingLabels.has(label)) { branchLabel = label; break; }
+        }
       }
     }
+
     setEdges((eds) =>
       addEdge(
         {
           ...params,
+          sourceHandle,
           animated: true,
           markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
           style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
-          label: isLoopback ? "loopback" : branchLabel,
+          label: isBranching ? sourceHandle : (isLoopback ? "loopback" : branchLabel),
+          labelStyle: isBranching
+            ? { fill: sourceHandle === "true" || sourceHandle === "valid" ? "#16A34A" : "#DC2626", fontWeight: 700, fontSize: 11 }
+            : undefined,
         },
         eds,
       ),
