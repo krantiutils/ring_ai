@@ -47,3 +47,37 @@ class FileUploadResponse(BaseModel):
     preview_rows: list[list[str]]
     total_rows: int
 
+
+class FlowDefinitionCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
+    trigger_config: dict | None = None
+    status: str = "draft"
+
+
+class FlowDefinitionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    nodes: list[dict]
+    edges: list[dict]
+    trigger_config: dict | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class FlowRunResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    flow_id: uuid.UUID
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    current_node_id: str | None
+    error: str | None
+

@@ -14,15 +14,22 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.models.flow_definition import FlowDefinition
+from app.models.flow_run import FlowRun
 from app.models.manual_table_source import ManualTableSource
 from app.models.user import User
 from app.schemas.flows import (
     FileUploadResponse,
+    FlowDefinitionCreate,
+    FlowDefinitionResponse,
+    FlowRunResponse,
     ManualTableSourceResponse,
     ManualTableSourceUpsert,
     UrlSourcePreviewRequest,
     UrlSourcePreviewResponse,
 )
+from app.services.flow_orchestrator import run_flow
+from fastapi import BackgroundTasks
 
 router = APIRouter()
 
@@ -322,3 +329,111 @@ def update_manual_table_source(
     db.commit()
     db.refresh(source)
     return source
+
+
+@router.post("/definitions", response_model=FlowDefinitionResponse, status_code=status.HTTP_201_CREATED)
+def create_flow_definition(
+    payload: FlowDefinitionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flow = FlowDefinition(
+        user_id=current_user.id,
+        name=payload.name,
+        nodes=payload.nodes,
+        edges=payload.edges,
+        trigger_config=payload.trigger_config,
+        status=payload.status,
+    )
+    db.add(flow)
+    db.commit()
+    db.refresh(flow)
+    return flow
+
+
+@router.get("/definitions", response_model=list[FlowDefinitionResponse])
+def list_flow_definitions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flows = db.query(FlowDefinition).filter_by(user_id=current_user.id).order_by(FlowDefinition.updated_at.desc()).all()
+    return flows
+
+
+@router.get("/definitions/{flow_id}", response_model=FlowDefinitionResponse)
+def get_flow_definition(
+    flow_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flow = db.query(FlowDefinition).filter_by(id=flow_id, user_id=current_user.id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    return flow
+
+
+@router.put("/definitions/{flow_id}", response_model=FlowDefinitionResponse)
+def update_flow_definition(
+    flow_id: uuid.UUID,
+    payload: FlowDefinitionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flow = db.query(FlowDefinition).filter_by(id=flow_id, user_id=current_user.id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    flow.name = payload.name
+    flow.nodes = payload.nodes
+    flow.edges = payload.edges
+    flow.trigger_config = payload.trigger_config
+    flow.status = payload.status
+    db.commit()
+    db.refresh(flow)
+    return flow
+
+
+@router.post("/definitions/{flow_id}/run", response_model=FlowRunResponse)
+def trigger_flow_run(
+    flow_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flow = db.query(FlowDefinition).filter_by(id=flow_id, user_id=current_user.id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+
+    run = FlowRun(flow_id=flow.id, status="pending", contact_rows=[])
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    try:
+        from app.services.flow_tasks import orchestrate_flow_task
+        result = orchestrate_flow_task.delay(str(run.id))
+        run.celery_task_id = result.id
+        db.commit()
+    except Exception:
+        # Fallback to BackgroundTasks if Celery not available
+        def _run_in_background():
+            from app.core.database import SessionLocal
+            with SessionLocal() as session:
+                run_flow(run.id, session)
+        background_tasks.add_task(_run_in_background)
+
+    return run
+
+
+@router.post("/runs/{run_id}/cancel", response_model=FlowRunResponse)
+def cancel_flow_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    run = db.query(FlowRun).filter_by(id=run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    run.status = "cancelled"
+    db.commit()
+    db.refresh(run)
+    return run
