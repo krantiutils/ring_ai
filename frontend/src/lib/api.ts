@@ -413,6 +413,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  async uploadSourceFile(file: File): Promise<{
+    file_id: string;
+    headers: string[];
+    preview_rows: string[][];
+    total_rows: number;
+  }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_BASE}/flows/sources/file-upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: "Upload failed" }));
+      throw new ApiError(res.status, body.detail || "Upload failed");
+    }
+    return res.json();
+  },
   createManualTableSource: (data: { name: string; headers: string[]; rows: string[][] }) =>
     request<{
       id: string;

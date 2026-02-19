@@ -39,10 +39,13 @@ export type FlowNodeData = {
   kind: FlowNodeKind;
   description?: string;
   config: Record<string, string | number | boolean>;
+  columns?: string[];
 };
 
 export type FlowNode = Node<FlowNodeData>;
-export type FlowEdge = Edge;
+export type FlowEdge = Edge & {
+  sourceHandle?: string;
+};
 
 export type ValidationIssue = {
   id: string;
