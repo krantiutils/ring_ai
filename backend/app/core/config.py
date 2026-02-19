@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     GEMINI_HYBRID_TTS_PROVIDER: str = "edge_tts"
     GEMINI_HYBRID_TTS_VOICE: str = "ne-NP-HemkalaNeural"
 
+    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/1"
+
     model_config = {"env_file": ".env", "case_sensitive": True}
 
 
