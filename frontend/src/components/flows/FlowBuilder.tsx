@@ -278,6 +278,36 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
 
 const NODE_TYPES = { flowNode: FlowNodeCard };
 
+function ColumnDropdown({
+  columns,
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  columns: string[];
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input-modern h-10 w-full px-3 text-sm"
+      >
+        <option value="">{placeholder || "Select column..."}</option>
+        {columns.map((col) => (
+          <option key={col} value={col}>{col}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 type SourceChoice = {
   kind: FlowNodeKind;
   title: string;
@@ -812,7 +842,123 @@ export default function FlowBuilder() {
                 </p>
               </div>
               <div className="mt-3 space-y-2">
-                {Object.entries(selectedNode.data.config).length === 0 ? (
+                {selectedNode.data.kind === "condition" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.field || "")}
+                      onChange={(v) => updateNodeConfig("field", v)}
+                      label="Field"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Operator</span>
+                      <select
+                        value={String(selectedNode.data.config.operator || "")}
+                        onChange={(e) => updateNodeConfig("operator", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="">Select...</option>
+                        {[">", "<", "==", "!=", ">=", "<=", "contains", "startsWith"].map((op) => (
+                          <option key={op} value={op}>{op}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Value</span>
+                      <input
+                        value={String(selectedNode.data.config.value || "")}
+                        onChange={(e) => updateNodeConfig("value", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                        placeholder="e.g. 30"
+                      />
+                    </label>
+                  </>
+                ) : selectedNode.data.kind === "validation" ? (
+                  <>
+                    <div className="space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Required Columns</span>
+                      {sourceColumns.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {sourceColumns.map((col) => {
+                            const required = String(selectedNode.data.config.required_columns || "").split(",").map((c) => c.trim()).filter(Boolean);
+                            const isChecked = required.includes(col);
+                            return (
+                              <label key={col} className="inline-flex items-center gap-1 text-sm text-[var(--foreground)]">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const next = isChecked ? required.filter((c) => c !== col) : [...required, col];
+                                    updateNodeConfig("required_columns", next.join(","));
+                                  }}
+                                  className="h-4 w-4 rounded border-[var(--border)]"
+                                />
+                                {col}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input
+                          value={String(selectedNode.data.config.required_columns || "")}
+                          onChange={(e) => updateNodeConfig("required_columns", e.target.value)}
+                          className="input-modern h-10 w-full px-3 text-sm"
+                          placeholder="name,phone"
+                        />
+                      )}
+                    </div>
+                  </>
+                ) : selectedNode.data.kind === "deduplicate" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.dedup_column || "")}
+                      onChange={(v) => updateNodeConfig("dedup_column", v)}
+                      label="Dedup Column"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Keep</span>
+                      <select
+                        value={String(selectedNode.data.config.keep || "first")}
+                        onChange={(e) => updateNodeConfig("keep", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="first">first</option>
+                        <option value="last">last</option>
+                      </select>
+                    </label>
+                  </>
+                ) : selectedNode.data.kind === "normalize_phone" ? (
+                  <>
+                    <ColumnDropdown
+                      columns={sourceColumns}
+                      value={String(selectedNode.data.config.phone_column || "phone")}
+                      onChange={(v) => updateNodeConfig("phone_column", v)}
+                      label="Phone Column"
+                    />
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Country Code</span>
+                      <input
+                        value={String(selectedNode.data.config.country_code || "+977")}
+                        onChange={(e) => updateNodeConfig("country_code", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                        placeholder="+977"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="font-mono-label text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Format</span>
+                      <select
+                        value={String(selectedNode.data.config.format || "e164")}
+                        onChange={(e) => updateNodeConfig("format", e.target.value)}
+                        className="input-modern h-10 w-full px-3 text-sm"
+                      >
+                        <option value="e164">E.164</option>
+                        <option value="national">National</option>
+                        <option value="international">International</option>
+                      </select>
+                    </label>
+                  </>
+                ) : Object.entries(selectedNode.data.config).length === 0 ? (
                   <p className="text-sm text-[var(--muted-foreground)]">No configurable settings for this node.</p>
                 ) : (
                   Object.entries(selectedNode.data.config).map(([key, value]) => (
