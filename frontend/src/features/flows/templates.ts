@@ -1,10 +1,11 @@
 import type { FlowEdge, FlowNode, Template } from "@/features/flows/builderTypes";
 
-const edge = (id: string, source: string, target: string): FlowEdge => ({
+const edge = (id: string, source: string, target: string, sourceHandle?: string): FlowEdge => ({
   id,
   source,
   target,
   animated: true,
+  ...(sourceHandle ? { sourceHandle } : {}),
 });
 
 const node = (
@@ -37,9 +38,9 @@ export const FLOW_TEMPLATES: Template[] = [
     edges: [
       edge("es1", "ts", "ss"),
       edge("es2", "ss", "vs"),
-      edge("es3", "vs", "smss"),
+      edge("es3", "vs", "smss", "valid"),
       edge("es4", "smss", "oks"),
-      edge("es5", "vs", "fails"),
+      edge("es5", "vs", "fails", "invalid"),
     ],
   },
   {
@@ -59,11 +60,11 @@ export const FLOW_TEMPLATES: Template[] = [
     edges: [
       edge("e1", "t1", "s1"),
       edge("e2", "s1", "v1"),
-      edge("e3", "v1", "b1"),
+      edge("e3", "v1", "b1", "valid"),
       edge("e4", "b1", "sms1"),
       edge("e5", "sms1", "voice1"),
       edge("e6", "voice1", "ok1"),
-      edge("e7", "v1", "fail1"),
+      edge("e7", "v1", "fail1", "invalid"),
     ],
   },
   {
@@ -84,13 +85,13 @@ export const FLOW_TEMPLATES: Template[] = [
     edges: [
       edge("e21", "t2", "x1"),
       edge("e22", "x1", "v2"),
-      edge("e23", "v2", "c2"),
-      edge("e24", "c2", "sms2"),
-      edge("e25", "c2", "w2"),
+      edge("e23", "v2", "c2", "valid"),
+      edge("e24", "c2", "sms2", "true"),
+      edge("e25", "c2", "w2", "false"),
       edge("e26", "w2", "voice2"),
       edge("e27", "sms2", "ok2"),
       edge("e28", "voice2", "ok2"),
-      edge("e29", "v2", "fail2"),
+      edge("e29", "v2", "fail2", "invalid"),
     ],
   },
   {
