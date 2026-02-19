@@ -43,9 +43,7 @@ export type FlowNodeData = {
 };
 
 export type FlowNode = Node<FlowNodeData>;
-export type FlowEdge = Edge & {
-  sourceHandle?: string;
-};
+export type FlowEdge = Edge;
 
 export type ValidationIssue = {
   id: string;

@@ -559,7 +559,7 @@ export default function FlowBuilder() {
           labelStyle: isBranching
             ? { fill: sourceHandle === "true" || sourceHandle === "valid" ? "#16A34A" : "#DC2626", fontWeight: 700, fontSize: 11 }
             : undefined,
-        },
+        } as FlowEdge | Connection,
         eds,
       ),
     );
