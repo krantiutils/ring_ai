@@ -5,6 +5,7 @@ from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.credit import Credit
 from app.models.credit_transaction import CreditTransaction
+from app.models.flow_definition import FlowDefinition
 from app.models.form import Form
 from app.models.form_response import FormResponse
 from app.models.gateway_phone import GatewayPhone
@@ -33,6 +34,7 @@ __all__ = [
     "Contact",
     "Credit",
     "CreditTransaction",
+    "FlowDefinition",
     "Form",
     "FormResponse",
     "GatewayPhone",
