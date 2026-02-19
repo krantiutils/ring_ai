@@ -329,6 +329,8 @@ export default function FlowBuilder() {
     if (sourceNode && selectedSourceKind) {
       sourceNode.data.kind = selectedSourceKind;
       sourceNode.data.config = defaultConfig(selectedSourceKind);
+      const paletteItem = palette.find((p) => p.kind === selectedSourceKind);
+      if (paletteItem) sourceNode.data.label = paletteItem.label;
     }
     setNodes(clonedNodes);
     setEdges(clonedEdges);
