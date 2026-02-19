@@ -135,3 +135,25 @@ class TestCompilerErrors:
         edges = [_edge("e1", "t1", "s1"), _edge("e2", "s1", "sms1")]
         with pytest.raises(CompileError, match="end"):
             compile_flow(nodes, edges)
+
+    def test_rejects_cycle(self):
+        nodes = [
+            _node("t1", "trigger_manual"),
+            _node("a", "agent_sms"),
+            _node("b", "agent_sms"),
+            _node("e1", "end_success"),
+        ]
+        edges = [
+            _edge("e1", "t1", "a"),
+            _edge("e2", "a", "b"),
+            _edge("e3", "b", "a"),  # cycle
+            _edge("e4", "b", "e1"),
+        ]
+        with pytest.raises(CompileError, match="cycle"):
+            compile_flow(nodes, edges)
+
+    def test_rejects_dangling_edge_target(self):
+        nodes = [_node("t1", "trigger_manual"), _node("e1", "end_success")]
+        edges = [_edge("e1", "t1", "ghost")]
+        with pytest.raises(CompileError, match="unknown"):
+            compile_flow(nodes, edges)

@@ -36,12 +36,16 @@ _SOURCE_KINDS = {
 def compile_flow(nodes: list[dict], edges: list[dict]) -> ExecutionPlan:
     node_map: dict[str, dict] = {}
     for n in nodes:
+        if n["id"] in node_map:
+            raise CompileError(f"Duplicate node ID: {n['id']!r}")
         node_map[n["id"]] = n
 
     # Find trigger
     triggers = [n for n in nodes if n["data"]["kind"].startswith("trigger_")]
     if not triggers:
         raise CompileError("Flow must contain at least one trigger node.")
+    if len(triggers) > 1:
+        raise CompileError(f"Flow must contain exactly one trigger node; found {len(triggers)}.")
     trigger = triggers[0]
 
     # Find end nodes
@@ -57,6 +61,10 @@ def compile_flow(nodes: list[dict], edges: list[dict]) -> ExecutionPlan:
     for e in edges:
         src = e["source"]
         tgt = e["target"]
+        if src not in node_map:
+            raise CompileError(f"Edge references unknown source node: {src!r}")
+        if tgt not in node_map:
+            raise CompileError(f"Edge references unknown target node: {tgt!r}")
         handle = e.get("sourceHandle")
         adj[src].append((tgt, handle))
         rev_adj[tgt].append((src, handle))
@@ -95,6 +103,9 @@ def compile_flow(nodes: list[dict], edges: list[dict]) -> ExecutionPlan:
                 in_degree[tgt] -= 1
                 if in_degree[tgt] == 0:
                     topo_queue.append(tgt)
+
+    if len(sorted_ids) != len(reachable):
+        raise CompileError("Flow contains a cycle (circular dependency detected).")
 
     # Build steps
     steps: list[ExecutionStep] = []
