@@ -47,6 +47,6 @@ class FlowStepResult(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
     flow_run: Mapped["FlowRun"] = relationship(back_populates="steps")
