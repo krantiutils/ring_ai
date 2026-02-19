@@ -228,6 +228,11 @@ function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
           {data.kind.replaceAll("_", " ")}
         </p>
       </div>
+      {data.kind.startsWith("source_") && data.columns && data.columns.length > 0 ? (
+        <span className="ml-auto rounded-full bg-[var(--accent)] px-2 py-0.5 text-[9px] font-bold text-white">
+          {data.columns.length} cols
+        </span>
+      ) : null}
     </div>
   );
 
@@ -457,6 +462,19 @@ export default function FlowBuilder() {
     }
     return [];
   }, [nodes]);
+
+  useEffect(() => {
+    if (sourceColumns.length === 0) return;
+    const sourceNode = nodes.find((n) => SOURCE_KINDS.includes(n.data.kind));
+    if (!sourceNode) return;
+    const existing = sourceNode.data.columns;
+    if (existing && existing.length === sourceColumns.length && existing.every((c, i) => c === sourceColumns[i])) return;
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === sourceNode.id ? { ...n, data: { ...n.data, columns: sourceColumns } } : n,
+      ),
+    );
+  }, [sourceColumns]);
 
   function startWithSource(kind: FlowNodeKind) {
     const trigger = makeNode("trigger_manual", 100, 80);
