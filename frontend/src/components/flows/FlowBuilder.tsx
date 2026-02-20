@@ -405,6 +405,8 @@ export default function FlowBuilder() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [runState, setRunState] = useState<"idle" | "running" | "finished">("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [flowDefinitionId, setFlowDefinitionId] = useState<string | null>(null);
+  const [backendRunStatus, setBackendRunStatus] = useState<string | null>(null);
   const [selectedSourceKind, setSelectedSourceKind] = useState<FlowNodeKind | null>(null);
   const [needsTemplatePick, setNeedsTemplatePick] = useState(false);
   const [urlTestLoading, setUrlTestLoading] = useState(false);
@@ -591,10 +593,29 @@ export default function FlowBuilder() {
     );
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (typeof window === "undefined") return;
+    // Always save to localStorage as backup
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, edges }));
-    setSavedAt(new Date().toLocaleString());
+    // Save to backend
+    try {
+      const payload = {
+        name: "Flow " + new Date().toLocaleString(),
+        nodes: nodes as unknown[],
+        edges: edges as unknown[],
+        status: "draft",
+      };
+      if (flowDefinitionId) {
+        await api.updateFlowDefinition(flowDefinitionId, payload);
+      } else {
+        const res = await api.createFlowDefinition(payload);
+        setFlowDefinitionId(res.id);
+      }
+      setSavedAt(new Date().toLocaleString());
+    } catch {
+      // Fallback — localStorage save already happened
+      setSavedAt(new Date().toLocaleString() + " (local only)");
+    }
   }
 
   function loadDraft() {
@@ -864,12 +885,49 @@ export default function FlowBuilder() {
               <button
                 onClick={runSimulation}
                 disabled={runState === "running" || fatalIssues.length > 0}
-                className="btn-primary-modern inline-flex h-10 items-center gap-2 px-4 text-sm disabled:opacity-60"
+                className="btn-outline-modern inline-flex h-10 items-center gap-2 px-4 text-sm disabled:opacity-60"
               >
                 {runState === "running" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                Simulate Run
+                Validate
               </button>
-              <span className="ml-auto font-mono-label text-[11px] uppercase tracking-[0.13em] text-[var(--muted-foreground)]">
+              <button
+                onClick={async () => {
+                  setBackendRunStatus("saving...");
+                  try {
+                    // Save to backend first
+                    const payload = {
+                      name: "Flow " + new Date().toLocaleString(),
+                      nodes: nodes as unknown[],
+                      edges: edges as unknown[],
+                      status: "active",
+                    };
+                    let fid = flowDefinitionId;
+                    if (fid) {
+                      await api.updateFlowDefinition(fid, payload);
+                    } else {
+                      const res = await api.createFlowDefinition(payload);
+                      fid = res.id;
+                      setFlowDefinitionId(fid);
+                    }
+                    setSavedAt(new Date().toLocaleString());
+                    // Trigger run
+                    setBackendRunStatus("running...");
+                    const run = await api.triggerFlowRun(fid);
+                    setBackendRunStatus(`Run ${run.status} (${run.id.slice(0, 8)})`);
+                    // After a short delay show completed (backend runs in background)
+                    setTimeout(() => setBackendRunStatus("completed"), 3000);
+                  } catch (err) {
+                    setBackendRunStatus(`Error: ${err instanceof Error ? err.message : "unknown"}`);
+                  }
+                }}
+                disabled={fatalIssues.length > 0 || nodes.length === 0}
+                className="btn-primary-modern inline-flex h-10 items-center gap-2 px-4 text-sm disabled:opacity-60"
+              >
+                <PlayCircle className="h-4 w-4" />
+                Run Flow
+              </button>
+              <span className="ml-auto flex items-center gap-3 font-mono-label text-[11px] uppercase tracking-[0.13em] text-[var(--muted-foreground)]">
+                {backendRunStatus && <span className="text-[var(--accent)]">{backendRunStatus}</span>}
                 {savedAt ? `saved ${savedAt}` : "unsaved"}
               </span>
             </div>

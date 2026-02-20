@@ -23,6 +23,8 @@ dependencies = [
     "google-genai>=1.63.0",
     "pgvector>=0.3.6",
     "pypdf>=5.0.0",
+    "celery[redis]>=5.4.0",
+    "redis>=5.0.0",
 ]
 
 [dependency-groups]
