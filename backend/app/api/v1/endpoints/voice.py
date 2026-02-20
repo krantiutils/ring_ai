@@ -826,6 +826,24 @@ async def serve_twiml(call_id: str):
     return PlainTextResponse(content=twiml, media_type="text/xml")
 
 
+@router.post("/flow-twiml/{call_id}")
+async def serve_flow_twiml(call_id: str):
+    """TwiML for flow-dispatched voice calls — uses <Say> with the script text."""
+    from app.services.flow_dispatch import flow_script_store
+
+    script = flow_script_store.get(call_id)
+    if script is None:
+        logger.warning("Flow TwiML requested for unknown call_id: %s", call_id)
+        raise HTTPException(status_code=404, detail="Flow script not found")
+
+    from twilio.twiml.voice_response import VoiceResponse
+    response = VoiceResponse()
+    response.say(script, language="ne-NP")
+    response.hangup()
+
+    return PlainTextResponse(content=str(response), media_type="text/xml")
+
+
 @router.get("/audio/{audio_id}")
 async def serve_audio(audio_id: str):
     """Serve synthesized TTS audio to Twilio.
