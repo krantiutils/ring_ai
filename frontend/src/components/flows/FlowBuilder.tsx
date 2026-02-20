@@ -164,12 +164,12 @@ export default function FlowBuilder() {
   function handleWizardComplete(
     sourceKind: FlowNodeKind,
     config: Record<string, string>,
-    columns: string[],
+    columns: ColumnDef[],
   ) {
     const trigger = makeNode("trigger_manual", 80, 200);
     const source = makeNode(sourceKind, 300, 200);
     source.data.config = { ...source.data.config, ...config };
-    source.data.columns = columns.map((c): ColumnDef => ({ name: c, type: "text" }));
+    source.data.columns = columns;
     const end = makeNode("end_success", 520, 200);
     setNodes([trigger, source, end]);
     setEdges([
