@@ -8,6 +8,7 @@ import {
   Controls,
   MarkerType,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -20,6 +21,7 @@ import { api } from "@/lib/api";
 
 import SourceWizard from "./SourceWizard";
 import NodeCard from "./NodeCard";
+import DeletableEdge from "./DeletableEdge";
 import AddNodeMenu from "./AddNodeMenu";
 import NodeInspector from "./NodeInspector";
 import FlowToolbar from "./FlowToolbar";
@@ -40,6 +42,14 @@ const SOURCE_KINDS: FlowNodeKind[] = [
 ];
 
 const NODE_TYPES = { flowNode: NodeCard };
+const EDGE_TYPES = { deletable: DeletableEdge };
+const DEFAULT_EDGE_OPTIONS = {
+  type: "deletable" as const,
+  selectable: true,
+  deletable: true,
+  animated: true,
+  markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+};
 
 /* ── Helpers (preserved from original) ──────────────────── */
 
@@ -116,7 +126,7 @@ function wouldCreateCycle(sourceId: string, targetId: string, edges: Array<{ sou
 
 /* ── Main Component ─────────────────────────────────────── */
 
-export default function FlowBuilder() {
+function FlowBuilderInner() {
   const [mode, setMode] = useState<"wizard" | "canvas">("wizard");
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -149,7 +159,7 @@ export default function FlowBuilder() {
           data: { ...n.data, columns: migrateColumns(n.data.columns as unknown as (string | ColumnDef)[]) },
         }));
         setNodes(migratedNodes as FlowNode[]);
-        setEdges(parsed.edges ?? []);
+        setEdges((parsed.edges ?? []).map((e: FlowEdge) => ({ ...e, type: e.type || "deletable" })));
         if (parsed.flowName) setFlowName(parsed.flowName);
         if (parsed.flowDefinitionId) setFlowDefinitionId(parsed.flowDefinitionId);
         setMode("canvas");
@@ -173,8 +183,8 @@ export default function FlowBuilder() {
     const end = makeNode("end_success", 520, 200);
     setNodes([trigger, source, end]);
     setEdges([
-      { id: `e-${trigger.id}-${source.id}`, source: trigger.id, target: source.id, animated: true, markerEnd: { type: MarkerType.ArrowClosed } },
-      { id: `e-${source.id}-${end.id}`, source: source.id, target: end.id, animated: true, markerEnd: { type: MarkerType.ArrowClosed } },
+      { id: `e-${trigger.id}-${source.id}`, source: trigger.id, target: source.id, type: "deletable" },
+      { id: `e-${source.id}-${end.id}`, source: source.id, target: end.id, type: "deletable" },
     ]);
     setMode("canvas");
   }
@@ -252,8 +262,6 @@ export default function FlowBuilder() {
           {
             ...params,
             sourceHandle,
-            animated: true,
-            markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
             style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
             label: isBranching ? sourceHandle : isLoopback ? "loopback" : branchLabel,
             labelStyle: isBranching
@@ -358,11 +366,14 @@ export default function FlowBuilder() {
             nodes={nodes}
             edges={edges}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
+            deleteKeyCode={["Backspace", "Delete"]}
             fitView
             proOptions={{ hideAttribution: true }}
           >
@@ -394,5 +405,13 @@ export default function FlowBuilder() {
         runStatus={backendRunStatus}
       />
     </div>
+  );
+}
+
+export default function FlowBuilder() {
+  return (
+    <ReactFlowProvider>
+      <FlowBuilderInner />
+    </ReactFlowProvider>
   );
 }
