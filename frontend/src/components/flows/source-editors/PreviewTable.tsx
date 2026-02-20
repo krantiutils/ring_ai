@@ -20,9 +20,9 @@ export default function PreviewTable({ headers, rows, totalRows }: PreviewTableP
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-[var(--muted)]">
             <tr>
-              {headers.map((h) => (
+              {headers.map((h, ci) => (
                 <th
-                  key={h}
+                  key={ci}
                   className="px-2 py-1.5 text-left font-bold uppercase text-[var(--muted-foreground)]"
                 >
                   {h}
