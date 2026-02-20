@@ -76,3 +76,11 @@ export type ColumnDef = { name: string; type: ColumnType };
 export function columnNames(columns?: ColumnDef[]): string[] {
   return columns?.map((c) => c.name) ?? [];
 }
+
+/** Migrate old string[] columns (from localStorage) to ColumnDef[]. */
+export function migrateColumns(columns?: (string | ColumnDef)[]): ColumnDef[] | undefined {
+  if (!columns || columns.length === 0) return undefined;
+  return columns.map((c) =>
+    typeof c === "string" ? { name: c, type: "text" as ColumnType } : c,
+  );
+}

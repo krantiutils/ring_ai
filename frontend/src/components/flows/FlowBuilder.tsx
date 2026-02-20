@@ -12,7 +12,7 @@ import {
   useNodesState,
   type Connection,
 } from "@xyflow/react";
-import type { FlowEdge, FlowNode, FlowNodeKind, ColumnDef } from "@/features/flows/builderTypes";
+import { migrateColumns, type FlowEdge, type FlowNode, type FlowNodeKind, type ColumnDef } from "@/features/flows/builderTypes";
 import { validateFlow, simulateContactsCount } from "@/features/flows/validation";
 import { useVariableContext } from "@/features/flows/useVariableContext";
 import { PALETTE_NODES } from "@/features/flows/nodeRegistry";
@@ -144,7 +144,11 @@ export default function FlowBuilder() {
     try {
       const parsed = JSON.parse(raw) as { nodes: FlowNode[]; edges: FlowEdge[]; flowName?: string; flowDefinitionId?: string };
       if (parsed.nodes?.length) {
-        setNodes(parsed.nodes);
+        const migratedNodes = parsed.nodes.map((n) => ({
+          ...n,
+          data: { ...n.data, columns: migrateColumns(n.data.columns as unknown as (string | ColumnDef)[]) },
+        }));
+        setNodes(migratedNodes as FlowNode[]);
         setEdges(parsed.edges ?? []);
         if (parsed.flowName) setFlowName(parsed.flowName);
         if (parsed.flowDefinitionId) setFlowDefinitionId(parsed.flowDefinitionId);

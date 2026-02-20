@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { FlowEdge, FlowNode } from "./builderTypes";
+import { columnNames } from "./builderTypes";
 import { parseCsv } from "./validation";
 
 /**
@@ -61,8 +62,7 @@ export function useVariableContext(
 
 function extractColumns(node: FlowNode): string[] {
   const { kind, config, columns } = node.data;
-  if (columns && columns.length > 0)
-    return (columns as (string | { name: string })[]).map(c => typeof c === 'string' ? c : c.name);
+  if (columns && columns.length > 0) return columnNames(columns);
 
   if (kind === "source_numbers") return ["phone"];
   if (kind === "source_google_contacts") return ["name", "phone", "email"];
