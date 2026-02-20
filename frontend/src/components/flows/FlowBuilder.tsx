@@ -219,6 +219,24 @@ export default function FlowBuilder() {
         sourceHandle = !used.has(trueLabel) ? trueLabel : !used.has(falseLabel) ? falseLabel : undefined;
       }
 
+      // Auto-label edges for multi-output non-branching nodes (dtmf_menu, etc.)
+      let branchLabel: string | undefined;
+      if (!isBranching) {
+        const existingLabels = new Set(
+          edges.filter((e) => e.source === params.source).map((e) => e.label).filter(Boolean),
+        );
+        if (srcNode.data.kind === "dtmf_menu") {
+          for (let i = 1; i <= existingLabels.size + 1; i++) {
+            if (!existingLabels.has(`press_${i}`)) { branchLabel = `press_${i}`; break; }
+          }
+        } else if (existingLabels.size >= 1) {
+          for (let i = 1; i <= existingLabels.size + 1; i++) {
+            const label = `path_${String.fromCharCode(96 + i)}`;
+            if (!existingLabels.has(label)) { branchLabel = label; break; }
+          }
+        }
+      }
+
       setEdges((eds) =>
         addEdge(
           {
@@ -227,7 +245,7 @@ export default function FlowBuilder() {
             animated: true,
             markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
             style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
-            label: isBranching ? sourceHandle : isLoopback ? "loopback" : undefined,
+            label: isBranching ? sourceHandle : isLoopback ? "loopback" : branchLabel,
             labelStyle: isBranching
               ? {
                   fill: sourceHandle === "true" || sourceHandle === "valid" ? "#16A34A" : "#DC2626",

@@ -5,7 +5,6 @@ import { X } from "lucide-react";
 import type { FlowNode } from "@/features/flows/builderTypes";
 import { NODE_ICON, getNodeColor } from "@/features/flows/nodeRegistry";
 import ConditionRuleBuilder from "./ConditionRuleBuilder";
-import { parseCsv } from "@/features/flows/validation";
 
 type NodeInspectorProps = {
   node: FlowNode;
