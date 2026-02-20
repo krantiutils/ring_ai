@@ -120,6 +120,14 @@ export function getNodeColor(kind: FlowNodeKind): string {
   return CATEGORY_COLORS.processing;
 }
 
+export function getCategoryForKind(kind: FlowNodeKind): string {
+  if (kind.startsWith("trigger_")) return "Trigger";
+  if (kind.startsWith("source_")) return "Source";
+  if (kind === "end_success" || kind === "end_failure") return "End";
+  const found = PALETTE_NODES.find((n) => n.kind === kind);
+  return found ? CATEGORY_META[found.category].label : "Other";
+}
+
 /* ── Source choices (for wizard) ─────────────────────────── */
 
 export type SourceChoice = {
