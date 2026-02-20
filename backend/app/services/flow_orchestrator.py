@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.flow_definition import FlowDefinition
 from app.models.flow_run import FlowRun, FlowStepResult
 from app.services.flow_compiler import compile_flow, ExecutionStep
+from app.services.flow_dispatch import DispatchResult, dispatch_action
 from app.services.flow_executors import (
     execute_condition,
     execute_deduplicate,
@@ -143,8 +144,19 @@ def _execute_step(
     if kind in _ACTION_KINDS:
         if not input_rows:
             return [], None, None, "skipped"
-        # For now, action nodes pass through rows (dispatch added later)
-        return input_rows, None, None, "completed"
+        dispatched_rows = []
+        failed_count = 0
+        for row in input_rows:
+            result = dispatch_action(kind, row, config)
+            enriched = dict(row)
+            enriched["_dispatch_status"] = result.status
+            enriched["_dispatch_id"] = result.provider_id
+            if result.error:
+                enriched["_dispatch_error"] = result.error
+                failed_count += 1
+            dispatched_rows.append(enriched)
+        status = "completed" if failed_count == 0 else "partial"
+        return dispatched_rows, None, None, status
 
     if kind in ("end_success", "end_failure"):
         return input_rows, None, None, "completed"
