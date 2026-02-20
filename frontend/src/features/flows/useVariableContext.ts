@@ -61,7 +61,8 @@ export function useVariableContext(
 
 function extractColumns(node: FlowNode): string[] {
   const { kind, config, columns } = node.data;
-  if (columns && columns.length > 0) return columns;
+  if (columns && columns.length > 0)
+    return (columns as (string | { name: string })[]).map(c => typeof c === 'string' ? c : c.name);
 
   if (kind === "source_numbers") return ["phone"];
   if (kind === "source_google_contacts") return ["name", "phone", "email"];

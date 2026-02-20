@@ -12,7 +12,7 @@ import {
   useNodesState,
   type Connection,
 } from "@xyflow/react";
-import type { FlowEdge, FlowNode, FlowNodeKind } from "@/features/flows/builderTypes";
+import type { FlowEdge, FlowNode, FlowNodeKind, ColumnDef } from "@/features/flows/builderTypes";
 import { validateFlow, simulateContactsCount } from "@/features/flows/validation";
 import { useVariableContext } from "@/features/flows/useVariableContext";
 import { PALETTE_NODES } from "@/features/flows/nodeRegistry";
@@ -165,7 +165,7 @@ export default function FlowBuilder() {
     const trigger = makeNode("trigger_manual", 80, 200);
     const source = makeNode(sourceKind, 300, 200);
     source.data.config = { ...source.data.config, ...config };
-    source.data.columns = columns;
+    source.data.columns = columns.map((c): ColumnDef => ({ name: c, type: "text" }));
     const end = makeNode("end_success", 520, 200);
     setNodes([trigger, source, end]);
     setEdges([

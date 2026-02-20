@@ -1,4 +1,5 @@
 import type { FlowEdge, FlowNode, ValidationIssue } from "@/features/flows/builderTypes";
+import { columnNames } from "@/features/flows/builderTypes";
 
 function getIncoming(nodeId: string, edges: FlowEdge[], nodes: FlowNode[]) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -108,12 +109,12 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
         n.data.kind === "source_url_csv",
       );
       if (sourceNode?.data.columns && sourceNode.data.columns.length > 0) {
-        if (!sourceNode.data.columns.includes(String(cfg.field))) {
+        if (!columnNames(sourceNode.data.columns).includes(String(cfg.field))) {
           issues.push({
             id: `condition-bad-field-${node.id}`,
             severity: "warning",
             nodeId: node.id,
-            message: `Condition field "${cfg.field}" is not in source columns: ${sourceNode.data.columns.join(", ")}`,
+            message: `Condition field "${cfg.field}" is not in source columns: ${columnNames(sourceNode.data.columns).join(", ")}`,
           });
         }
       }

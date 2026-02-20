@@ -39,7 +39,7 @@ export type FlowNodeData = {
   kind: FlowNodeKind;
   description?: string;
   config: Record<string, string | number | boolean>;
-  columns?: string[];
+  columns?: ColumnDef[];
 };
 
 export type FlowNode = Node<FlowNodeData>;
@@ -66,3 +66,13 @@ export type ConditionRule = {
   operator: string;
   value: string;
 };
+
+export type ColumnType =
+  | "text" | "number" | "phone" | "email" | "date"
+  | "boolean" | "url" | "array" | "object" | "datetime" | "binary";
+
+export type ColumnDef = { name: string; type: ColumnType };
+
+export function columnNames(columns?: ColumnDef[]): string[] {
+  return columns?.map((c) => c.name) ?? [];
+}
