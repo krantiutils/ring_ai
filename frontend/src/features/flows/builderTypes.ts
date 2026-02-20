@@ -60,3 +60,9 @@ export type Template = {
   nodes: FlowNode[];
   edges: FlowEdge[];
 };
+
+export type ConditionRule = {
+  field: string;
+  operator: string;
+  value: string;
+};
