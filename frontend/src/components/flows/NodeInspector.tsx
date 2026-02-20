@@ -2,14 +2,20 @@
 
 import React, { useState } from "react";
 import { X } from "lucide-react";
-import type { FlowNode } from "@/features/flows/builderTypes";
+import type { FlowNode, FlowNodeData, ColumnDef } from "@/features/flows/builderTypes";
 import { NODE_ICON, getNodeColor } from "@/features/flows/nodeRegistry";
+import { api } from "@/lib/api";
 import ConditionRuleBuilder from "./ConditionRuleBuilder";
+import ManualTableEditor from "./source-editors/ManualTableEditor";
+import UrlSourceEditor from "./source-editors/UrlSourceEditor";
+import FileUploadEditor from "./source-editors/FileUploadEditor";
+import NumberPasteEditor from "./source-editors/NumberPasteEditor";
 
 type NodeInspectorProps = {
   node: FlowNode;
   columns: string[];
   onUpdate: (key: string, value: string) => void;
+  onUpdateData: (nodeId: string, partial: Partial<FlowNodeData>) => void;
   onClose: () => void;
   onDelete: () => void;
 };
@@ -18,6 +24,7 @@ export default function NodeInspector({
   node,
   columns,
   onUpdate,
+  onUpdateData,
   onClose,
   onDelete,
 }: NodeInspectorProps) {
@@ -213,6 +220,38 @@ export default function NodeInspector({
           />
         )}
 
+        {/* ── Source: Manual Table Inspector ────────── */}
+        {data.kind === "source_manual_table" && (
+          <ManualTableInspector node={node} onUpdate={onUpdate} onUpdateData={onUpdateData} />
+        )}
+
+        {/* ── Source: URL (JSON/CSV) Inspector ────────── */}
+        {(data.kind === "source_url_json" || data.kind === "source_url_csv") && (
+          <UrlSourceInspector node={node} onUpdate={onUpdate} onUpdateData={onUpdateData} />
+        )}
+
+        {/* ── Source: File Upload (CSV/XLSX) Inspector ── */}
+        {(data.kind === "source_csv" || data.kind === "source_xlsx") && (
+          <FileUploadInspector node={node} onUpdate={onUpdate} onUpdateData={onUpdateData} />
+        )}
+
+        {/* ── Source: Numbers Inspector ───────────────── */}
+        {data.kind === "source_numbers" && (
+          <NumbersInspector node={node} onUpdate={onUpdate} />
+        )}
+
+        {/* ── Source: Google Contacts (placeholder) ───── */}
+        {data.kind === "source_google_contacts" && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              Google Contacts
+            </p>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Google Contacts integration is not yet available. Connect your account in Settings to enable this source.
+            </p>
+          </div>
+        )}
+
         {/* ── Generic Config (fallback) ────────────── */}
         {![
           "agent_sms",
@@ -224,6 +263,13 @@ export default function NodeInspector({
           "normalize_phone",
           "wait",
           "rate_limit",
+          "source_manual_table",
+          "source_csv",
+          "source_xlsx",
+          "source_url_json",
+          "source_url_csv",
+          "source_numbers",
+          "source_google_contacts",
         ].includes(data.kind) && (
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -436,5 +482,211 @@ function ColumnSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+/* ── Source Inspector Wrappers ──────────────────────────── */
+
+/** Parse CSV string into header row + data rows. */
+function parseSampleCsv(csv: string): { headers: string[]; rows: string[][] } {
+  const lines = csv.split("\n").filter((l) => l.trim());
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const headers = lines[0].split(",").map((h) => h.trim());
+  const rows = lines.slice(1).map((l) => l.split(",").map((c) => c.trim()));
+  return { headers, rows };
+}
+
+/** Rebuild a CSV string from headers + rows. */
+function buildSampleCsv(headers: ColumnDef[], rows: string[][]): string {
+  const headerLine = headers.map((h) => h.name).join(",");
+  const dataLines = rows.map((r) => r.join(","));
+  return [headerLine, ...dataLines].join("\n");
+}
+
+type SourceInspectorProps = {
+  node: FlowNode;
+  onUpdate: (key: string, value: string) => void;
+  onUpdateData: (nodeId: string, partial: Partial<FlowNodeData>) => void;
+};
+
+function ManualTableInspector({ node, onUpdate, onUpdateData }: SourceInspectorProps) {
+  const { data } = node;
+
+  // Derive headers from node.data.columns, falling back to parsing config.table_columns
+  const headers: ColumnDef[] = React.useMemo(() => {
+    if (data.columns && data.columns.length > 0) return data.columns;
+    const raw = String(data.config.table_columns ?? "");
+    if (!raw.trim()) return [{ name: "name", type: "text" as const }, { name: "phone", type: "phone" as const }];
+    return raw.split(",").map((n) => ({ name: n.trim(), type: "text" as const }));
+  }, [data.columns, data.config.table_columns]);
+
+  // Derive rows from config.sample_csv
+  const rows: string[][] = React.useMemo(() => {
+    const csv = String(data.config.sample_csv ?? "");
+    if (!csv.trim()) return [headers.map(() => "")];
+    const parsed = parseSampleCsv(csv);
+    return parsed.rows.length > 0 ? parsed.rows : [headers.map(() => "")];
+  }, [data.config.sample_csv, headers]);
+
+  function handleHeadersChange(newHeaders: ColumnDef[]) {
+    onUpdateData(node.id, { columns: newHeaders });
+    onUpdate("table_columns", newHeaders.map((h) => h.name).join(","));
+    // Rebuild sample_csv with new headers
+    onUpdate("sample_csv", buildSampleCsv(newHeaders, rows));
+  }
+
+  function handleRowsChange(newRows: string[][]) {
+    onUpdate("sample_csv", buildSampleCsv(headers, newRows));
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+        Manual Table
+      </p>
+      <ManualTableEditor
+        headers={headers}
+        rows={rows}
+        onHeadersChange={handleHeadersChange}
+        onRowsChange={handleRowsChange}
+        compact
+      />
+    </div>
+  );
+}
+
+function UrlSourceInspector({ node, onUpdate, onUpdateData }: SourceInspectorProps) {
+  const { data } = node;
+  const [url, setUrl] = useState(String(data.config.url ?? ""));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ headers: string[]; rows: string[][]; totalRows: number } | null>(null);
+  const sourceLabel = data.kind === "source_url_json" ? "JSON" : "CSV";
+
+  async function handleFetch() {
+    if (!url.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.previewFlowUrlSource({
+        url,
+        source_kind: data.kind as "source_url_json" | "source_url_csv",
+      });
+      setPreview({
+        headers: res.headers,
+        rows: res.preview_rows,
+        totalRows: res.total_rows,
+      });
+      // Persist config
+      onUpdate("url", url);
+      onUpdate("mapping", res.mapping);
+      onUpdate("estimated_rows", String(res.total_rows));
+      onUpdate("sample_csv", res.sample_csv);
+      // Update columns on node data
+      const cols: ColumnDef[] = res.headers.map((h) => ({ name: h, type: "text" as const }));
+      onUpdateData(node.id, { columns: cols });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch URL");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+        {sourceLabel} URL Source
+      </p>
+      <UrlSourceEditor
+        url={url}
+        onUrlChange={(v) => { setUrl(v); onUpdate("url", v); }}
+        loading={loading}
+        error={error}
+        preview={preview}
+        onFetch={handleFetch}
+        sourceLabel={sourceLabel}
+        compact
+      />
+    </div>
+  );
+}
+
+function FileUploadInspector({ node, onUpdate, onUpdateData }: SourceInspectorProps) {
+  const { data } = node;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ headers: string[]; rows: string[][]; totalRows: number } | null>(null);
+
+  async function handleUpload(file: File) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.uploadSourceFile(file);
+      setPreview({
+        headers: res.headers,
+        rows: res.preview_rows,
+        totalRows: res.total_rows,
+      });
+      // Persist config
+      onUpdate("file_id", res.file_id);
+      onUpdate("file_headers", res.headers.join(","));
+      onUpdate("total_rows", String(res.total_rows));
+      // Build sample CSV
+      const headerLine = res.headers.join(",");
+      const dataLines = res.preview_rows.map((r) => r.join(","));
+      onUpdate("sample_csv", [headerLine, ...dataLines].join("\n"));
+      // Update columns on node data
+      const cols: ColumnDef[] = res.headers.map((h) => ({ name: h, type: "text" as const }));
+      onUpdateData(node.id, { columns: cols });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+        File Upload
+      </p>
+      <FileUploadEditor
+        sourceKind={data.kind}
+        loading={loading}
+        error={error}
+        preview={preview}
+        onUpload={handleUpload}
+        compact
+      />
+    </div>
+  );
+}
+
+function NumbersInspector({ node, onUpdate }: { node: FlowNode; onUpdate: (key: string, value: string) => void }) {
+  const { data } = node;
+  // Convert comma-separated to newline-separated for display
+  const numbersText = String(data.config.numbers ?? "").replace(/,/g, "\n");
+
+  function handleChange(text: string) {
+    // Store as comma-separated in config
+    const normalized = text
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(",");
+    onUpdate("numbers", normalized);
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+        Phone Numbers
+      </p>
+      <NumberPasteEditor
+        numbersText={numbersText}
+        onNumbersChange={handleChange}
+        compact
+      />
+    </div>
   );
 }

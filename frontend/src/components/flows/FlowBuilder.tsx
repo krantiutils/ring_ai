@@ -12,7 +12,7 @@ import {
   useNodesState,
   type Connection,
 } from "@xyflow/react";
-import { migrateColumns, type FlowEdge, type FlowNode, type FlowNodeKind, type ColumnDef } from "@/features/flows/builderTypes";
+import { migrateColumns, type FlowEdge, type FlowNode, type FlowNodeData, type FlowNodeKind, type ColumnDef } from "@/features/flows/builderTypes";
 import { validateFlow, simulateContactsCount } from "@/features/flows/validation";
 import { useVariableContext } from "@/features/flows/useVariableContext";
 import { PALETTE_NODES } from "@/features/flows/nodeRegistry";
@@ -204,6 +204,12 @@ export default function FlowBuilder() {
     );
   }
 
+  function updateNodeData(nodeId: string, partial: Partial<FlowNodeData>) {
+    setNodes((prev) =>
+      prev.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, ...partial } } : n),
+    );
+  }
+
   const onConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
@@ -372,6 +378,7 @@ export default function FlowBuilder() {
               node={selectedNode}
               columns={variableContext[selectedNode.id] ?? []}
               onUpdate={updateNodeConfig}
+              onUpdateData={updateNodeData}
               onClose={() => setSelectedNodeId(null)}
               onDelete={() => deleteNode(selectedNode.id)}
             />
