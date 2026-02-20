@@ -11,6 +11,7 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
   type Connection,
 } from "@xyflow/react";
 import { migrateColumns, type FlowEdge, type FlowNode, type FlowNodeData, type FlowNodeKind, type ColumnDef } from "@/features/flows/builderTypes";
@@ -23,6 +24,8 @@ import SourceWizard from "./SourceWizard";
 import NodeCard from "./NodeCard";
 import DeletableEdge from "./DeletableEdge";
 import AddNodeMenu from "./AddNodeMenu";
+import CanvasContextMenu from "./CanvasContextMenu";
+import type { ContextMenuTarget } from "./CanvasContextMenu";
 import NodeInspector from "./NodeInspector";
 import FlowToolbar from "./FlowToolbar";
 import StatusBar from "./StatusBar";
@@ -137,6 +140,11 @@ function FlowBuilderInner() {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [backendRunStatus, setBackendRunStatus] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuTarget | null>(null);
+  const [clipboard, setClipboard] = useState<FlowNode | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+
+  const { fitView, screenToFlowPosition } = useReactFlow();
 
   // Computed values
   const variableContext = useVariableContext(nodes, edges);
@@ -335,6 +343,95 @@ function FlowBuilderInner() {
     }
   }
 
+  // ── Context menu handlers ────────────────────────────
+
+  function handlePaneContextMenu(event: MouseEvent | React.MouseEvent) {
+    event.preventDefault();
+    setContextMenu({ type: "pane", x: event.clientX, y: event.clientY });
+  }
+
+  function handleNodeContextMenu(event: React.MouseEvent, node: FlowNode) {
+    event.preventDefault();
+    setContextMenu({ type: "node", nodeId: node.id, x: event.clientX, y: event.clientY });
+  }
+
+  function handleEdgeContextMenu(event: React.MouseEvent, edge: FlowEdge) {
+    event.preventDefault();
+    setContextMenu({ type: "edge", edgeId: edge.id, x: event.clientX, y: event.clientY });
+  }
+
+  function handleContextMenuAction(action: string) {
+    if (!contextMenu) return;
+    switch (action) {
+      case "fit-view":
+        fitView();
+        break;
+      case "toggle-grid":
+        setShowGrid((prev) => !prev);
+        break;
+      case "select-all": {
+        setNodes((prev) =>
+          prev.map((n) => ({ ...n, selected: true })),
+        );
+        break;
+      }
+      case "paste": {
+        if (clipboard && contextMenu.type === "pane") {
+          const flowPos = screenToFlowPosition({ x: contextMenu.x, y: contextMenu.y });
+          const copy = makeNode(clipboard.data.kind, flowPos.x, flowPos.y);
+          copy.data.config = { ...clipboard.data.config };
+          copy.data.label = clipboard.data.label;
+          copy.data.description = clipboard.data.description;
+          if (clipboard.data.columns) copy.data.columns = [...clipboard.data.columns];
+          setNodes((prev) => [...prev, copy]);
+          setSelectedNodeId(copy.id);
+        }
+        break;
+      }
+      case "delete-node": {
+        if (contextMenu.type === "node") deleteNode(contextMenu.nodeId);
+        break;
+      }
+      case "duplicate-node": {
+        if (contextMenu.type === "node") {
+          const orig = nodes.find((n) => n.id === contextMenu.nodeId);
+          if (orig) {
+            const dup = makeNode(orig.data.kind, orig.position.x + 40, orig.position.y + 40);
+            dup.data.config = { ...orig.data.config };
+            dup.data.label = orig.data.label;
+            dup.data.description = orig.data.description;
+            if (orig.data.columns) dup.data.columns = [...orig.data.columns];
+            setNodes((prev) => [...prev, dup]);
+            setSelectedNodeId(dup.id);
+          }
+        }
+        break;
+      }
+      case "disconnect-node": {
+        if (contextMenu.type === "node") {
+          setEdges((prev) =>
+            prev.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId),
+          );
+        }
+        break;
+      }
+      case "copy-node": {
+        if (contextMenu.type === "node") {
+          const orig = nodes.find((n) => n.id === contextMenu.nodeId);
+          if (orig) setClipboard(orig);
+        }
+        break;
+      }
+      case "delete-edge": {
+        if (contextMenu.type === "edge") {
+          setEdges((prev) => prev.filter((e) => e.id !== contextMenu.edgeId));
+        }
+        break;
+      }
+    }
+    setContextMenu(null);
+  }
+
   // ── Render ────────────────────────────────────────────
 
   if (mode === "wizard") {
@@ -372,12 +469,15 @@ function FlowBuilderInner() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onPaneClick={() => setSelectedNodeId(null)}
+            onPaneClick={() => { setSelectedNodeId(null); setContextMenu(null); }}
+            onPaneContextMenu={handlePaneContextMenu}
+            onNodeContextMenu={handleNodeContextMenu}
+            onEdgeContextMenu={handleEdgeContextMenu}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+            {showGrid && <Background variant={BackgroundVariant.Dots} gap={16} size={1} />}
             <Controls position="bottom-right" />
           </ReactFlow>
         </div>
@@ -404,6 +504,14 @@ function FlowBuilderInner() {
         warningCount={warningCount}
         runStatus={backendRunStatus}
       />
+
+      {contextMenu && (
+        <CanvasContextMenu
+          target={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onAction={handleContextMenuAction}
+        />
+      )}
     </div>
   );
 }
