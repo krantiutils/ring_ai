@@ -5,6 +5,7 @@ type StatusBarProps = {
   contactCount: number;
   errorCount: number;
   warningCount: number;
+  runStatus?: string | null;
 };
 
 export default function StatusBar({
@@ -12,6 +13,7 @@ export default function StatusBar({
   contactCount,
   errorCount,
   warningCount,
+  runStatus,
 }: StatusBarProps) {
   const valid = errorCount === 0;
   return (
@@ -25,6 +27,11 @@ export default function StatusBar({
       <span>{nodeCount} nodes</span>
       <span>{contactCount} contacts</span>
       {warningCount > 0 && <span className="text-yellow-600">{warningCount} warnings</span>}
+      {runStatus && (
+        <span className={`ml-auto ${runStatus === "error" ? "text-red-500" : "text-[var(--accent)]"}`}>
+          Run: {runStatus}
+        </span>
+      )}
     </div>
   );
 }

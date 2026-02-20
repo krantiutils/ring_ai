@@ -13,7 +13,7 @@ import {
   type Connection,
 } from "@xyflow/react";
 import type { FlowEdge, FlowNode, FlowNodeKind } from "@/features/flows/builderTypes";
-import { validateFlow, simulateContactsCount, reachableNodeCount } from "@/features/flows/validation";
+import { validateFlow, simulateContactsCount } from "@/features/flows/validation";
 import { useVariableContext } from "@/features/flows/useVariableContext";
 import { PALETTE_NODES } from "@/features/flows/nodeRegistry";
 import { api } from "@/lib/api";
@@ -261,7 +261,7 @@ export default function FlowBuilder() {
     [nodes, edges],
   );
 
-  async function saveDraft() {
+  async function saveDraft(): Promise<string | null> {
     setSaving(true);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, edges, flowName, flowDefinitionId }));
@@ -270,27 +270,32 @@ export default function FlowBuilder() {
       const payload = { name: flowName, nodes: nodes as unknown[], edges: edges as unknown[], status: "draft" };
       if (flowDefinitionId) {
         await api.updateFlowDefinition(flowDefinitionId, payload);
+        setSavedAt(new Date().toLocaleTimeString());
+        return flowDefinitionId;
       } else {
         const res = await api.createFlowDefinition(payload);
         setFlowDefinitionId(res.id);
+        setSavedAt(new Date().toLocaleTimeString());
+        return res.id;
       }
-      setSavedAt(new Date().toLocaleTimeString());
     } catch {
       setSavedAt(new Date().toLocaleTimeString() + " (local only)");
+      return flowDefinitionId;
     } finally {
       setSaving(false);
     }
   }
 
   async function runFlow() {
-    if (!flowDefinitionId) {
-      await saveDraft();
+    let id = flowDefinitionId;
+    if (!id) {
+      id = await saveDraft();
     }
-    if (!flowDefinitionId) return;
+    if (!id) return;
     setRunning(true);
     setBackendRunStatus(null);
     try {
-      const res = await api.triggerFlowRun(flowDefinitionId);
+      const res = await api.triggerFlowRun(id);
       setBackendRunStatus(res.status);
     } catch (err) {
       setBackendRunStatus("error");
@@ -375,6 +380,7 @@ export default function FlowBuilder() {
         contactCount={contactEstimate}
         errorCount={errorCount}
         warningCount={warningCount}
+        runStatus={backendRunStatus}
       />
     </div>
   );
