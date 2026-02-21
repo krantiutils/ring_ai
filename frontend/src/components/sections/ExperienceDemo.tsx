@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import type { LandingLanguage } from "@/app/page";
 import VoiceCompare from "@/components/sections/VoiceCompare";
+import LiveAgent from "@/components/sections/LiveAgent";
 
 type ExperienceDemoProps = {
   language: LandingLanguage;
@@ -217,7 +218,7 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
 
         {activeTab === "agent" && (
           <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-center text-[var(--muted-foreground)]">Live Agent — coming soon</p>
+            <LiveAgent language={language} />
           </motion.article>
         )}
 
