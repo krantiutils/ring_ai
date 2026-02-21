@@ -1192,6 +1192,9 @@ async def verify_live_agent_otp(payload: LiveAgentVerifyRequest, request: Reques
     try:
         await session_pool.acquire(config=config, timeout=8.0)
     except Exception as exc:
+        # Roll back the phone reservation so the user can retry
+        with _LIVE_AGENT_LOCK:
+            _LIVE_AGENT_USED_PHONES.discard(phone)
         logger.exception("Failed to start live-agent session")
         raise HTTPException(status_code=503, detail=f"Could not start live-agent session: {exc}") from exc
 
