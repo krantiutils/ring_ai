@@ -54,6 +54,21 @@ const DEFAULT_TEXT =
 
 const MAX_CHARS = 200;
 
+/* ---- Engine pill colour ---- */
+
+function engineColor(engine: string): string {
+  switch (engine) {
+    case "Edge TTS":
+      return "border-blue-400/40 bg-blue-500/10 text-blue-600 dark:text-blue-400";
+    case "Piper":
+      return "border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    case "Nepali VITS":
+      return "border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    default:
+      return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Per-card state                                                     */
 /* ------------------------------------------------------------------ */
@@ -167,24 +182,11 @@ export default function VoiceCompare({ language }: VoiceCompareProps) {
     const el = audioRefs.current[idx];
     if (el) {
       el.currentTime = 0;
-      el.play();
+      el.play().catch(() => {});
     }
   }, []);
 
-  /* ---- Engine pill colour ---- */
-
-  const engineColor = (engine: string): string => {
-    switch (engine) {
-      case "Edge TTS":
-        return "border-blue-400/40 bg-blue-500/10 text-blue-600 dark:text-blue-400";
-      case "Piper":
-        return "border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-      case "Nepali VITS":
-        return "border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400";
-      default:
-        return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
-    }
-  };
+  /* ---- render ---- */
 
   /* ---------------------------------------------------------------- */
   /*  Render                                                           */
@@ -280,7 +282,6 @@ export default function VoiceCompare({ language }: VoiceCompareProps) {
                 )}
               </div>
 
-              {/* Hidden audio element for cached playback */}
               {card.blobUrl && (
                 <audio
                   ref={(el) => {
@@ -289,7 +290,7 @@ export default function VoiceCompare({ language }: VoiceCompareProps) {
                   controls
                   className="mt-1 h-8 w-full"
                 >
-                  <source src={card.blobUrl} />
+                  <source src={card.blobUrl} type="audio/mpeg" />
                 </audio>
               )}
             </motion.div>
