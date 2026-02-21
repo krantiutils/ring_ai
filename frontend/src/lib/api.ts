@@ -906,6 +906,26 @@ export const api = {
     ),
   getLinkedWhatsAppQr: () =>
     request<{ qr: string; qr_data_url: string }>("/whatsapp/linked/qr"),
+
+  // Live agent (voice WebSocket session)
+  verifyLiveAgentOtp: (data: { request_id: string; otp: string; scenario: string }) =>
+    request<{ session_id: string; status: string }>("/voice/live-agent/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  endLiveAgentSession: async (sessionId: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/voice/live-agent/${sessionId}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.status !== 204) {
+      const body = await res.text();
+      throw new ApiError(res.status, body || "Failed to end live agent session");
+    }
+  },
 };
 
 export { ApiError };
