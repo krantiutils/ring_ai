@@ -44,6 +44,7 @@ export default function KnowledgeBasesPage() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Search
@@ -135,6 +136,22 @@ export default function KnowledgeBasesPage() {
     }
   };
 
+  const handleUrlUpload = async () => {
+    if (!urlInput.trim() || !selectedKb) return;
+    setUploading(true);
+    try {
+      await api.uploadKBDocumentFromUrl(selectedKb.id, ORG_ID, urlInput);
+      const data = await api.getKBDocuments(selectedKb.id, ORG_ID);
+      setDocuments(data.items);
+      setUrlInput("");
+      loadKbs();
+    } catch (err) {
+      console.error("Failed to upload document from URL:", err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleDeleteDoc = async (docId: string) => {
     if (!selectedKb) return;
     if (!confirm("Delete this document?")) return;
@@ -202,7 +219,7 @@ export default function KnowledgeBasesPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.txt,application/pdf,text/plain"
+                accept=".pdf,.txt,.md,.docx,.xlsx,.xls"
                 onChange={handleUpload}
                 className="hidden"
               />
@@ -219,6 +236,23 @@ export default function KnowledgeBasesPage() {
                 Upload Document
               </button>
             </div>
+          </div>
+
+          <div className="flex gap-2 mt-3">
+            <input
+              type="text"
+              placeholder="https://example.com/page"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
+            />
+            <button
+              onClick={handleUrlUpload}
+              disabled={!urlInput.trim() || uploading}
+              className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              Add from URL
+            </button>
           </div>
 
           {docsLoading ? (
