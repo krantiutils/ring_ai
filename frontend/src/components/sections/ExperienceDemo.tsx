@@ -4,39 +4,36 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { api, ApiError } from "@/lib/api";
 import type { LandingLanguage } from "@/app/page";
+import VoiceCompare from "@/components/sections/VoiceCompare";
 
 type ExperienceDemoProps = {
   language: LandingLanguage;
 };
 
-type DemoTab = "call" | "survey";
+type DemoTab = "call" | "voices" | "agent";
 
 const copy = {
   en: {
     label: "Interactive Demo",
     title: "Try AgentShakti Before Signup",
-    desc: "Mainly for demo calling, with survey tools.",
+    desc: "Experience our voice AI: hear different voices, make a demo call, or talk to a live AI agent.",
     tabs: {
       call: "Demo Call",
-      survey: "Questions for Survey",
+      voices: "Compare Voices",
+      agent: "Live Agent",
     },
   },
   ne: {
     label: "इण्टरएक्टिभ डेमो",
     title: "साइनअप अघि AgentShakti चलाएर हेर्नुहोस्",
-    desc: "मुख्य रूपमा डेमो कल, साथै survey tool।",
+    desc: "हाम्रो voice AI अनुभव गर्नुहोस्: विभिन्न आवाज सुन्नुहोस्, डेमो कल गर्नुहोस्, वा AI एजेन्टसँग कुरा गर्नुहोस्।",
     tabs: {
       call: "डेमो कल",
-      survey: "Survey का प्रश्नहरू",
+      voices: "आवाज तुलना",
+      agent: "लाइभ एजेन्ट",
     },
   },
 };
-
-const defaultSurveyQuestions = [
-  "के हजुरले सेवा प्रयोग गर्दा आवश्यक जानकारी स्पष्ट रूपमा प्राप्त गर्नुभयो? (प्राप्त गर्नुभयो भने १ दबाउनुहोस्, प्राप्त गर्नुभएन भने २ दबाउनुहोस्।)",
-  "के हजुरलाई समग्र सेवाको सहजता र गुणस्तर सन्तोषजनक लाग्यो? (सन्तोषजनक लाग्यो भने १ दबाउनुहोस्, लागेन भने २ दबाउनुहोस्।)",
-  "तपाईं हाम्रो सेवालाई १ देखि ५ को स्केलमा कति मूल्याङ्कन गर्नुहुन्छ? (१ नराम्रो, ५ धेरै राम्रो)",
-];
 
 export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const t = copy[language];
@@ -59,15 +56,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
   const [otpCode, setOtpCode] = useState("");
   const [callLoading, setCallLoading] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
-
-  const [surveyQuestionsText, setSurveyQuestionsText] = useState(defaultSurveyQuestions.join("\n\n"));
-  const [surveyType, setSurveyType] = useState<"DTMF" | "Speech">("DTMF");
-  const [surveyContentType, setSurveyContentType] = useState<"Say" | "Text">("Say");
-  const [surveySayText, setSurveySayText] = useState(defaultSurveyQuestions[0]);
-  const [surveyCallerName, setSurveyCallerName] = useState("");
-  const [surveyCallerPhone, setSurveyCallerPhone] = useState("");
-  const [surveyCallingNow, setSurveyCallingNow] = useState(false);
-  const [surveyCallError, setSurveyCallError] = useState<string | null>(null);
   const MAX_TEXT = 299;
 
   const canGenerateVoice = useMemo(() => voiceText.trim().length > 0, [voiceText]);
@@ -142,28 +130,6 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
     }
   }
 
-  async function handleCallMeNowSurvey() {
-    if (!surveyCallerName.trim() || !surveyCallerPhone.trim() || !surveySayText.trim()) {
-      setSurveyCallError("नाम, फोन र Text to say भर्नुहोस्।");
-      return;
-    }
-    setSurveyCallingNow(true);
-    setSurveyCallError(null);
-    try {
-      await api.initiateDemoCall({
-        name: surveyCallerName.trim(),
-        phone: surveyCallerPhone.trim(),
-        message: surveySayText.trim(),
-        tts_config: { provider: "edge_tts", voice: "ne-NP-HemkalaNeural" },
-      });
-    } catch (err) {
-      if (err instanceof ApiError) setSurveyCallError(`Call now failed (${err.status}).`);
-      else setSurveyCallError("Call now failed.");
-    } finally {
-      setSurveyCallingNow(false);
-    }
-  }
-
   const tabButtonClass = (tab: DemoTab) =>
     `relative inline-flex h-11 items-center justify-center rounded-t-xl border px-5 text-sm font-semibold transition ${
       activeTab === tab
@@ -185,8 +151,11 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           <button type="button" className={tabButtonClass("call")} onClick={() => setActiveTab("call")}>
             {t.tabs.call}
           </button>
-          <button type="button" className={tabButtonClass("survey")} onClick={() => setActiveTab("survey")}>
-            {t.tabs.survey}
+          <button type="button" className={tabButtonClass("voices")} onClick={() => setActiveTab("voices")}>
+            {t.tabs.voices}
+          </button>
+          <button type="button" className={tabButtonClass("agent")} onClick={() => setActiveTab("agent")}>
+            {t.tabs.agent}
           </button>
         </div>
 
@@ -240,39 +209,15 @@ export default function ExperienceDemo({ language }: ExperienceDemoProps) {
           </motion.article>
         )}
 
-        {activeTab === "survey" && (
+        {activeTab === "voices" && (
           <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="font-mono-label text-xs uppercase tracking-[0.15em] text-[var(--accent)]">Questions for survey</p>
-            <textarea value={surveyQuestionsText} maxLength={MAX_TEXT} onChange={(e) => setSurveyQuestionsText(e.target.value.slice(0, MAX_TEXT))} rows={8} className="input-modern mt-3 w-full px-4 py-3 text-sm" />
+            <VoiceCompare language={language} />
+          </motion.article>
+        )}
 
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-[var(--border)] p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">Survey Type</p>
-                <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={() => setSurveyType("DTMF")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyType === "DTMF" ? "btn-primary-modern" : "btn-outline-modern"}`}>DTMF</button>
-                  <button type="button" onClick={() => setSurveyType("Speech")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyType === "Speech" ? "btn-primary-modern" : "btn-outline-modern"}`}>Speech</button>
-                </div>
-
-                <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Content type</p>
-                <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={() => setSurveyContentType("Say")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyContentType === "Say" ? "btn-primary-modern" : "btn-outline-modern"}`}>Say</button>
-                  <button type="button" onClick={() => setSurveyContentType("Text")} className={`inline-flex h-10 items-center rounded-xl border px-3 text-xs font-semibold ${surveyContentType === "Text" ? "btn-primary-modern" : "btn-outline-modern"}`}>Text</button>
-                </div>
-
-                <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Text to say</p>
-                <textarea value={surveySayText} maxLength={MAX_TEXT} onChange={(e) => setSurveySayText(e.target.value.slice(0, MAX_TEXT))} rows={4} className="input-modern mt-2 w-full px-4 py-3 text-sm" />
-              </div>
-
-              <div className="rounded-xl border border-[var(--border)] p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">Call me now</p>
-                <input value={surveyCallerName} onChange={(e) => setSurveyCallerName(e.target.value)} placeholder="नाम" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-                <input value={surveyCallerPhone} onChange={(e) => setSurveyCallerPhone(e.target.value)} placeholder="फोन नम्बर (+977...)" className="input-modern mt-2 h-11 w-full px-4 text-sm" />
-                <button onClick={handleCallMeNowSurvey} disabled={surveyCallingNow} className="btn-primary-modern mt-3 inline-flex h-11 items-center px-5 text-sm font-medium disabled:opacity-50">
-                  {surveyCallingNow ? "Working..." : "Call me now"}
-                </button>
-                {surveyCallError && <p className="mt-2 text-sm text-[var(--terminal-error,#DC2626)]">{surveyCallError}</p>}
-              </div>
-            </div>
+        {activeTab === "agent" && (
+          <motion.article className="surface-card rounded-b-2xl rounded-tr-2xl p-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <p className="text-center text-[var(--muted-foreground)]">Live Agent — coming soon</p>
           </motion.article>
         )}
 
