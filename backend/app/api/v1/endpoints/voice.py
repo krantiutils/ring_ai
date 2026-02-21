@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -857,6 +857,33 @@ async def serve_flow_twiml(call_id: str, request: Request):
         response.say(script, language="ne-NP")
 
     response.hangup()
+    return PlainTextResponse(content=str(response), media_type="text/xml")
+
+
+@router.websocket("/media-stream/{session_id}")
+async def twilio_media_stream(ws: WebSocket, session_id: str):
+    """WebSocket endpoint for Twilio Media Streams bidirectional audio."""
+    from app.services.telephony.media_bridge import TwilioMediaBridge
+
+    bridge = TwilioMediaBridge(ws=ws, session_id=session_id)
+    await bridge.run()
+
+
+@router.post("/interactive-twiml/{session_id}")
+async def interactive_twiml(session_id: str, request: Request):
+    """TwiML that connects a call to a Media Stream for interactive voice."""
+    from twilio.twiml.voice_response import Connect, Stream, VoiceResponse
+
+    base_url = settings.TWILIO_BASE_URL or str(request.base_url).rstrip("/")
+    ws_url = base_url.replace("http://", "wss://").replace("https://", "wss://")
+
+    response = VoiceResponse()
+    connect = Connect()
+    stream = Stream(url=f"{ws_url}/api/v1/voice/media-stream/{session_id}")
+    stream.parameter(name="session_id", value=session_id)
+    connect.append(stream)
+    response.append(connect)
+
     return PlainTextResponse(content=str(response), media_type="text/xml")
 
 
