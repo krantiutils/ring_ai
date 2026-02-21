@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 class TTSProvider(str, Enum):
     EDGE_TTS = "edge_tts"
     AZURE = "azure"
+    ELEVENLABS = "elevenlabs"
+    PARLER_TTS = "parler_tts"
+    PIPER = "piper"
 
 
 class AudioFormat(str, Enum):
