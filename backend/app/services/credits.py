@@ -24,6 +24,31 @@ COST_PER_INTERACTION: dict[str, float] = {
     "form_response": 1.0,
 }
 
+# TTS provider-aware voice call credits
+VOICE_CREDITS: dict[str, float] = {
+    "edge_tts": 2.0,
+    "azure": 2.0,
+    "piper": 2.0,
+    "parler_tts": 3.0,
+    "elevenlabs": 5.0,
+}
+INTERACTIVE_VOICE_CREDITS = 8.0
+SMS_CREDITS = 0.5
+WHATSAPP_CREDITS = 0.5
+
+
+def flow_action_credits(kind: str, tts_provider: str | None = None) -> float:
+    """Return per-contact credit cost for a flow action node."""
+    if kind == "agent_voice":
+        return VOICE_CREDITS.get(tts_provider or "edge_tts", 2.0)
+    if kind == "agent_sms":
+        return SMS_CREDITS
+    if kind == "agent_whatsapp":
+        return WHATSAPP_CREDITS
+    if kind == "agent_voice_interactive":
+        return INTERACTIVE_VOICE_CREDITS
+    return 0.0
+
 
 class InsufficientCreditsError(Exception):
     """Raised when an org lacks credits for the requested operation."""

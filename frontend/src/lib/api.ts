@@ -498,16 +498,68 @@ export const api = {
       { method: "PUT", body: JSON.stringify(payload) },
     ),
 
-  triggerFlowRun: (flowId: string) =>
-    request<{ id: string; flow_id: string; status: string }>(
+  deleteFlowDefinition: (flowId: string) =>
+    request<void>(`/flows/definitions/${flowId}`, { method: "DELETE" }),
+
+  triggerFlowRun: (flowId: string, mode: "live" | "dry_run" = "live") =>
+    request<{ id: string; flow_id: string; status: string; mode: string }>(
       `/flows/definitions/${flowId}/run`,
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify({ mode }) },
     ),
 
   cancelFlowRun: (runId: string) =>
     request<{ id: string; status: string }>(
       `/flows/runs/${runId}/cancel`,
       { method: "POST" },
+    ),
+
+  getFlowRun: (runId: string) =>
+    request<{
+      id: string;
+      flow_id: string;
+      status: string;
+      mode: string;
+      started_at: string | null;
+      completed_at: string | null;
+      current_node_id: string | null;
+      error: string | null;
+      contact_count: number;
+      flow_name: string;
+      steps: {
+        id: string;
+        node_id: string;
+        node_kind: string;
+        status: string;
+        input_row_count: number;
+        output_row_count: number;
+        error: string | null;
+        started_at: string | null;
+        completed_at: string | null;
+        metadata: Record<string, unknown> | null;
+      }[];
+    }>(`/flows/runs/${runId}`),
+
+  listFlowRuns: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    const q = qs.toString();
+    return request<{
+      id: string;
+      flow_id: string;
+      status: string;
+      mode: string;
+      started_at: string | null;
+      completed_at: string | null;
+      contact_count: number;
+      error: string | null;
+    }[]>(`/flows/runs${q ? `?${q}` : ""}`);
+  },
+
+  getFlowPhoneNumbers: () =>
+    request<{ sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[]>(
+      "/flows/phone-numbers",
     ),
 
   // Phone Numbers
@@ -657,6 +709,19 @@ export const api = {
       charsConsumed: parseInt(res.headers.get("X-TTS-Chars-Consumed") || "0", 10),
     };
   },
+
+  // Flow credit estimate
+  estimateFlowCredits: (params: { kind: string; tts_provider?: string; contact_count: number }) =>
+    request<{
+      credits_per_action: number;
+      contact_count: number;
+      estimated_total: number;
+      current_balance: number;
+      sufficient: boolean;
+    }>("/flows/estimate-credits", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
 
   // Landing demo voice call
   sendDemoCallOtp: (data: {

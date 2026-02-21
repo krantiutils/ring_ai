@@ -4,12 +4,13 @@ import ipaddress
 import json
 import socket
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -22,14 +23,16 @@ from app.schemas.flows import (
     FileUploadResponse,
     FlowDefinitionCreate,
     FlowDefinitionResponse,
+    FlowRunCreate,
+    FlowRunDetailResponse,
     FlowRunResponse,
+    FlowStepResultResponse,
     ManualTableSourceResponse,
     ManualTableSourceUpsert,
     UrlSourcePreviewRequest,
     UrlSourcePreviewResponse,
 )
 from app.services.flow_orchestrator import run_flow
-from fastapi import BackgroundTasks
 
 router = APIRouter()
 
@@ -392,10 +395,76 @@ def update_flow_definition(
     return flow
 
 
+@router.delete("/definitions/{flow_id}", status_code=204)
+def delete_flow_definition(
+    flow_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    flow = db.query(FlowDefinition).filter_by(id=flow_id, user_id=current_user.id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    db.delete(flow)
+    db.commit()
+
+
+_phone_numbers_cache: dict[str, tuple[float, list]] = {}
+_CACHE_TTL = 300  # 5 minutes
+
+
+@router.get("/phone-numbers")
+def list_flow_phone_numbers(
+    current_user: User = Depends(get_current_user),
+):
+    cache_key = str(current_user.id)
+    now = time.time()
+    cached = _phone_numbers_cache.get(cache_key)
+    if cached and now - cached[0] < _CACHE_TTL:
+        return cached[1]
+
+    try:
+        from app.services.telephony import get_twilio_provider
+        provider = get_twilio_provider()
+        numbers = provider.list_phone_numbers()
+    except Exception:
+        numbers = []
+
+    _phone_numbers_cache[cache_key] = (now, numbers)
+    return numbers
+
+
+@router.post("/estimate-credits")
+async def estimate_flow_credits(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Estimate credits for a flow action node."""
+    from app.services.credits import flow_action_credits, get_or_create_credit
+
+    kind = body.get("kind", "")
+    tts_provider = body.get("tts_provider")
+    contact_count = body.get("contact_count", 0)
+
+    credits_per = flow_action_credits(kind, tts_provider)
+    total = credits_per * contact_count
+
+    credit = get_or_create_credit(db, current_user.org_id)
+
+    return {
+        "credits_per_action": credits_per,
+        "contact_count": contact_count,
+        "estimated_total": total,
+        "current_balance": credit.balance,
+        "sufficient": credit.balance >= total,
+    }
+
+
 @router.post("/definitions/{flow_id}/run", response_model=FlowRunResponse)
 def trigger_flow_run(
     flow_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    body: FlowRunCreate = FlowRunCreate(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -403,22 +472,32 @@ def trigger_flow_run(
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found.")
 
-    run = FlowRun(flow_id=flow.id, status="pending", contact_rows=[])
+    run = FlowRun(flow_id=flow.id, status="pending", contact_rows=[], mode=body.mode)
     db.add(run)
     db.commit()
     db.refresh(run)
 
+    # Try Celery first; fall back to in-process background task
+    celery_dispatched = False
     try:
         from app.services.flow_tasks import orchestrate_flow_task
-        result = orchestrate_flow_task.delay(str(run.id))
-        run.celery_task_id = result.id
-        db.commit()
+        # Check if any Celery workers are online before dispatching
+        inspect = orchestrate_flow_task.app.control.inspect()
+        active_workers = inspect.ping(timeout=0.5)
+        if active_workers:
+            result = orchestrate_flow_task.delay(str(run.id))
+            run.celery_task_id = result.id
+            db.commit()
+            celery_dispatched = True
     except Exception:
-        # Fallback to BackgroundTasks if Celery not available
+        pass
+
+    if not celery_dispatched:
+        _run_id = run.id
         def _run_in_background():
             from app.core.database import SessionLocal
             with SessionLocal() as session:
-                run_flow(run.id, session)
+                run_flow(_run_id, session)
         background_tasks.add_task(_run_in_background)
 
     return run
@@ -430,10 +509,68 @@ def cancel_flow_run(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    run = db.query(FlowRun).filter_by(id=run_id).first()
+    run = (
+        db.query(FlowRun)
+        .join(FlowDefinition, FlowRun.flow_id == FlowDefinition.id)
+        .filter(FlowRun.id == run_id, FlowDefinition.user_id == current_user.id)
+        .first()
+    )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found.")
     run.status = "cancelled"
     db.commit()
     db.refresh(run)
     return run
+
+
+@router.get("/runs", response_model=list[FlowRunResponse])
+def list_flow_runs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
+):
+    from sqlalchemy.orm import selectinload
+    query = (
+        db.query(FlowRun)
+        .options(selectinload(FlowRun.steps))
+        .join(FlowDefinition, FlowRun.flow_id == FlowDefinition.id)
+        .filter(FlowDefinition.user_id == current_user.id)
+        .order_by(FlowRun.created_at.desc())
+    )
+    if status:
+        query = query.filter(FlowRun.status == status)
+    runs = query.offset(offset).limit(limit).all()
+    return runs
+
+
+@router.get("/runs/{run_id}", response_model=FlowRunDetailResponse)
+def get_flow_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    run = (
+        db.query(FlowRun)
+        .join(FlowDefinition, FlowRun.flow_id == FlowDefinition.id)
+        .filter(FlowRun.id == run_id, FlowDefinition.user_id == current_user.id)
+        .first()
+    )
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    flow = db.get(FlowDefinition, run.flow_id)
+    steps = [FlowStepResultResponse.from_orm_step(s) for s in run.steps]
+    return FlowRunDetailResponse(
+        id=run.id,
+        flow_id=run.flow_id,
+        status=run.status,
+        mode=run.mode,
+        started_at=run.started_at,
+        completed_at=run.completed_at,
+        current_node_id=run.current_node_id,
+        error=run.error,
+        contact_count=run.contact_count,
+        steps=steps,
+        flow_name=flow.name if flow else "",
+    )
