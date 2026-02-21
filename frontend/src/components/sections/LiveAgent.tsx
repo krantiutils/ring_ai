@@ -250,6 +250,7 @@ export default function LiveAgent({ language }: LiveAgentProps) {
   // Session
   const [sessionId, setSessionId] = useState<string | null>(null);
   const sessionRef = useRef<LiveAudioSession | null>(null);
+  const mountedRef = useRef(true);
 
   // Call state
   const [audioLevel, setAudioLevel] = useState(0);
@@ -285,13 +286,7 @@ export default function LiveAgent({ language }: LiveAgentProps) {
     if (phase === "active") {
       setCallSeconds(0);
       timerRef.current = setInterval(() => {
-        setCallSeconds((prev) => {
-          if (prev >= 59) {
-            // 60s auto-end is handled by onTimeout from LiveAudioSession
-            return prev + 1;
-          }
-          return prev + 1;
-        });
+        setCallSeconds((prev) => prev + 1);
       }, 1000);
     } else {
       if (timerRef.current) {
@@ -310,6 +305,7 @@ export default function LiveAgent({ language }: LiveAgentProps) {
   // ---- Cleanup session on unmount ----
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       if (sessionRef.current) {
         sessionRef.current.disconnect();
         sessionRef.current = null;
@@ -360,6 +356,47 @@ export default function LiveAgent({ language }: LiveAgentProps) {
     }
   }, [canSendOtp, name, phone, t]);
 
+  const startAudioSession = useCallback(
+    async (sid: string) => {
+      if (!mountedRef.current) return;
+      const session = new LiveAudioSession(sid, {
+        onTranscript: (text, speaker) => {
+          msgIdRef.current += 1;
+          setTranscript((prev) => [
+            ...prev,
+            { id: msgIdRef.current, text, speaker },
+          ]);
+        },
+        onTimeout: () => {
+          sessionRef.current?.disconnect();
+          sessionRef.current = null;
+          setPhase("ended");
+        },
+        onStateChange: (state) => {
+          if (state === "active") setPhase("active");
+          if (state === "ended") {
+            sessionRef.current?.disconnect();
+            sessionRef.current = null;
+            setPhase("ended");
+          }
+        },
+        onAudioLevel: (level) => {
+          setAudioLevel(level);
+        },
+      });
+
+      sessionRef.current = session;
+
+      try {
+        await session.connect();
+      } catch {
+        setError(t.micError);
+        setPhase("verified");
+      }
+    },
+    [t],
+  );
+
   const handleVerify = useCallback(async () => {
     if (!canVerify || !requestId || !selectedScenario) return;
     setLoading(true);
@@ -383,41 +420,7 @@ export default function LiveAgent({ language }: LiveAgentProps) {
     } finally {
       setLoading(false);
     }
-  }, [canVerify, requestId, selectedScenario, otpCode, phone, t]);
-
-  const startAudioSession = useCallback(
-    async (sid: string) => {
-      const session = new LiveAudioSession(sid, {
-        onTranscript: (text, speaker) => {
-          msgIdRef.current += 1;
-          setTranscript((prev) => [
-            ...prev,
-            { id: msgIdRef.current, text, speaker },
-          ]);
-        },
-        onTimeout: () => {
-          setPhase("ended");
-        },
-        onStateChange: (state) => {
-          if (state === "active") setPhase("active");
-          if (state === "ended") setPhase("ended");
-        },
-        onAudioLevel: (level) => {
-          setAudioLevel(level);
-        },
-      });
-
-      sessionRef.current = session;
-
-      try {
-        await session.connect();
-      } catch {
-        setError(t.micError);
-        setPhase("verified");
-      }
-    },
-    [t],
-  );
+  }, [canVerify, requestId, selectedScenario, otpCode, phone, t, startAudioSession]);
 
   const handleEndCall = useCallback(async () => {
     if (sessionRef.current) {
