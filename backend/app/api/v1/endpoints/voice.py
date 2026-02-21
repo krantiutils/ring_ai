@@ -827,20 +827,36 @@ async def serve_twiml(call_id: str):
 
 
 @router.post("/flow-twiml/{call_id}")
-async def serve_flow_twiml(call_id: str):
-    """TwiML for flow-dispatched voice calls — uses <Say> with the script text."""
-    from app.services.flow_dispatch import flow_script_store
+async def serve_flow_twiml(call_id: str, request: Request):
+    """TwiML for flow-dispatched voice calls — uses <Play> if audio available, else <Say>."""
+    from app.services.flow_dispatch import flow_script_store, flow_audio_store
 
+    audio = flow_audio_store.get(call_id)
     script = flow_script_store.get(call_id)
-    if script is None:
+
+    if audio is None and script is None:
         logger.warning("Flow TwiML requested for unknown call_id: %s", call_id)
         raise HTTPException(status_code=404, detail="Flow script not found")
 
     from twilio.twiml.voice_response import VoiceResponse
     response = VoiceResponse()
-    response.say(script, language="ne-NP")
-    response.hangup()
 
+    if audio is not None:
+        # Store audio for serving via /voice/audio/{id} endpoint
+        audio_id = str(uuid.uuid4())
+        audio_store.put(
+            audio_id,
+            AudioEntry(
+                audio_bytes=audio,
+                content_type="audio/mpeg",
+            ),
+        )
+        base_url = str(request.base_url).rstrip("/")
+        response.play(f"{base_url}/api/v1/voice/audio/{audio_id}")
+    else:
+        response.say(script, language="ne-NP")
+
+    response.hangup()
     return PlainTextResponse(content=str(response), media_type="text/xml")
 
 
