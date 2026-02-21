@@ -1,6 +1,8 @@
 """ElevenLabs TTS provider — high-quality multilingual voices."""
 
+import asyncio
 import logging
+from functools import partial
 
 from app.core.config import settings
 from app.tts.base import BaseTTSProvider
@@ -50,15 +52,24 @@ class ElevenLabsProvider(BaseTTSProvider):
             supported_formats=[AudioFormat.MP3],
         )
 
+    def _synthesize_blocking(self, voice_id: str, text: str) -> bytes:
+        audio_iter = self._client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=text,
+            model_id="eleven_multilingual_v2",
+            output_format="mp3_44100_128",
+        )
+        return b"".join(audio_iter)
+
+    def _list_voices_blocking(self):
+        return self._client.voices.get_all()
+
     async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
+        loop = asyncio.get_running_loop()
         try:
-            audio_iter = self._client.text_to_speech.convert(
-                voice_id=config.voice,
-                text=text,
-                model_id="eleven_multilingual_v2",
-                output_format="mp3_44100_128",
+            audio_bytes = await loop.run_in_executor(
+                None, partial(self._synthesize_blocking, config.voice, text)
             )
-            audio_bytes = b"".join(audio_iter)
         except Exception as exc:
             raise TTSProviderError("elevenlabs", f"Synthesis failed: {exc}") from exc
 
@@ -74,8 +85,9 @@ class ElevenLabsProvider(BaseTTSProvider):
         )
 
     async def list_voices(self, locale: str | None = None) -> list[VoiceInfo]:
+        loop = asyncio.get_running_loop()
         try:
-            response = self._client.voices.get_all()
+            response = await loop.run_in_executor(None, self._list_voices_blocking)
             voices = response.voices
         except Exception as exc:
             raise TTSProviderError("elevenlabs", f"Failed to list voices: {exc}") from exc
