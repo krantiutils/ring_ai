@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid as _uuid
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,8 @@ _ACTION_KINDS = {"agent_sms", "agent_voice", "agent_whatsapp", "action_webhook"}
 
 
 def run_flow(flow_run_id, db: Session) -> None:
+    if isinstance(flow_run_id, str):
+        flow_run_id = _uuid.UUID(flow_run_id)
     run = db.get(FlowRun, flow_run_id)
     if not run or run.status == "cancelled":
         return
@@ -34,6 +37,7 @@ def run_flow(flow_run_id, db: Session) -> None:
 
     run.status = "running"
     run.started_at = datetime.now(timezone.utc)
+    mode = run.mode  # "live" or "dry_run"
     db.commit()
 
     try:
@@ -62,7 +66,7 @@ def run_flow(flow_run_id, db: Session) -> None:
         input_rows = _resolve_input_rows(step, row_sets)
 
         # Execute the node
-        output_rows, rows_true, rows_false, status = _execute_step(step, input_rows)
+        output_rows, rows_true, rows_false, status = _execute_step(step, input_rows, mode=mode)
 
         # Store outputs for downstream nodes
         if step.node_kind in _BRANCHING_KINDS:
@@ -77,7 +81,11 @@ def run_flow(flow_run_id, db: Session) -> None:
             for handle, target_id in step.outputs.items():
                 row_sets[target_id] = output_rows
 
-        # Record step result
+        # Build step metadata
+        step_metadata: dict | None = None
+        if mode == "dry_run" and step.node_kind in _ACTION_KINDS and output_rows:
+            step_metadata = {"sample_messages": [r.get("_rendered_message", "") for r in output_rows[:5]]}
+
         result = FlowStepResult(
             flow_run_id=run.id,
             node_id=step.node_id,
@@ -89,9 +97,15 @@ def run_flow(flow_run_id, db: Session) -> None:
             rows_false=rows_false,
             started_at=started,
             completed_at=datetime.now(timezone.utc),
+            metadata_=step_metadata,
         )
         db.add(result)
         db.commit()
+
+        # Track contact count from source nodes
+        if step.node_kind.startswith("source_") and output_rows:
+            run.contact_rows = output_rows
+            db.commit()
 
     run.status = "completed"
     run.completed_at = datetime.now(timezone.utc)
@@ -112,7 +126,7 @@ def _resolve_input_rows(step: ExecutionStep, row_sets: dict[str, list[dict]]) ->
 
 
 def _execute_step(
-    step: ExecutionStep, input_rows: list[dict]
+    step: ExecutionStep, input_rows: list[dict], *, mode: str = "live"
 ) -> tuple[list[dict], list[dict] | None, list[dict] | None, str]:
     """Returns (output_rows, rows_true, rows_false, status)."""
     kind = step.node_kind
@@ -141,20 +155,74 @@ def _execute_step(
         rows = execute_normalize_phone(input_rows, config)
         return rows, None, None, "completed"
 
+    if kind == "lookup_kb":
+        from app.core.database import SessionLocal
+        from app.services.knowledge_base import search_knowledge_base
+        from app.services.flow_dispatch import render_template
+
+        kb_id = config.get("knowledge_base_id", "")
+        query_template = config.get("query_template", "")
+        top_k = int(config.get("top_k", 5))
+        output_var = config.get("output_variable", "_kb_context")
+
+        if not kb_id or not query_template:
+            return input_rows, None, None, "skipped"
+
+        enriched_rows = []
+        with SessionLocal() as kb_db:
+            for row in input_rows:
+                query = render_template(query_template, row)
+                try:
+                    import uuid as _uuid_mod
+                    results = search_knowledge_base(kb_db, _uuid_mod.UUID(kb_id), query, top_k)
+                    context_text = "\n\n".join(
+                        f"[{r.get('file_name', 'doc')}] {r.get('content', '')}"
+                        for r in results
+                    )
+                except Exception as exc:
+                    context_text = f"[KB lookup error: {exc}]"
+                enriched = dict(row)
+                enriched[output_var] = context_text
+                enriched_rows.append(enriched)
+        return enriched_rows, None, None, "completed"
+
     if kind in _ACTION_KINDS:
         if not input_rows:
             return [], None, None, "skipped"
+
+        # Check for rate limit from upstream rate_limit node
+        per_minute = 0
+        if input_rows:
+            per_minute = input_rows[0].get("_rate_limit_per_minute", 0)
+
         dispatched_rows = []
         failed_count = 0
-        for row in input_rows:
-            result = dispatch_action(kind, row, config)
-            enriched = dict(row)
-            enriched["_dispatch_status"] = result.status
-            enriched["_dispatch_id"] = result.provider_id
-            if result.error:
-                enriched["_dispatch_error"] = result.error
-                failed_count += 1
-            dispatched_rows.append(enriched)
+        for i, row in enumerate(input_rows):
+            if mode == "dry_run":
+                from app.services.flow_dispatch import render_template
+                if kind in ("agent_sms", "agent_whatsapp"):
+                    rendered = render_template(str(config.get("message", "")), row)
+                elif kind == "agent_voice":
+                    rendered = render_template(str(config.get("script", "")), row)
+                else:
+                    rendered = ""
+                enriched = dict(row)
+                enriched["_dispatch_status"] = "simulated"
+                enriched["_dispatch_id"] = ""
+                enriched["_rendered_message"] = rendered
+                dispatched_rows.append(enriched)
+            else:
+                if per_minute and i > 0:
+                    import time
+                    time.sleep(60.0 / per_minute)
+                result = dispatch_action(kind, row, config)
+                enriched = dict(row)
+                enriched["_dispatch_status"] = result.status
+                enriched["_dispatch_id"] = result.provider_id
+                if result.error:
+                    enriched["_dispatch_error"] = result.error
+                    failed_count += 1
+                dispatched_rows.append(enriched)
         status = "completed" if failed_count == 0 else "partial"
         return dispatched_rows, None, None, status
 
@@ -165,6 +233,15 @@ def _execute_step(
         return input_rows, None, None, "completed"
 
     if kind == "rate_limit":
+        per_minute = config.get("per_minute", 0)
+        if per_minute:
+            return [dict(r, _rate_limit_per_minute=per_minute) for r in input_rows], None, None, "completed"
+        return input_rows, None, None, "completed"
+
+    if kind == "sender_number":
+        from_number = config.get("number", "")
+        if from_number:
+            return [dict(r, _from_number=from_number) for r in input_rows], None, None, "completed"
         return input_rows, None, None, "completed"
 
     if kind == "business_hours":
