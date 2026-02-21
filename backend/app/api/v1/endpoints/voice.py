@@ -1,6 +1,8 @@
 """Voice call API endpoints — outbound campaign calls via Twilio."""
 
 import asyncio
+import audioop
+import json
 import logging
 import threading
 import uuid
@@ -8,8 +10,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse, Response
+from pydantic import BaseModel as _PydanticBaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,7 +34,7 @@ from app.schemas.voice import (
     InteractiveDemoStartRequest,
     InteractiveDemoStartResponse,
 )
-from app.services.interactive_agent.models import OutputMode, SessionConfig
+from app.services.interactive_agent.models import AudioChunk, OutputMode, SessionConfig
 from app.services.otp import generate_otp
 from app.services.telephony import (
     AudioEntry,
@@ -104,6 +107,36 @@ class DemoCallOtpState:
 
 
 _DEMO_CALL_OTP_STORE: dict[str, DemoCallOtpState] = {}
+
+
+# ---------------------------------------------------------------------------
+# Live-agent demo — scenario definitions & one-per-phone tracking
+# ---------------------------------------------------------------------------
+
+_LIVE_AGENT_SCENARIOS = {
+    "cart_recovery": {
+        "system_instruction": "You are a friendly Nepali e-commerce support agent calling to help recover an abandoned cart. The customer left items. Be empathetic, offer a 10% discount. Speak naturally like a real phone call. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
+        "voice_name": "Achird",
+    },
+    "appointment_booking": {
+        "system_instruction": "You are a Nepali clinic receptionist calling to help book/confirm an appointment. Available: tomorrow 10am and 3pm. Be professional and warm. Speak naturally like a real phone call. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
+        "voice_name": "Kore",
+    },
+    "payment_reminder": {
+        "system_instruction": "You are calling from a Nepali utility company about an overdue Rs 2,500 bill due last week. Be polite but clear. Offer payment options. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
+        "voice_name": "Charon",
+    },
+}
+
+_LIVE_AGENT_USED_PHONES: set[str] = set()
+_LIVE_AGENT_LOCK = threading.Lock()
+_LIVE_AGENT_STORE: dict[str, str] = {}  # session_id -> phone (for cleanup)
+
+
+class LiveAgentVerifyRequest(_PydanticBaseModel):
+    request_id: str
+    otp: str
+    scenario: str
 
 
 def _normalize_nepal_phone(phone: str) -> str | None:
@@ -1094,6 +1127,183 @@ async def get_call_status(call_id: str):
         started_at=status.started_at,
         ended_at=status.ended_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Live-agent demo endpoints — browser ↔ Gemini bidirectional voice
+# ---------------------------------------------------------------------------
+
+
+def _resample_24k_to_16k(pcm_24k: bytes) -> bytes:
+    """Resample 24 kHz 16-bit mono PCM down to 16 kHz."""
+    return audioop.ratecv(pcm_24k, 2, 1, 24000, 16000, None)[0]
+
+
+@router.post("/live-agent/verify", status_code=201)
+async def verify_live_agent_otp(payload: LiveAgentVerifyRequest, request: Request):
+    """Verify OTP, enforce one-call-per-phone, then create a Gemini session for the live-agent demo."""
+
+    # Validate scenario
+    scenario = _LIVE_AGENT_SCENARIOS.get(payload.scenario)
+    if scenario is None:
+        raise HTTPException(status_code=422, detail=f"Unknown scenario: {payload.scenario}")
+
+    # --- OTP verification (same pattern as verify_demo_call_otp) ---
+    now = datetime.now(timezone.utc)
+    with _DEMO_OTP_LOCK:
+        _cleanup_expired_demo_otps(now)
+        state = _DEMO_CALL_OTP_STORE.get(payload.request_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="OTP request not found or expired")
+
+        provided_otp = payload.otp.strip()
+        if provided_otp != state.otp and provided_otp != _MASTER_DEMO_OTP:
+            state.attempts += 1
+            if state.attempts >= settings.DEMO_CALL_OTP_MAX_ATTEMPTS:
+                _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+                raise HTTPException(status_code=429, detail="OTP attempts exceeded, request a new code")
+            raise HTTPException(status_code=422, detail="Invalid OTP")
+
+        # Extract phone before removing the OTP entry
+        phone = state.payload.phone
+        _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
+
+    # --- One-call-per-phone enforcement ---
+    with _LIVE_AGENT_LOCK:
+        if phone in _LIVE_AGENT_USED_PHONES:
+            raise HTTPException(status_code=429, detail="This phone number has already been used for the live-agent demo")
+        _LIVE_AGENT_USED_PHONES.add(phone)
+
+    # --- Create Gemini session ---
+    session_pool = getattr(request.app.state, "session_pool", None)
+    if session_pool is None:
+        raise HTTPException(status_code=503, detail="Live-agent demo is unavailable")
+
+    session_id = uuid.uuid4().hex
+    config = SessionConfig(
+        session_id=session_id,
+        voice_name=scenario["voice_name"],
+        system_instruction=scenario["system_instruction"],
+        output_mode=OutputMode.NATIVE_AUDIO,
+        timeout_minutes=2,
+        temperature=0.7,
+    )
+
+    try:
+        await session_pool.acquire(config=config, timeout=8.0)
+    except Exception as exc:
+        logger.exception("Failed to start live-agent session")
+        raise HTTPException(status_code=503, detail=f"Could not start live-agent session: {exc}") from exc
+
+    with _LIVE_AGENT_LOCK:
+        _LIVE_AGENT_STORE[session_id] = phone
+
+    return {"session_id": session_id, "status": "ready"}
+
+
+@router.websocket("/live-agent/ws/{session_id}")
+async def live_agent_ws(ws: WebSocket, session_id: str):
+    """Bidirectional audio WebSocket: browser PCM ↔ Gemini Live."""
+
+    await ws.accept()
+
+    session_pool = getattr(ws.app.state, "session_pool", None)
+    if session_pool is None:
+        await ws.close(code=1011, reason="session pool unavailable")
+        return
+
+    try:
+        session = await session_pool.get_session(session_id)
+    except Exception:
+        session = None
+    if session is None:
+        await ws.close(code=1008, reason="session not found")
+        return
+
+    running = True
+
+    async def _timeout_task():
+        """Close WebSocket after 60 seconds."""
+        await asyncio.sleep(60)
+        nonlocal running
+        running = False
+        try:
+            await ws.send_text(json.dumps({"type": "timeout"}))
+            await ws.close(code=1000, reason="timeout")
+        except Exception:
+            pass
+
+    async def _outbound_task():
+        """Forward Gemini audio → browser, transcripts as JSON."""
+        try:
+            async for response in session.receive():
+                if not running:
+                    break
+                if response.audio_data:
+                    pcm_16k = _resample_24k_to_16k(response.audio_data)
+                    await ws.send_bytes(pcm_16k)
+                if response.output_transcript:
+                    await ws.send_text(json.dumps({
+                        "type": "transcript",
+                        "role": "assistant",
+                        "text": response.output_transcript,
+                    }))
+                if response.input_transcript:
+                    await ws.send_text(json.dumps({
+                        "type": "transcript",
+                        "role": "user",
+                        "text": response.input_transcript,
+                    }))
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("live-agent outbound error for session %s", session_id)
+
+    timeout = asyncio.create_task(_timeout_task())
+    outbound = asyncio.create_task(_outbound_task())
+
+    try:
+        while running:
+            data = await ws.receive()
+            if data["type"] == "websocket.disconnect":
+                break
+            if "bytes" in data and data["bytes"]:
+                await session.send_audio(AudioChunk(data=data["bytes"]))
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.exception("live-agent inbound error for session %s", session_id)
+    finally:
+        running = False
+        timeout.cancel()
+        outbound.cancel()
+        # Wait for tasks to finish cancellation
+        for task in (timeout, outbound):
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+        # Release the Gemini session
+        try:
+            await session_pool.release(session_id)
+        except Exception:
+            logger.exception("Failed to release live-agent session %s", session_id)
+        with _LIVE_AGENT_LOCK:
+            _LIVE_AGENT_STORE.pop(session_id, None)
+
+
+@router.delete("/live-agent/{session_id}", status_code=204)
+async def live_agent_end_session(session_id: str, request: Request):
+    """End a live-agent session and release its Gemini connection."""
+    removed = False
+    with _LIVE_AGENT_LOCK:
+        if session_id in _LIVE_AGENT_STORE:
+            _LIVE_AGENT_STORE.pop(session_id, None)
+            removed = True
+
+    if removed:
+        await _release_interactive_session(session_id, request)
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
