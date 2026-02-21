@@ -76,6 +76,16 @@ export default function NodeInspector({
           </div>
         )}
 
+        {/* ── Sender Number Inspector ─────────────── */}
+        {data.kind === "sender_number" && (
+          <div className="space-y-3 p-4">
+            <PhoneNumberSelector
+              value={String(node.data.config?.number ?? "")}
+              onChange={(v) => onUpdate("number", v)}
+            />
+          </div>
+        )}
+
         {/* ── SMS / WhatsApp Inspector ──────────────── */}
         {(data.kind === "agent_sms" || data.kind === "agent_whatsapp") && (
           <div className="space-y-3">
@@ -95,21 +105,21 @@ export default function NodeInspector({
               />
             )}
             <MessagePreview template={String(data.config.message ?? "")} columns={columns} />
+            <PhoneNumberSelector
+              value={String(node.data.config?.from_number ?? "")}
+              onChange={(v) => onUpdate("from_number", v)}
+            />
+            <CreditEstimate kind={data.kind} />
           </div>
         )}
 
         {/* ── Voice Inspector ──────────────────────── */}
         {data.kind === "agent_voice" && (
-          <div className="space-y-3">
-            <AutocompleteTextarea
-              label="Script (TTS)"
-              value={String(data.config.script ?? "")}
-              onChange={(v) => onUpdate("script", v)}
-              columns={columns}
-              placeholder="Namaste {{name}}, ..."
-            />
-            <MessagePreview template={String(data.config.script ?? "")} columns={columns} />
-          </div>
+          <VoiceAgentInspector
+            node={node}
+            columns={columns}
+            onUpdate={onUpdate}
+          />
         )}
 
         {/* ── Condition Inspector ──────────────────── */}
@@ -252,17 +262,30 @@ export default function NodeInspector({
           </div>
         )}
 
+        {/* ── KB Lookup Inspector ──────────────────── */}
+        {data.kind === "lookup_kb" && (
+          <KBLookupInspector node={node} columns={columns} onUpdate={onUpdate} />
+        )}
+
+        {/* ── Interactive Voice Inspector ──────────── */}
+        {data.kind === "agent_voice_interactive" && (
+          <InteractiveVoiceInspector node={node} columns={columns} onUpdate={onUpdate} />
+        )}
+
         {/* ── Generic Config (fallback) ────────────── */}
         {![
           "agent_sms",
           "agent_voice",
           "agent_whatsapp",
+          "agent_voice_interactive",
           "condition",
           "validation",
           "deduplicate",
           "normalize_phone",
           "wait",
           "rate_limit",
+          "sender_number",
+          "lookup_kb",
           "source_manual_table",
           "source_csv",
           "source_xlsx",
@@ -687,6 +710,350 @@ function NumbersInspector({ node, onUpdate }: { node: FlowNode; onUpdate: (key: 
         onNumbersChange={handleChange}
         compact
       />
+    </div>
+  );
+}
+
+function VoiceAgentInspector({
+  node,
+  columns,
+  onUpdate,
+}: {
+  node: FlowNode;
+  columns: string[];
+  onUpdate: (key: string, value: string) => void;
+}) {
+  const { data } = node;
+  const [providers, setProviders] = React.useState<{ provider: string; display_name: string; requires_api_key: boolean }[]>([]);
+  const [voices, setVoices] = React.useState<{ voice_id: string; name: string; gender: string }[]>([]);
+  const [loadingVoices, setLoadingVoices] = React.useState(false);
+  const [previewing, setPreviewing] = React.useState(false);
+
+  const selectedProvider = String(data.config.tts_provider ?? "edge_tts");
+  const selectedVoice = String(data.config.tts_voice ?? "");
+
+  React.useEffect(() => {
+    api.getTTSProviderDetails()
+      .then((list: any) => setProviders(list.map((p: any) => ({
+        provider: p.provider,
+        display_name: p.display_name,
+        requires_api_key: p.requires_api_key,
+      }))))
+      .catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectedProvider) return;
+    setLoadingVoices(true);
+    api.getTTSVoices(selectedProvider, "ne-NP")
+      .then((list: any) => setVoices(list.map((v: any) => ({
+        voice_id: v.voice_id,
+        name: v.name,
+        gender: v.gender,
+      }))))
+      .catch(() => setVoices([]))
+      .finally(() => setLoadingVoices(false));
+  }, [selectedProvider]);
+
+  async function handlePreview() {
+    if (!selectedVoice) return;
+    setPreviewing(true);
+    try {
+      const result = await api.synthesizeTTS({
+        text: "नमस्ते, यो एक परीक्षण हो।",
+        provider: selectedProvider,
+        voice: selectedVoice,
+      });
+      const url = URL.createObjectURL(result.audioBlob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch {
+      // ignore preview errors
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <AutocompleteTextarea
+        label="Script (TTS)"
+        value={String(data.config.script ?? "")}
+        onChange={(v) => onUpdate("script", v)}
+        columns={columns}
+        placeholder="Namaste {{name}}, ..."
+      />
+      <MessagePreview template={String(data.config.script ?? "")} columns={columns} />
+
+      {/* TTS Provider */}
+      <label className="block space-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+          TTS Provider
+        </span>
+        <select
+          value={selectedProvider}
+          onChange={(e) => {
+            onUpdate("tts_provider", e.target.value);
+            onUpdate("tts_voice", "");
+          }}
+          className="input-modern h-9 w-full px-3 text-sm"
+        >
+          {providers.map((p) => (
+            <option key={p.provider} value={p.provider}>
+              {p.display_name}{p.requires_api_key ? " (API Key)" : " (Free)"}
+            </option>
+          ))}
+          {providers.length === 0 && <option value="edge_tts">Edge TTS (Free)</option>}
+        </select>
+      </label>
+
+      {/* Voice */}
+      <label className="block space-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+          Voice
+        </span>
+        {loadingVoices ? (
+          <p className="text-xs text-[var(--muted-foreground)]">Loading voices...</p>
+        ) : (
+          <select
+            value={selectedVoice}
+            onChange={(e) => onUpdate("tts_voice", e.target.value)}
+            className="input-modern h-9 w-full px-3 text-sm"
+          >
+            <option value="">Select voice…</option>
+            {voices.map((v) => (
+              <option key={v.voice_id} value={v.voice_id}>
+                {v.name} ({v.gender})
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
+
+      {/* Preview button */}
+      <button
+        type="button"
+        onClick={handlePreview}
+        disabled={!selectedVoice || previewing}
+        className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
+      >
+        {previewing ? "Playing…" : "▶ Preview Voice"}
+      </button>
+
+      <PhoneNumberSelector
+        value={String(node.data.config?.from_number ?? "")}
+        onChange={(v) => onUpdate("from_number", v)}
+      />
+
+      <CreditEstimate kind="agent_voice" ttsProvider={selectedProvider} />
+    </div>
+  );
+}
+
+function CreditEstimate({
+  kind,
+  ttsProvider,
+}: {
+  kind: string;
+  ttsProvider?: string;
+}) {
+  const [estimate, setEstimate] = React.useState<{
+    credits_per_action: number;
+    current_balance: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    api.estimateFlowCredits({ kind, tts_provider: ttsProvider, contact_count: 1 })
+      .then(setEstimate)
+      .catch(() => {});
+  }, [kind, ttsProvider]);
+
+  if (!estimate) return null;
+
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/50 p-3 space-y-1">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+        Credit Cost
+      </p>
+      <p className="text-sm text-[var(--foreground)]">
+        {estimate.credits_per_action} credits per contact
+      </p>
+      <p className="text-xs text-[var(--muted-foreground)]">
+        Balance: {estimate.current_balance.toFixed(1)} credits
+      </p>
+    </div>
+  );
+}
+
+function KBLookupInspector({
+  node,
+  columns,
+  onUpdate,
+}: {
+  node: FlowNode;
+  columns: string[];
+  onUpdate: (key: string, value: string) => void;
+}) {
+  const { data } = node;
+  const [kbs, setKbs] = React.useState<{ id: string; name: string }[]>([]);
+
+  React.useEffect(() => {
+    api.getKnowledgeBasesForFlow()
+      .then((list: any[]) => setKbs(list.map((kb: any) => ({ id: kb.id, name: kb.name }))))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <label className="block space-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+          Knowledge Base
+        </span>
+        <select
+          value={String(data.config.knowledge_base_id ?? "")}
+          onChange={(e) => onUpdate("knowledge_base_id", e.target.value)}
+          className="input-modern h-9 w-full px-3 text-sm"
+        >
+          <option value="">Select knowledge base…</option>
+          {kbs.map((kb) => (
+            <option key={kb.id} value={kb.id}>{kb.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <AutocompleteTextarea
+        label="Query Template"
+        value={String(data.config.query_template ?? "")}
+        onChange={(v) => onUpdate("query_template", v)}
+        columns={columns}
+        placeholder="Information about {{name}}"
+      />
+
+      <LabeledInput
+        label="Top K Results"
+        value={String(data.config.top_k ?? "5")}
+        onChange={(v) => onUpdate("top_k", v)}
+        placeholder="5"
+        type="number"
+      />
+
+      <LabeledInput
+        label="Output Variable"
+        value={String(data.config.output_variable ?? "_kb_context")}
+        onChange={(v) => onUpdate("output_variable", v)}
+        placeholder="_kb_context"
+      />
+    </div>
+  );
+}
+
+function InteractiveVoiceInspector({
+  node,
+  columns,
+  onUpdate,
+}: {
+  node: FlowNode;
+  columns: string[];
+  onUpdate: (key: string, value: string) => void;
+}) {
+  const { data } = node;
+  const [kbs, setKbs] = React.useState<{ id: string; name: string }[]>([]);
+
+  React.useEffect(() => {
+    api.getKnowledgeBasesForFlow()
+      .then((list: any[]) => setKbs(list.map((kb: any) => ({ id: kb.id, name: kb.name }))))
+      .catch(() => {});
+  }, []);
+
+  const outputMode = String(data.config.output_mode ?? "native_audio");
+
+  return (
+    <div className="space-y-3">
+      <AutocompleteTextarea
+        label="System Prompt"
+        value={String(data.config.system_prompt ?? "")}
+        onChange={(v) => onUpdate("system_prompt", v)}
+        columns={columns}
+        placeholder="You are an assistant calling {{name}}..."
+      />
+
+      <LabeledSelect
+        label="Voice Mode"
+        value={outputMode}
+        onChange={(v) => onUpdate("output_mode", v)}
+        options={[
+          { value: "native_audio", label: "Native Audio (Gemini)" },
+          { value: "hybrid", label: "Hybrid (Gemini AI + TTS Voice)" },
+        ]}
+      />
+
+      <label className="block space-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+          Knowledge Base (optional)
+        </span>
+        <select
+          value={String(data.config.knowledge_base_id ?? "")}
+          onChange={(e) => onUpdate("knowledge_base_id", e.target.value)}
+          className="input-modern h-9 w-full px-3 text-sm"
+        >
+          <option value="">None</option>
+          {kbs.map((kb) => (
+            <option key={kb.id} value={kb.id}>{kb.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <LabeledInput
+        label="Max Duration (minutes)"
+        value={String(data.config.max_duration_minutes ?? "10")}
+        onChange={(v) => onUpdate("max_duration_minutes", v)}
+        placeholder="10"
+        type="number"
+      />
+
+      <PhoneNumberSelector
+        value={String(node.data.config?.from_number ?? "")}
+        onChange={(v) => onUpdate("from_number", v)}
+      />
+
+      <CreditEstimate kind="agent_voice_interactive" />
+    </div>
+  );
+}
+
+function PhoneNumberSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [numbers, setNumbers] = React.useState<{ sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoading(true);
+    api.getFlowPhoneNumbers()
+      .then(setNumbers)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-[var(--muted-foreground)]">From Number</label>
+      {loading ? (
+        <p className="text-xs text-[var(--muted-foreground)]">Loading numbers...</p>
+      ) : (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-sm text-[var(--foreground)]"
+        >
+          <option value="">Default number</option>
+          {numbers.map((n) => (
+            <option key={n.sid} value={n.number}>
+              {n.friendly_name || n.number}
+              {n.capabilities.sms ? " (SMS)" : ""}
+              {n.capabilities.voice ? " (Voice)" : ""}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

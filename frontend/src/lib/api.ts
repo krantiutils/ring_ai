@@ -710,6 +710,21 @@ export const api = {
     };
   },
 
+  // Knowledge Base URL upload
+  uploadKBDocumentFromUrl: (kbId: string, orgId: string, url: string) =>
+    request<any>(`/knowledge-bases/${kbId}/documents/url?org_id=${orgId}`, {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  // Knowledge Bases (for flow node — uses stored org)
+  getKnowledgeBasesForFlow: async () => {
+    const orgId = getStoredOrgId();
+    if (!orgId) return [];
+    const res = await request<any>(withOrgId("/knowledge-bases", orgId));
+    return Array.isArray(res) ? res : res?.items ?? [];
+  },
+
   // Flow credit estimate
   estimateFlowCredits: (params: { kind: string; tts_provider?: string; contact_count: number }) =>
     request<{

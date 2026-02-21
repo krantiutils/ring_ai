@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addEdge,
   Background,
@@ -27,6 +27,8 @@ import AddNodeMenu from "./AddNodeMenu";
 import CanvasContextMenu from "./CanvasContextMenu";
 import type { ContextMenuTarget } from "./CanvasContextMenu";
 import NodeInspector from "./NodeInspector";
+import RunResultsPanel from "./RunResultsPanel";
+import type { RunData } from "./RunResultsPanel";
 import FlowToolbar from "./FlowToolbar";
 import StatusBar from "./StatusBar";
 
@@ -83,9 +85,12 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "condition") return { field: "", operator: "==", value: "" };
   if (kind === "wait") return { duration_minutes: "30" };
   if (kind === "rate_limit") return { per_minute: "20" };
+  if (kind === "sender_number") return { number: "" };
   if (kind === "agent_sms") return { message: "" };
-  if (kind === "agent_voice") return { script: "" };
+  if (kind === "agent_voice") return { script: "", tts_provider: "edge_tts", tts_voice: "" };
+  if (kind === "agent_voice_interactive") return { system_prompt: "", output_mode: "native_audio", tts_provider: "edge_tts", tts_voice: "", knowledge_base_id: "", max_duration_minutes: "10" };
   if (kind === "agent_whatsapp") return { message: "", template_name: "" };
+  if (kind === "lookup_kb") return { knowledge_base_id: "", query_template: "", top_k: "5", output_variable: "_kb_context" };
   if (kind === "merge") return {};
   if (kind === "error_handler") return { retries: "2" };
   return {};
@@ -129,7 +134,7 @@ function wouldCreateCycle(sourceId: string, targetId: string, edges: Array<{ sou
 
 /* ── Main Component ─────────────────────────────────────── */
 
-function FlowBuilderInner() {
+function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialFlowId?: string; onBack?: () => void }) {
   const [mode, setMode] = useState<"wizard" | "canvas">("wizard");
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -143,6 +148,9 @@ function FlowBuilderInner() {
   const [contextMenu, setContextMenu] = useState<ContextMenuTarget | null>(null);
   const [clipboard, setClipboard] = useState<FlowNode | null>(null);
   const [showGrid, setShowGrid] = useState(true);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [runResultsData, setRunResultsData] = useState<RunData | null>(null);
+  const [showRunResults, setShowRunResults] = useState(false);
 
   const { fitView, screenToFlowPosition } = useReactFlow();
 
@@ -154,8 +162,30 @@ function FlowBuilderInner() {
   const warningCount = issues.filter((i) => i.severity === "warning").length;
   const contactEstimate = useMemo(() => simulateContactsCount(nodes as FlowNode[]), [nodes]);
 
-  // Load saved draft on mount
+  // Load flow on mount — from backend if initialFlowId, from localStorage only if no library callback
   React.useEffect(() => {
+    if (initialFlowId) {
+      api.getFlowDefinition(initialFlowId)
+        .then((flow) => {
+          const rawNodes = flow.nodes as FlowNode[];
+          const migratedNodes = rawNodes.map((n) => ({
+            ...n,
+            data: { ...n.data, columns: migrateColumns(n.data.columns as unknown as (string | ColumnDef)[]) },
+          }));
+          setNodes(migratedNodes as FlowNode[]);
+          setEdges(((flow.edges ?? []) as FlowEdge[]).map((e) => ({ ...e, type: e.type || "deletable" })));
+          setFlowName(flow.name);
+          setFlowDefinitionId(flow.id);
+          setMode("canvas");
+        })
+        .catch(() => {
+          // Fall back to wizard if flow can't be loaded
+        });
+      return;
+    }
+    // When opened from library with no flowId, start fresh wizard (skip localStorage)
+    if (onBackToLibrary) return;
+    // Standalone mode: try loading from localStorage
     if (typeof window === "undefined") return;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
@@ -175,7 +205,51 @@ function FlowBuilderInner() {
     } catch {
       // ignore
     }
-  }, []);
+  }, [initialFlowId]);
+
+  // Poll active run for results
+  React.useEffect(() => {
+    if (!activeRunId) return;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await api.getFlowRun(activeRunId!);
+        if (cancelled) return;
+        setRunResultsData(data as RunData);
+        setShowRunResults(true);
+        setBackendRunStatus(data.status);
+
+        if (data.status === "running" || data.status === "pending") {
+          setTimeout(poll, 2000);
+        } else {
+          setRunning(false);
+        }
+      } catch {
+        if (!cancelled) setRunning(false);
+      }
+    }
+
+    poll();
+    return () => { cancelled = true; };
+  }, [activeRunId]);
+
+  const nodeLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    nodes.forEach((n) => {
+      map[n.id] = n.data.label || n.data.kind;
+    });
+    return map;
+  }, [nodes]);
+
+  const runProgress = useMemo(() => {
+    if (!runResultsData) return null;
+    return {
+      current_node: runResultsData.current_node_id,
+      steps_done: runResultsData.steps.length,
+      steps_total: nodes.length,
+    };
+  }, [runResultsData, nodes.length]);
 
   // ── Handlers ──────────────────────────────────────────
 
@@ -321,17 +395,41 @@ function FlowBuilderInner() {
     setRunning(true);
     setBackendRunStatus(null);
     try {
-      const res = await api.triggerFlowRun(id);
+      const res = await api.triggerFlowRun(id, "live");
+      setActiveRunId(res.id);
       setBackendRunStatus(res.status);
-    } catch (err) {
+    } catch {
       setBackendRunStatus("error");
-    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function testRunFlow() {
+    let id = flowDefinitionId;
+    if (!id) {
+      id = await saveDraft();
+    }
+    if (!id) return;
+    setRunning(true);
+    setBackendRunStatus(null);
+    try {
+      const res = await api.triggerFlowRun(id, "dry_run");
+      setActiveRunId(res.id);
+      setBackendRunStatus(res.status);
+    } catch {
+      setBackendRunStatus("error");
       setRunning(false);
     }
   }
 
   function handleBack() {
-    // Reset to wizard for a new flow
+    if (onBackToLibrary) {
+      // Navigate back to library — clear localStorage draft
+      if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
+      onBackToLibrary();
+      return;
+    }
+    // Fallback: reset to wizard for a new flow
     setMode("wizard");
     setNodes([]);
     setEdges([]);
@@ -446,6 +544,7 @@ function FlowBuilderInner() {
         onBack={handleBack}
         onSave={saveDraft}
         onRun={runFlow}
+        onTestRun={testRunFlow}
         saving={saving}
         running={running}
         savedAt={savedAt}
@@ -482,8 +581,17 @@ function FlowBuilderInner() {
           </ReactFlow>
         </div>
 
-        {/* Inspector */}
-        {selectedNode && (
+        {/* Inspector / Run Results */}
+        {showRunResults && runResultsData ? (
+          <RunResultsPanel
+            run={runResultsData}
+            onClose={() => {
+              setShowRunResults(false);
+              setActiveRunId(null);
+            }}
+            nodeLabels={nodeLabels}
+          />
+        ) : selectedNodeId && selectedNode ? (
           <div className="w-80 shrink-0">
             <NodeInspector
               node={selectedNode}
@@ -494,7 +602,7 @@ function FlowBuilderInner() {
               onDelete={() => deleteNode(selectedNode.id)}
             />
           </div>
-        )}
+        ) : null}
       </div>
 
       <StatusBar
@@ -503,6 +611,8 @@ function FlowBuilderInner() {
         errorCount={errorCount}
         warningCount={warningCount}
         runStatus={backendRunStatus}
+        runMode={runResultsData?.mode}
+        runProgress={runProgress}
       />
 
       {contextMenu && (
@@ -516,10 +626,10 @@ function FlowBuilderInner() {
   );
 }
 
-export default function FlowBuilder() {
+export default function FlowBuilder({ initialFlowId, onBack }: { initialFlowId?: string; onBack?: () => void } = {}) {
   return (
     <ReactFlowProvider>
-      <FlowBuilderInner />
+      <FlowBuilderInner initialFlowId={initialFlowId} onBack={onBack} />
     </ReactFlowProvider>
   );
 }
