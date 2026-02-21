@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     AZURE_TTS_REGION: str = ""
     ELEVENLABS_API_KEY: str = ""
 
+    # Parler-TTS
+    PARLER_FORCE_CPU: bool = False
+    PARLER_MODEL_ID: str = "ai4bharat/indic-parler-tts"
+
+    # Piper TTS
+    PIPER_BINARY_PATH: str = "/usr/bin/piper"
+    PIPER_MODELS_DIR: str = "/opt/piper-models"
+
     # Twilio
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
