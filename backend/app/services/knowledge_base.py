@@ -86,22 +86,41 @@ def extract_text_from_txt(file_bytes: bytes) -> str:
     raise DocumentProcessingError("Failed to decode text file")
 
 
+def extract_text_from_docx(file_bytes: bytes) -> str:
+    """Extract text from a DOCX file."""
+    import docx
+    doc = docx.Document(io.BytesIO(file_bytes))
+    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    return "\n".join(paragraphs)
+
+
+def extract_text_from_xlsx(file_bytes: bytes) -> str:
+    """Extract text from an XLSX file — reads all sheets, converts rows to text lines."""
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    lines: list[str] = []
+    for sheet in wb.sheetnames:
+        ws = wb[sheet]
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(c) if c is not None else "" for c in row]
+            line = " | ".join(cells).strip()
+            if line and line != " | ".join([""] * len(cells)):
+                lines.append(line)
+    wb.close()
+    return "\n".join(lines)
+
+
 def extract_text(file_bytes: bytes, file_type: str) -> str:
-    """Route to the correct text extractor based on file type.
-
-    Args:
-        file_bytes: Raw file contents.
-        file_type: MIME type or extension hint (e.g. "pdf", "txt",
-            "application/pdf", "text/plain").
-
-    Raises:
-        DocumentProcessingError: If file type is unsupported or extraction fails.
-    """
+    """Route to the correct text extractor based on file type."""
     normalized = file_type.lower()
     if "pdf" in normalized:
         return extract_text_from_pdf(file_bytes)
-    if "text" in normalized or "txt" in normalized:
+    if normalized in ("txt", "md", "markdown", "url") or "text" in normalized:
         return extract_text_from_txt(file_bytes)
+    if normalized in ("docx",) or "wordprocessingml" in normalized:
+        return extract_text_from_docx(file_bytes)
+    if normalized in ("xlsx", "xls") or "spreadsheetml" in normalized:
+        return extract_text_from_xlsx(file_bytes)
     raise DocumentProcessingError(f"Unsupported file type: {file_type}")
 
 

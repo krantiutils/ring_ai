@@ -34,9 +34,13 @@ from app.services.knowledge_base import (
 
 router = APIRouter()
 
-ALLOWED_FILE_TYPES = {
+ALLOWED_FILE_TYPES: dict[str, str] = {
     "application/pdf": "pdf",
     "text/plain": "txt",
+    "text/markdown": "md",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
 }
 MAX_FILE_SIZE_MB = 20
 
@@ -227,6 +231,66 @@ async def upload_doc(
             file_name=file.filename or "untitled",
             file_type=file_type,
             file_bytes=file_bytes,
+        )
+    except DocumentProcessingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except EmbeddingError as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding generation failed: {exc}")
+
+    return KnowledgeDocumentResponse(
+        id=doc.id,
+        kb_id=doc.kb_id,
+        file_name=doc.file_name,
+        file_type=doc.file_type,
+        status=doc.status,
+        chunk_count=doc.chunk_count,
+        error_message=doc.error_message,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+    )
+
+
+@router.post("/{kb_id}/documents/url", response_model=KnowledgeDocumentResponse, status_code=201)
+async def upload_doc_from_url(
+    kb_id: uuid.UUID,
+    body: dict,
+    org_id: uuid.UUID = Query(..., description="Organization ID"),
+    db: Session = Depends(get_db),
+):
+    """Ingest a web page into a knowledge base by URL."""
+    kb = get_knowledge_base(db, kb_id, org_id)
+    if kb is None:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+    url = body.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="URL is required")
+
+    import httpx
+    from bs4 import BeautifulSoup
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Failed to fetch URL: {exc}")
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n", strip=True)
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No text content found at URL")
+
+    try:
+        doc = upload_document(
+            db=db,
+            kb_id=kb_id,
+            file_name=url,
+            file_type="url",
+            file_bytes=text.encode("utf-8"),
         )
     except DocumentProcessingError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
