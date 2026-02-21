@@ -18,7 +18,7 @@ from app.services.flow_executors import (
 )
 
 _BRANCHING_KINDS = {"condition", "validation"}
-_ACTION_KINDS = {"agent_sms", "agent_voice", "agent_whatsapp", "action_webhook"}
+_ACTION_KINDS = {"agent_sms", "agent_voice", "agent_whatsapp", "action_webhook", "agent_voice_interactive"}
 
 
 def run_flow(flow_run_id, db: Session) -> None:
@@ -204,6 +204,8 @@ def _execute_step(
                     rendered = render_template(str(config.get("message", "")), row)
                 elif kind == "agent_voice":
                     rendered = render_template(str(config.get("script", "")), row)
+                elif kind == "agent_voice_interactive":
+                    rendered = render_template(str(config.get("system_prompt", "")), row)
                 else:
                     rendered = ""
                 enriched = dict(row)

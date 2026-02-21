@@ -63,6 +63,8 @@ class _FlowAudioStore:
 
 flow_audio_store = _FlowAudioStore()
 
+_interactive_session_store: dict[str, dict] = {}
+
 
 @dataclass
 class DispatchResult:
@@ -180,12 +182,53 @@ async def dispatch_whatsapp(provider, row: dict, config: dict) -> DispatchResult
         return DispatchResult(status="failed", error=str(exc))
 
 
+async def dispatch_voice_interactive(
+    provider, row: dict, config: dict, *, base_url: str
+) -> DispatchResult:
+    """Initiate an interactive two-way voice call."""
+    phone = row.get("phone", "")
+    if not phone:
+        return DispatchResult(status="failed", error="No phone number in contact row")
+
+    session_id = str(uuid.uuid4())
+
+    system_prompt = render_template(str(config.get("system_prompt", "")), row)
+
+    _interactive_session_store[session_id] = {
+        "system_prompt": system_prompt,
+        "output_mode": config.get("output_mode", "native_audio"),
+        "tts_provider": config.get("tts_provider", "edge_tts"),
+        "tts_voice": config.get("tts_voice", ""),
+        "knowledge_base_id": config.get("knowledge_base_id", ""),
+        "max_duration_minutes": int(config.get("max_duration_minutes", 10)),
+    }
+
+    twiml_url = f"{base_url}/api/v1/voice/interactive-twiml/{session_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    try:
+        result = await provider.initiate_call(
+            to=phone,
+            from_number=row.get("_from_number") or provider.default_from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+        return DispatchResult(
+            status=str(result.status.value) if hasattr(result.status, "value") else str(result.status),
+            provider_id=result.call_id,
+        )
+    except Exception as exc:
+        logger.error("Interactive voice dispatch failed to=%s: %s", phone, exc)
+        _interactive_session_store.pop(session_id, None)
+        return DispatchResult(status="failed", error=str(exc))
+
+
 def dispatch_action(kind: str, row: dict, config: dict) -> DispatchResult:
     """Synchronous entry point — routes to the right async dispatcher.
 
     Called by the orchestrator and the Celery task.
     """
-    if kind not in ("agent_sms", "agent_voice", "agent_whatsapp"):
+    if kind not in ("agent_sms", "agent_voice", "agent_whatsapp", "agent_voice_interactive"):
         return DispatchResult(status="skipped")
 
     try:
@@ -204,6 +247,11 @@ def dispatch_action(kind: str, row: dict, config: dict) -> DispatchResult:
         )
     elif kind == "agent_whatsapp":
         return loop.run_until_complete(dispatch_whatsapp(provider, row, config))
+    elif kind == "agent_voice_interactive":
+        base_url = settings.TWILIO_BASE_URL or "http://localhost:8000"
+        return loop.run_until_complete(
+            dispatch_voice_interactive(provider, row, config, base_url=base_url)
+        )
 
     return DispatchResult(status="skipped")
 
