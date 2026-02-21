@@ -1292,7 +1292,9 @@ async def live_agent_ws(ws: WebSocket, session_id: str):
         except Exception:
             logger.exception("Failed to release live-agent session %s", session_id)
         with _LIVE_AGENT_LOCK:
-            _LIVE_AGENT_STORE.pop(session_id, None)
+            phone = _LIVE_AGENT_STORE.pop(session_id, None)
+            if phone:
+                _LIVE_AGENT_USED_PHONES.discard(phone)
 
 
 @router.delete("/live-agent/{session_id}", status_code=204)
@@ -1300,8 +1302,9 @@ async def live_agent_end_session(session_id: str, request: Request):
     """End a live-agent session and release its Gemini connection."""
     removed = False
     with _LIVE_AGENT_LOCK:
-        if session_id in _LIVE_AGENT_STORE:
-            _LIVE_AGENT_STORE.pop(session_id, None)
+        phone = _LIVE_AGENT_STORE.pop(session_id, None)
+        if phone is not None:
+            _LIVE_AGENT_USED_PHONES.discard(phone)
             removed = True
 
     if removed:

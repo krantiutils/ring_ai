@@ -15,7 +15,6 @@ const VOICES = [
   { provider: "piper", voice: "ne_NP-google-medium", label: "Google Medium", gender: "Female", engine: "Piper" },
   { provider: "piper", voice: "ne_NP-google-x_low", label: "Google X-Low", gender: "Female", engine: "Piper" },
   { provider: "piper", voice: "ne_NP-chitwan-medium", label: "Chitwan Medium", gender: "Male", engine: "Piper" },
-  { provider: "mms_tts", voice: "nepali-male", label: "Nepali Male", gender: "Male", engine: "Nepali VITS" },
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -62,8 +61,6 @@ function engineColor(engine: string): string {
       return "border-blue-400/40 bg-blue-500/10 text-blue-600 dark:text-blue-400";
     case "Piper":
       return "border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-    case "Nepali VITS":
-      return "border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400";
     default:
       return "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]";
   }

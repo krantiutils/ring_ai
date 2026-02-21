@@ -9,6 +9,15 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 const PLAYBACK_SAMPLE_RATE = 16000;
 
+function buildWsUrl(base: string): string {
+  if (base.startsWith("http")) {
+    return base.replace(/^http/, "ws");
+  }
+  // Relative path — build from current page location
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}${base}`;
+}
+
 export type SessionState = "connecting" | "active" | "ended";
 
 export interface LiveAudioSessionOptions {
@@ -98,7 +107,7 @@ export class LiveAudioSession {
     this.workletNode.connect(this.audioCtx.createGain()); // sink (silent)
 
     // 5. Open WebSocket
-    const wsUrl = API_BASE.replace(/^http/, "ws");
+    const wsUrl = buildWsUrl(API_BASE);
     this.ws = new WebSocket(`${wsUrl}/voice/live-agent/ws/${this.sessionId}`);
     this.ws.binaryType = "arraybuffer";
 
