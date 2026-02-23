@@ -13,8 +13,9 @@ class ExecutionStep:
     node_id: str
     node_kind: str
     config: dict
-    inputs: dict[str, str] = field(default_factory=dict)   # handle -> source_node_id
-    outputs: dict[str, str] = field(default_factory=dict)  # handle -> target_node_id
+    inputs: dict[str, str] = field(default_factory=dict)       # handle -> source_node_id
+    input_sources: list[str] = field(default_factory=list)      # source_node_ids in graph order
+    outputs: dict[str, str] = field(default_factory=dict)       # handle -> target_node_id
 
 
 @dataclass
@@ -141,13 +142,15 @@ def compile_flow(nodes: list[dict], edges: list[dict]) -> ExecutionPlan:
             inputs["default"] = sources[0][0]
         elif len(sources) > 1:
             for src, handle in sources:
-                inputs[handle or "default"] = src
+                key = handle or f"source_{src}"
+                inputs[key] = src
 
         steps.append(ExecutionStep(
             node_id=nid,
             node_kind=kind,
             config=config,
             inputs=inputs,
+            input_sources=[src for src, _ in sources],
             outputs=outputs,
         ))
 

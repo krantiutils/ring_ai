@@ -14,6 +14,8 @@ import NumberPasteEditor from "./source-editors/NumberPasteEditor";
 type NodeInspectorProps = {
   node: FlowNode;
   columns: string[];
+  columnDefs: ColumnDef[];
+  upstreamNodes: Array<{ id: string; label: string }>;
   onUpdate: (key: string, value: string) => void;
   onUpdateData: (nodeId: string, partial: Partial<FlowNodeData>) => void;
   onClose: () => void;
@@ -23,6 +25,8 @@ type NodeInspectorProps = {
 export default function NodeInspector({
   node,
   columns,
+  columnDefs,
+  upstreamNodes,
   onUpdate,
   onUpdateData,
   onClose,
@@ -57,7 +61,7 @@ export default function NodeInspector({
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {/* Variable Chips */}
-        {columns.length > 0 && (
+        {(columns.length > 0 || data.kind === "enrich_columns") && (
           <div>
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
               Available Variables
@@ -72,6 +76,40 @@ export default function NodeInspector({
                   {col}
                 </span>
               ))}
+              {data.kind === "enrich_columns" && (
+                <>
+                  <span
+                    className="inline-block rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] cursor-default"
+                    title="Record number (1-based)"
+                  >
+                    row_number
+                  </span>
+                  <span
+                    className="inline-block rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] cursor-default"
+                    title="Number of fields in current row"
+                  >
+                    field_count
+                  </span>
+                  <span
+                    className="inline-block rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] cursor-default"
+                    title="Record number (1-based)"
+                  >
+                    NR
+                  </span>
+                  <span
+                    className="inline-block rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] cursor-default"
+                    title="Number of fields in current row"
+                  >
+                    NF
+                  </span>
+                  <span
+                    className="inline-block rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] cursor-default"
+                    title="File record number (same as NR in flow runs)"
+                  >
+                    FNR
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -108,6 +146,7 @@ export default function NodeInspector({
             <PhoneNumberSelector
               value={String(node.data.config?.from_number ?? "")}
               onChange={(v) => onUpdate("from_number", v)}
+              capability="sms"
             />
             <CreditEstimate kind={data.kind} />
           </div>
@@ -128,10 +167,80 @@ export default function NodeInspector({
             field={String(data.config.field ?? "")}
             operator={String(data.config.operator ?? "==")}
             value={String(data.config.value ?? "")}
+            inputFrom={String(data.config.input_from ?? "__all__")}
+            upstreamNodes={upstreamNodes}
             columns={columns}
+            columnDefs={columnDefs}
             onChange={onUpdate}
             sampleRows={sampleRows}
           />
+        )}
+
+        {data.kind === "enrich_columns" && (
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-[var(--muted-foreground)]">Set / Compute Fields</p>
+            <div className="rounded-md border border-[var(--border)] bg-[var(--muted)]/35 p-2">
+              <p className="text-[11px] font-semibold text-[var(--foreground)]">Examples</p>
+              <p className="mt-1 font-mono text-[11px] text-[var(--muted-foreground)]">delivery_status = _dispatch_status</p>
+              <p className="font-mono text-[11px] text-[var(--muted-foreground)]">row_no = row_number</p>
+              <p className="font-mono text-[11px] text-[var(--muted-foreground)]">name_upper = upper(name)</p>
+            </div>
+            <SetFieldsBuilder
+              value={String(data.config.columns ?? "")}
+              onChange={(v) => onUpdate("columns", v)}
+            />
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              One assignment per line: `column = expression`. Prefer `row_number` and `field_count` for readability (NR/NF are aliases). Functions: upper(), lower(), len(), int(), float(), abs(), coalesce().
+            </p>
+          </div>
+        )}
+
+        {data.kind === "response_capture" && (
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-[var(--muted-foreground)]">Wait for Reply</p>
+            <LabeledSelect
+              label="Channel"
+              value={String(data.config.channel ?? "sms")}
+              onChange={(v) => onUpdate("channel", v)}
+              options={[{ value: "sms", label: "SMS" }, { value: "dtmf", label: "DTMF" }]}
+            />
+            <LabeledInput
+              label="Wait (minutes)"
+              value={String(data.config.wait_minutes ?? "15")}
+              onChange={(v) => onUpdate("wait_minutes", v)}
+            />
+            <LabeledInput
+              label="Output Column"
+              value={String(data.config.output_column ?? "response_text")}
+              onChange={(v) => onUpdate("output_column", v)}
+            />
+            <LabeledInput
+              label="Status Column"
+              value={String(data.config.status_column ?? "response_status")}
+              onChange={(v) => onUpdate("status_column", v)}
+            />
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              This node branches into `received` and `timeout` outputs. Connect both paths for clear follow-up handling.
+            </p>
+          </div>
+        )}
+
+        {data.kind === "dtmf_menu" && (
+          <div className="space-y-3">
+            <LabeledInput
+              label="Digit Field"
+              value={String(data.config.digit_field ?? "dtmf_digit")}
+              onChange={(v) => onUpdate("digit_field", v)}
+            />
+            <LabeledInput
+              label="Fallback Handle"
+              value={String(data.config.fallback_handle ?? "no_input")}
+              onChange={(v) => onUpdate("fallback_handle", v)}
+            />
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              Connect outgoing paths from this node; handles like `press_1`, `press_2`, etc. are auto-assigned.
+            </p>
+          </div>
         )}
 
         {/* ── Validation Inspector ─────────────────── */}
@@ -282,6 +391,9 @@ export default function NodeInspector({
           "validation",
           "deduplicate",
           "normalize_phone",
+          "enrich_columns",
+          "response_capture",
+          "dtmf_menu",
           "wait",
           "rate_limit",
           "sender_number",
@@ -412,6 +524,96 @@ function MessagePreview({
       <p className="mt-1 rounded-lg bg-[var(--muted)] px-3 py-2 text-xs text-[var(--foreground)] italic">
         {preview}
       </p>
+    </div>
+  );
+}
+
+type FieldExprRow = { field: string; expr: string };
+
+function parseFieldExprRows(value: string): FieldExprRow[] {
+  const rows: FieldExprRow[] = [];
+  for (const line of value.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const field = trimmed.slice(0, eq).trim();
+    const expr = trimmed.slice(eq + 1).trim();
+    rows.push({ field, expr });
+  }
+  return rows;
+}
+
+function serializeFieldExprRows(rows: FieldExprRow[]): string {
+  return rows
+    .map((r) => ({ field: r.field.trim(), expr: r.expr.trim() }))
+    .filter((r) => r.field || r.expr)
+    .map((r) => `${r.field} = ${r.expr}`)
+    .join("\n");
+}
+
+function SetFieldsBuilder({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [rows, setRows] = React.useState<FieldExprRow[]>(() => {
+    const parsed = parseFieldExprRows(value);
+    return parsed.length > 0 ? parsed : [{ field: "delivery_status", expr: "_dispatch_status" }];
+  });
+
+  React.useEffect(() => {
+    const parsed = parseFieldExprRows(value);
+    const next = parsed.length > 0 ? parsed : [{ field: "", expr: "" }];
+    setRows(next);
+  }, [value]);
+
+  function updateRow(index: number, partial: Partial<FieldExprRow>) {
+    const next = rows.map((row, i) => (i === index ? { ...row, ...partial } : row));
+    setRows(next);
+    onChange(serializeFieldExprRows(next));
+  }
+
+  function addRow() {
+    const next = [...rows, { field: "", expr: "" }];
+    setRows(next);
+  }
+
+  function removeRow(index: number) {
+    const next = rows.filter((_, i) => i !== index);
+    setRows(next);
+    onChange(serializeFieldExprRows(next));
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row, index) => (
+        <div key={index} className="grid grid-cols-[1fr_1.4fr_auto] gap-2">
+          <input
+            value={row.field}
+            onChange={(e) => updateRow(index, { field: e.target.value })}
+            placeholder="new_column"
+            className="input-modern h-9 px-2 text-xs font-mono"
+          />
+          <input
+            value={row.expr}
+            onChange={(e) => updateRow(index, { expr: e.target.value })}
+            placeholder="expression"
+            className="input-modern h-9 px-2 text-xs font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => removeRow(index)}
+            className="rounded border border-[var(--border)] px-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+            title="Remove row"
+          >
+            x
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addRow}
+        className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+      >
+        + Add field
+      </button>
     </div>
   );
 }
@@ -728,9 +930,24 @@ function VoiceAgentInspector({
   const [voices, setVoices] = React.useState<{ voice_id: string; name: string; gender: string }[]>([]);
   const [loadingVoices, setLoadingVoices] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const selectedProvider = String(data.config.tts_provider ?? "edge_tts");
   const selectedVoice = String(data.config.tts_voice ?? "");
+  const script = String(data.config.script ?? "");
+  const captureDtmf = String(data.config.capture_dtmf ?? "false") === "true";
+
+  // Resolve script with sample values for preview
+  const previewText = React.useMemo(() => {
+    if (!script.trim()) return "";
+    return script.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, col) => {
+      if (col === "name") return "Ram";
+      if (col === "phone") return "+977…";
+      if (col === "age") return "34";
+      return col;
+    });
+  }, [script]);
 
   React.useEffect(() => {
     api.getTTSProviderDetails()
@@ -757,18 +974,26 @@ function VoiceAgentInspector({
 
   async function handlePreview() {
     if (!selectedVoice) return;
+    const text = previewText || "नमस्ते, यो एक परीक्षण हो।";
     setPreviewing(true);
+    setPreviewError(null);
     try {
       const result = await api.synthesizeTTS({
-        text: "नमस्ते, यो एक परीक्षण हो।",
+        text,
         provider: selectedProvider,
         voice: selectedVoice,
       });
       const url = URL.createObjectURL(result.audioBlob);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
       const audio = new Audio(url);
-      audio.play();
-    } catch {
-      // ignore preview errors
+      audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error("TTS preview failed:", err);
+      setPreviewError(err instanceof Error ? err.message : "Preview failed");
     } finally {
       setPreviewing(false);
     }
@@ -778,12 +1003,12 @@ function VoiceAgentInspector({
     <div className="space-y-3">
       <AutocompleteTextarea
         label="Script (TTS)"
-        value={String(data.config.script ?? "")}
+        value={script}
         onChange={(v) => onUpdate("script", v)}
         columns={columns}
         placeholder="Namaste {{name}}, ..."
       />
-      <MessagePreview template={String(data.config.script ?? "")} columns={columns} />
+      <MessagePreview template={script} columns={columns} />
 
       {/* TTS Provider */}
       <label className="block space-y-1">
@@ -830,20 +1055,62 @@ function VoiceAgentInspector({
         )}
       </label>
 
-      {/* Preview button */}
-      <button
-        type="button"
-        onClick={handlePreview}
-        disabled={!selectedVoice || previewing}
-        className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
-      >
-        {previewing ? "Playing…" : "▶ Preview Voice"}
-      </button>
+      {/* Preview button — reads the actual script with sample values */}
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={handlePreview}
+          disabled={!selectedVoice || previewing}
+          className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
+        >
+          {previewing ? "Playing…" : previewText ? "▶ Preview Script" : "▶ Preview Voice"}
+        </button>
+        {previewText && (
+          <p className="text-[10px] text-[var(--muted-foreground)] italic truncate" title={previewText}>
+            Will read: &ldquo;{previewText.slice(0, 60)}{previewText.length > 60 ? "…" : ""}&rdquo;
+          </p>
+        )}
+        {previewError && (
+          <p className="text-[10px] text-red-500">{previewError}</p>
+        )}
+      </div>
 
       <PhoneNumberSelector
         value={String(node.data.config?.from_number ?? "")}
         onChange={(v) => onUpdate("from_number", v)}
+        capability="voice"
       />
+
+      <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+        <input
+          type="checkbox"
+          checked={captureDtmf}
+          onChange={(e) => onUpdate("capture_dtmf", e.target.checked ? "true" : "false")}
+          className="rounded"
+        />
+        Capture keypad input (DTMF)
+      </label>
+      {captureDtmf && (
+        <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--muted)]/30 p-2">
+          <LabeledInput
+            label="DTMF Field"
+            value={String(data.config.dtmf_field ?? "dtmf_digit")}
+            onChange={(v) => onUpdate("dtmf_field", v)}
+          />
+          <label className="block space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              DTMF Routes (optional)
+            </span>
+            <textarea
+              value={String(data.config.dtmf_routes ?? "")}
+              onChange={(e) => onUpdate("dtmf_routes", e.target.value)}
+              rows={3}
+              className="input-modern w-full px-3 py-2 font-mono text-xs"
+              placeholder='[{"digit":"1","label":"Pay now"},{"digit":"2","label":"Agent"}] or 1,2,3'
+            />
+          </label>
+        </div>
+      )}
 
       <CreditEstimate kind="agent_voice" ttsProvider={selectedProvider} />
     </div>
@@ -958,14 +1225,81 @@ function InteractiveVoiceInspector({
 }) {
   const { data } = node;
   const [kbs, setKbs] = React.useState<{ id: string; name: string }[]>([]);
+  const [providers, setProviders] = React.useState<{ provider: string; display_name: string; requires_api_key: boolean }[]>([]);
+  const [voices, setVoices] = React.useState<{ voice_id: string; name: string; gender: string }[]>([]);
+  const [loadingVoices, setLoadingVoices] = React.useState(false);
+  const [previewing, setPreviewing] = React.useState(false);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  const selectedProvider = String(data.config.tts_provider ?? "edge_tts");
+  const selectedVoice = String(data.config.tts_voice ?? "");
+  const outputMode = String(data.config.output_mode ?? "native_audio");
+  const systemPrompt = String(data.config.system_prompt ?? "");
+
+  // Resolve prompt with sample values for preview
+  const previewText = React.useMemo(() => {
+    if (!systemPrompt.trim()) return "";
+    return systemPrompt.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, col) => {
+      if (col === "name") return "Ram";
+      if (col === "phone") return "+977…";
+      if (col === "age") return "34";
+      return col;
+    });
+  }, [systemPrompt]);
 
   React.useEffect(() => {
     api.getKnowledgeBasesForFlow()
       .then((list: any[]) => setKbs(list.map((kb: any) => ({ id: kb.id, name: kb.name }))))
       .catch(() => {});
+    api.getTTSProviderDetails()
+      .then((list: any) => setProviders(list.map((p: any) => ({
+        provider: p.provider,
+        display_name: p.display_name,
+        requires_api_key: p.requires_api_key,
+      }))))
+      .catch(() => {});
   }, []);
 
-  const outputMode = String(data.config.output_mode ?? "native_audio");
+  React.useEffect(() => {
+    if (!selectedProvider || outputMode === "native_audio") return;
+    setLoadingVoices(true);
+    api.getTTSVoices(selectedProvider, "ne-NP")
+      .then((list: any) => setVoices(list.map((v: any) => ({
+        voice_id: v.voice_id,
+        name: v.name,
+        gender: v.gender,
+      }))))
+      .catch(() => setVoices([]))
+      .finally(() => setLoadingVoices(false));
+  }, [selectedProvider, outputMode]);
+
+  async function handlePreview() {
+    if (!selectedVoice) return;
+    const text = previewText || "नमस्ते, यो एक परीक्षण हो।";
+    setPreviewing(true);
+    setPreviewError(null);
+    try {
+      const result = await api.synthesizeTTS({
+        text,
+        provider: selectedProvider,
+        voice: selectedVoice,
+      });
+      const url = URL.createObjectURL(result.audioBlob);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error("TTS preview failed:", err);
+      setPreviewError(err instanceof Error ? err.message : "Preview failed");
+    } finally {
+      setPreviewing(false);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -986,6 +1320,73 @@ function InteractiveVoiceInspector({
           { value: "hybrid", label: "Hybrid (Gemini AI + TTS Voice)" },
         ]}
       />
+
+      {/* TTS voice selection — only for hybrid mode */}
+      {outputMode === "hybrid" && (
+        <>
+          <label className="block space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              TTS Provider
+            </span>
+            <select
+              value={selectedProvider}
+              onChange={(e) => {
+                onUpdate("tts_provider", e.target.value);
+                onUpdate("tts_voice", "");
+              }}
+              className="input-modern h-9 w-full px-3 text-sm"
+            >
+              {providers.map((p) => (
+                <option key={p.provider} value={p.provider}>
+                  {p.display_name}{p.requires_api_key ? " (API Key)" : " (Free)"}
+                </option>
+              ))}
+              {providers.length === 0 && <option value="edge_tts">Edge TTS (Free)</option>}
+            </select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              Voice
+            </span>
+            {loadingVoices ? (
+              <p className="text-xs text-[var(--muted-foreground)]">Loading voices...</p>
+            ) : (
+              <select
+                value={selectedVoice}
+                onChange={(e) => onUpdate("tts_voice", e.target.value)}
+                className="input-modern h-9 w-full px-3 text-sm"
+              >
+                <option value="">Select voice…</option>
+                {voices.map((v) => (
+                  <option key={v.voice_id} value={v.voice_id}>
+                    {v.name} ({v.gender})
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={handlePreview}
+              disabled={!selectedVoice || previewing}
+              className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
+            >
+              {previewing ? "Playing…" : previewText ? "▶ Preview Script" : "▶ Preview Voice"}
+            </button>
+            {previewText && (
+              <p className="text-[10px] text-[var(--muted-foreground)] italic truncate" title={previewText}>
+                Will read: &ldquo;{previewText.slice(0, 60)}{previewText.length > 60 ? "…" : ""}&rdquo;
+              </p>
+            )}
+            {previewError && (
+              <p className="text-[10px] text-red-500">{previewError}</p>
+            )}
+          </div>
+        </>
+      )}
 
       <label className="block space-y-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -1011,9 +1412,25 @@ function InteractiveVoiceInspector({
         type="number"
       />
 
+      <LabeledInput
+        label="Capture Columns (comma-separated)"
+        value={String(data.config.capture_columns ?? "")}
+        onChange={(v) => onUpdate("capture_columns", v)}
+        placeholder="intent, budget, preferred_time"
+      />
+
+      <AutocompleteTextarea
+        label="Capture Instructions (optional)"
+        value={String(data.config.capture_instructions ?? "")}
+        onChange={(v) => onUpdate("capture_instructions", v)}
+        columns={columns}
+        placeholder="Summarize caller response and extract values for capture columns."
+      />
+
       <PhoneNumberSelector
         value={String(node.data.config?.from_number ?? "")}
         onChange={(v) => onUpdate("from_number", v)}
+        capability="voice"
       />
 
       <CreditEstimate kind="agent_voice_interactive" />
@@ -1021,17 +1438,42 @@ function InteractiveVoiceInspector({
   );
 }
 
-function PhoneNumberSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PhoneNumberSelector({
+  value,
+  onChange,
+  capability,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  capability?: "sms" | "voice";
+}) {
+  const [defaultFromNumber, setDefaultFromNumber] = React.useState("");
   const [numbers, setNumbers] = React.useState<{ sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[]>([]);
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
     setLoading(true);
     api.getFlowPhoneNumbers()
-      .then(setNumbers)
+      .then((data) => {
+        const payload = data as
+          | { default_from_number?: string; numbers?: { sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[] }
+          | { sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[];
+        if (Array.isArray(payload)) {
+          setDefaultFromNumber("");
+          setNumbers(payload);
+          return;
+        }
+        setDefaultFromNumber(String(payload.default_from_number || ""));
+        setNumbers(payload.numbers || []);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filteredNumbers = React.useMemo(() => {
+    if (!capability) return numbers;
+    return numbers.filter((n) => (capability === "sms" ? n.capabilities.sms : n.capabilities.voice));
+  }, [capability, numbers]);
 
   return (
     <div className="space-y-1">
@@ -1044,10 +1486,11 @@ function PhoneNumberSelector({ value, onChange }: { value: string; onChange: (v:
           onChange={(e) => onChange(e.target.value)}
           className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-sm text-[var(--foreground)]"
         >
-          <option value="">Default number</option>
-          {numbers.map((n) => (
+          <option value="">{defaultFromNumber ? `Default (${defaultFromNumber})` : "Default number"}</option>
+          {filteredNumbers.map((n) => (
             <option key={n.sid} value={n.number}>
-              {n.friendly_name || n.number}
+              {n.number}
+              {n.friendly_name ? ` - ${n.friendly_name}` : ""}
               {n.capabilities.sms ? " (SMS)" : ""}
               {n.capabilities.voice ? " (Voice)" : ""}
             </option>

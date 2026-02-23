@@ -7,7 +7,9 @@ import logging
 import re
 import threading
 import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
+import json
 
 from app.core.config import settings
 from app.services.telephony import get_twilio_provider
@@ -64,6 +66,54 @@ class _FlowAudioStore:
 flow_audio_store = _FlowAudioStore()
 
 _interactive_session_store: dict[str, dict] = {}
+_interactive_session_lock = threading.Lock()
+
+
+class _FlowCallConfigStore:
+    """Thread-safe store for flow voice call runtime config keyed by call SID."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, dict] = {}
+        self._lock = threading.Lock()
+
+    def put(self, call_id: str, cfg: dict) -> None:
+        with self._lock:
+            self._store[call_id] = cfg
+
+    def get(self, call_id: str) -> dict | None:
+        with self._lock:
+            return self._store.get(call_id)
+
+    def delete(self, call_id: str) -> None:
+        with self._lock:
+            self._store.pop(call_id, None)
+
+
+class _FlowDtmfStore:
+    """Thread-safe store for DTMF results keyed by call SID."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, dict] = {}
+        self._lock = threading.Lock()
+
+    def put(self, call_id: str, digit: str) -> None:
+        with self._lock:
+            self._store[call_id] = {
+                "digit": digit,
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    def get(self, call_id: str) -> dict | None:
+        with self._lock:
+            return self._store.get(call_id)
+
+    def delete(self, call_id: str) -> None:
+        with self._lock:
+            self._store.pop(call_id, None)
+
+
+flow_call_config_store = _FlowCallConfigStore()
+flow_dtmf_store = _FlowDtmfStore()
 
 
 @dataclass
@@ -80,6 +130,52 @@ def render_template(template: str, row: dict) -> str:
     return _TEMPLATE_RE.sub(_replace, template)
 
 
+def _parse_capture_columns(raw: object) -> list[str]:
+    text = str(raw or "")
+    if not text.strip():
+        return []
+    seen: set[str] = set()
+    cols: list[str] = []
+    for part in text.replace(";", ",").replace("\n", ",").split(","):
+        col = part.strip()
+        if not col or col in seen:
+            continue
+        seen.add(col)
+        cols.append(col)
+    return cols
+
+
+def _parse_dtmf_routes(raw: object) -> list[dict]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [r for r in raw if isinstance(r, dict)]
+    text = str(raw).strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [r for r in parsed if isinstance(r, dict)]
+    except Exception:
+        pass
+    routes: list[dict] = []
+    for chunk in text.replace(";", ",").split(","):
+        c = chunk.strip()
+        if not c:
+            continue
+        digit = c[0]
+        if digit.isdigit() or digit in {"*", "#"}:
+            routes.append({"digit": digit, "action": "info", "label": f"Option {digit}"})
+    return routes
+
+
+def pop_interactive_session_config(session_id: str) -> dict | None:
+    """Pop and return interactive flow session config by session_id."""
+    with _interactive_session_lock:
+        return _interactive_session_store.pop(session_id, None)
+
+
 async def dispatch_sms(provider, row: dict, config: dict) -> DispatchResult:
     """Send an SMS to the contact in *row*."""
     phone = row.get("phone", "")
@@ -89,9 +185,10 @@ async def dispatch_sms(provider, row: dict, config: dict) -> DispatchResult:
     body = render_template(str(config.get("message", "")), row)
 
     try:
+        from_number = row.get("_from_number") or config.get("from_number") or provider.default_from_number
         result = await provider.send_sms(
             to=phone,
-            from_number=row.get("_from_number") or provider.default_from_number,
+            from_number=from_number,
             body=body,
         )
         return DispatchResult(status=result.status, provider_id=result.message_id)
@@ -136,9 +233,10 @@ async def dispatch_voice(
     webhook_url = f"{base_url}/api/v1/voice/webhook"
 
     try:
+        from_number = row.get("_from_number") or config.get("from_number") or provider.default_from_number
         result = await provider.initiate_call(
             to=phone,
-            from_number=row.get("_from_number") or provider.default_from_number,
+            from_number=from_number,
             twiml_url=twiml_url,
             status_callback_url=webhook_url,
         )
@@ -149,6 +247,15 @@ async def dispatch_voice(
         stored_audio = flow_audio_store.pop(temp_id)
         if stored_audio:
             flow_audio_store.put(result.call_id, stored_audio)
+
+        flow_call_config_store.put(
+            result.call_id,
+            {
+                "capture_dtmf": str(config.get("capture_dtmf", "")).lower() in {"1", "true", "yes", "on"},
+                "dtmf_routes": _parse_dtmf_routes(config.get("dtmf_routes")),
+                "dtmf_field": str(config.get("dtmf_field", "dtmf_digit") or "dtmf_digit"),
+            },
+        )
 
         return DispatchResult(
             status=str(result.status.value) if hasattr(result.status, "value") else str(result.status),
@@ -168,7 +275,12 @@ async def dispatch_whatsapp(provider, row: dict, config: dict) -> DispatchResult
         return DispatchResult(status="failed", error="No phone number in contact row")
 
     body = render_template(str(config.get("message", "")), row)
-    wa_number = row.get("_from_number") or settings.TWILIO_WHATSAPP_NUMBER or provider.default_from_number
+    wa_number = (
+        row.get("_from_number")
+        or config.get("from_number")
+        or settings.TWILIO_WHATSAPP_NUMBER
+        or provider.default_from_number
+    )
 
     try:
         result = await provider.send_sms(
@@ -194,22 +306,26 @@ async def dispatch_voice_interactive(
 
     system_prompt = render_template(str(config.get("system_prompt", "")), row)
 
-    _interactive_session_store[session_id] = {
-        "system_prompt": system_prompt,
-        "output_mode": config.get("output_mode", "native_audio"),
-        "tts_provider": config.get("tts_provider", "edge_tts"),
-        "tts_voice": config.get("tts_voice", ""),
-        "knowledge_base_id": config.get("knowledge_base_id", ""),
-        "max_duration_minutes": int(config.get("max_duration_minutes", 10)),
-    }
+    with _interactive_session_lock:
+        _interactive_session_store[session_id] = {
+            "system_prompt": system_prompt,
+            "output_mode": config.get("output_mode", "native_audio"),
+            "tts_provider": config.get("tts_provider", "edge_tts"),
+            "tts_voice": config.get("tts_voice", ""),
+            "knowledge_base_id": config.get("knowledge_base_id", ""),
+            "max_duration_minutes": int(config.get("max_duration_minutes", 10)),
+            "capture_columns": _parse_capture_columns(config.get("capture_columns")),
+            "capture_instructions": config.get("capture_instructions", ""),
+        }
 
     twiml_url = f"{base_url}/api/v1/voice/interactive-twiml/{session_id}"
     webhook_url = f"{base_url}/api/v1/voice/webhook"
 
     try:
+        from_number = row.get("_from_number") or config.get("from_number") or provider.default_from_number
         result = await provider.initiate_call(
             to=phone,
-            from_number=row.get("_from_number") or provider.default_from_number,
+            from_number=from_number,
             twiml_url=twiml_url,
             status_callback_url=webhook_url,
         )
@@ -219,7 +335,8 @@ async def dispatch_voice_interactive(
         )
     except Exception as exc:
         logger.error("Interactive voice dispatch failed to=%s: %s", phone, exc)
-        _interactive_session_store.pop(session_id, None)
+        with _interactive_session_lock:
+            _interactive_session_store.pop(session_id, None)
         return DispatchResult(status="failed", error=str(exc))
 
 

@@ -25,12 +25,22 @@ export default function NodeCard({ data, selected }: NodeProps<FlowNode>) {
   const color = getNodeColor(data.kind);
   const category = getCategoryForKind(data.kind);
   const Icon = NODE_ICON[data.kind];
-  const isBranching = data.kind === "condition" || data.kind === "validation";
+  const isBranching = data.kind === "condition" || data.kind === "validation" || data.kind === "response_capture";
   const configured = hasNonDefaultConfig(data);
   const preview = configured ? getConfigPreview(data) : "";
 
-  const trueLabel = data.kind === "validation" ? "valid" : "true";
-  const falseLabel = data.kind === "validation" ? "invalid" : "false";
+  const trueLabel =
+    data.kind === "validation"
+      ? "valid"
+      : data.kind === "response_capture"
+        ? "received"
+        : "true";
+  const falseLabel =
+    data.kind === "validation"
+      ? "invalid"
+      : data.kind === "response_capture"
+        ? "timeout"
+        : "false";
 
   const base = `border bg-[var(--card)] shadow-sm transition-shadow ${
     selected ? "ring-2 ring-[var(--accent)] shadow-md" : ""

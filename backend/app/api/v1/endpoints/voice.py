@@ -1,7 +1,6 @@
 """Voice call API endpoints — outbound campaign calls via Twilio."""
 
 import asyncio
-import audioop
 import json
 import logging
 import threading
@@ -79,6 +78,7 @@ _CALL_TO_INTERACTION_STATUS: dict[CallStatus, str] = {
 _DEMO_OTP_MESSAGE = "Your AgentShakti demo verification code is {otp}. Valid for 5 minutes. Do not share this code."
 _MASTER_DEMO_OTP = "34026"
 _MASTER_OTP_CALL_MESSAGE = "यो AgentShakti को डेमो कल हो। हामी तपाईंलाई हाम्रो प्लेटफर्म छोटकरीमा देखाउँछौं।"
+_MASTER_OTP_BYPASS_PHONES = {"9810223384"}
 _DEMO_OTP_LOCK = threading.Lock()
 _INTERACTIVE_DEMO_LOCK = threading.Lock()
 _INTERACTIVE_DEMO_TTL_SECONDS = 30 * 60
@@ -113,30 +113,74 @@ _DEMO_CALL_OTP_STORE: dict[str, DemoCallOtpState] = {}
 # Live-agent demo — scenario definitions & one-per-phone tracking
 # ---------------------------------------------------------------------------
 
+_LIVE_AGENT_OPEN_CONVERSATION = (
+    "Conversation policy: you may have normal open conversation beyond the scenario. "
+    "Be helpful, natural, and concise. Keep steering gently back to the scenario objective."
+)
+
+_LIVE_AGENT_PERSONA_PROFILE = (
+    "Persona profile for roleplay consistency (fictional demo character): "
+    "Name: Rina. Home: Dhankuta, Mahalaxmi Nagarpalika. Education: BBA from Manmohan College. "
+    "Current residence: Baluwatar. "
+    "If asked personal background in normal conversation, you may answer with this fictional profile. "
+    "If asked whether this is real or whether you are an AI, clearly say this is a demo AI persona."
+)
+
+_LIVE_AGENT_SPEECH_PACING = (
+    "Speaking style: use a slightly brisk conversational pace, but stay clear and intelligible. "
+    "Use brief natural pauses between clauses. Do not sound rushed."
+)
+
+_LIVE_AGENT_LANGUAGE_POLICY = (
+    "Language policy: start the conversation in Nepali by default. "
+    "If the user clearly speaks English, you may switch to English."
+)
+
 _LIVE_AGENT_SCENARIOS = {
     "cart_recovery": {
-        "system_instruction": "You are a friendly Nepali e-commerce support agent calling to help recover an abandoned cart. The customer left items. Be empathetic, offer a 10% discount. Speak naturally like a real phone call. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
-        "voice_name": "Achird",
+        "system_instruction": (
+            "You are a friendly Nepali e-commerce support agent calling to help recover an abandoned cart. "
+            "The customer left an iPhone 15 (128GB, Black) in the cart. Be empathetic, offer a 10% discount, "
+            "and mention free delivery if they complete the order today. Speak naturally like a real phone call. "
+            "Keep responses under 3 sentences. Never reveal you are AI. "
+            f"{_LIVE_AGENT_OPEN_CONVERSATION} {_LIVE_AGENT_PERSONA_PROFILE} {_LIVE_AGENT_SPEECH_PACING} {_LIVE_AGENT_LANGUAGE_POLICY}"
+        ),
+        "voice_name": "Despina",
     },
     "appointment_booking": {
-        "system_instruction": "You are a Nepali clinic receptionist calling to help book/confirm an appointment. Available: tomorrow 10am and 3pm. Be professional and warm. Speak naturally like a real phone call. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
-        "voice_name": "Kore",
+        "system_instruction": (
+            "You are a Nepali clinic receptionist calling to help book/confirm an appointment. "
+            "Available slots are tomorrow 10:00 AM and 3:00 PM with Dr. Sharma. "
+            "Be professional and warm. Speak naturally like a real phone call. "
+            "Keep responses under 3 sentences. "
+            f"{_LIVE_AGENT_OPEN_CONVERSATION} {_LIVE_AGENT_PERSONA_PROFILE} {_LIVE_AGENT_SPEECH_PACING} {_LIVE_AGENT_LANGUAGE_POLICY}"
+        ),
+        "voice_name": "Leda",
     },
     "payment_reminder": {
-        "system_instruction": "You are calling from a Nepali utility company about an overdue Rs 2,500 bill due last week. Be polite but clear. Offer payment options. Keep responses under 3 sentences. Never reveal you are AI. Speak Nepali or English based on what the user speaks.",
-        "voice_name": "Charon",
+        "system_instruction": (
+            "You are calling from a Nepali utility company about an overdue Rs 2,500 bill due last week. "
+            "Be polite but clear. Offer payment options (eSewa, Khalti, bank transfer). Keep responses under 3 sentences. "
+            f"{_LIVE_AGENT_OPEN_CONVERSATION} {_LIVE_AGENT_PERSONA_PROFILE} {_LIVE_AGENT_SPEECH_PACING} {_LIVE_AGENT_LANGUAGE_POLICY}"
+        ),
+        "voice_name": "Gacrux",
     },
 }
 
 _LIVE_AGENT_USED_PHONES: set[str] = set()
 _LIVE_AGENT_LOCK = threading.Lock()
 _LIVE_AGENT_STORE: dict[str, str] = {}  # session_id -> phone (for cleanup)
+_LIVE_AGENT_CONFIGS: dict[str, SessionConfig] = {}  # session_id -> config (pending creation)
 
 
 class LiveAgentVerifyRequest(_PydanticBaseModel):
     request_id: str
     otp: str
     scenario: str
+
+
+class LiveAgentCallRequest(_PydanticBaseModel):
+    from_number: str | None = None
 
 
 def _normalize_nepal_phone(phone: str) -> str | None:
@@ -146,6 +190,11 @@ def _normalize_nepal_phone(phone: str) -> str | None:
     if len(digits) == 10 and digits.startswith("9"):
         return digits
     return None
+
+
+def _is_master_otp_bypass_phone(phone: str) -> bool:
+    normalized = _normalize_nepal_phone(phone)
+    return bool(normalized and normalized in _MASTER_OTP_BYPASS_PHONES)
 
 
 def _normalize_e164(phone: str) -> str:
@@ -602,7 +651,8 @@ async def initiate_demo_call(payload: DemoCallRequest):
 @router.post("/demo-call/otp/send", response_model=DemoCallOtpSendResponse, status_code=201)
 async def send_demo_call_otp(payload: DemoCallRequest):
     """Send OTP for homepage demo-call verification via Aakash SMS."""
-    otp = generate_otp(6)
+    bypass_master_otp = _is_master_otp_bypass_phone(payload.phone)
+    otp = _MASTER_DEMO_OTP if bypass_master_otp else generate_otp(6)
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=settings.DEMO_CALL_OTP_TTL_SECONDS)
@@ -615,11 +665,16 @@ async def send_demo_call_otp(payload: DemoCallRequest):
     delivery_errors: list[str] = []
     delivered = False
 
+    # Dedicated demo bypass: do not send OTP over any external channel.
+    if bypass_master_otp:
+        sms_status = "master_otp_only"
+        logger.info("Demo OTP send bypassed for test number: %s", payload.phone)
+
     # Channel priority:
     # - whatsapp: try WhatsApp only
     # - sms: try SMS only
     # - auto: try WhatsApp first, then SMS fallback
-    if channel in {"auto", "whatsapp"}:
+    if not bypass_master_otp and channel in {"auto", "whatsapp"}:
         try:
             await _send_demo_call_otp_whatsapp(
                 payload.phone,
@@ -633,7 +688,7 @@ async def send_demo_call_otp(payload: DemoCallRequest):
             if channel == "whatsapp":
                 raise
 
-    if not delivered and channel in {"auto", "sms"}:
+    if not bypass_master_otp and not delivered and channel in {"auto", "sms"}:
         if _normalize_nepal_phone(payload.phone) and settings.AAKASH_SMS_TOKEN:
             try:
                 await _send_demo_call_otp_sms(payload.phone, otp)
@@ -862,32 +917,66 @@ async def serve_twiml(call_id: str):
 @router.post("/flow-twiml/{call_id}")
 async def serve_flow_twiml(call_id: str, request: Request):
     """TwiML for flow-dispatched voice calls — uses <Play> if audio available, else <Say>."""
-    from app.services.flow_dispatch import flow_script_store, flow_audio_store
+    from twilio.twiml.voice_response import Gather, VoiceResponse
+
+    from app.services.flow_dispatch import flow_call_config_store, flow_script_store, flow_audio_store
 
     audio = flow_audio_store.get(call_id)
     script = flow_script_store.get(call_id)
+    flow_cfg = flow_call_config_store.get(call_id) or {}
 
     if audio is None and script is None:
         logger.warning("Flow TwiML requested for unknown call_id: %s", call_id)
         raise HTTPException(status_code=404, detail="Flow script not found")
-
-    from twilio.twiml.voice_response import VoiceResponse
     response = VoiceResponse()
+    base_url = str(request.base_url).rstrip("/")
+    dtmf_action_url = f"{base_url}/api/v1/voice/dtmf/{call_id}"
+    should_capture_dtmf = bool(flow_cfg.get("capture_dtmf")) or bool(flow_cfg.get("dtmf_routes"))
 
-    if audio is not None:
-        # Store audio for serving via /voice/audio/{id} endpoint
-        audio_id = str(uuid.uuid4())
-        audio_store.put(
-            audio_id,
-            AudioEntry(
-                audio_bytes=audio,
-                content_type="audio/mpeg",
-            ),
+    if should_capture_dtmf:
+        gather = Gather(
+            num_digits=1,
+            action=dtmf_action_url,
+            method="POST",
+            timeout=8,
         )
-        base_url = str(request.base_url).rstrip("/")
-        response.play(f"{base_url}/api/v1/voice/audio/{audio_id}")
+        if audio is not None:
+            audio_id = str(uuid.uuid4())
+            audio_store.put(
+                audio_id,
+                AudioEntry(
+                    audio_bytes=audio,
+                    content_type="audio/mpeg",
+                ),
+            )
+            gather.play(f"{base_url}/api/v1/voice/audio/{audio_id}")
+        elif script:
+            gather.say(script, language="ne-NP")
+        routes = flow_cfg.get("dtmf_routes") or []
+        if routes:
+            prompt = " ".join(
+                f"Press {str(r.get('digit', '')).strip()} for {str(r.get('label', 'that option')).strip()}."
+                for r in routes
+                if str(r.get("digit", "")).strip()
+            )
+            if prompt:
+                gather.say(prompt, language="en-US")
+        response.append(gather)
+        response.say("No input received. Thank you.", language="en-US")
     else:
-        response.say(script, language="ne-NP")
+        if audio is not None:
+            # Store audio for serving via /voice/audio/{id} endpoint
+            audio_id = str(uuid.uuid4())
+            audio_store.put(
+                audio_id,
+                AudioEntry(
+                    audio_bytes=audio,
+                    content_type="audio/mpeg",
+                ),
+            )
+            response.play(f"{base_url}/api/v1/voice/audio/{audio_id}")
+        elif script:
+            response.say(script, language="ne-NP")
 
     response.hangup()
     return PlainTextResponse(content=str(response), media_type="text/xml")
@@ -896,10 +985,81 @@ async def serve_flow_twiml(call_id: str, request: Request):
 @router.websocket("/media-stream/{session_id}")
 async def twilio_media_stream(ws: WebSocket, session_id: str):
     """WebSocket endpoint for Twilio Media Streams bidirectional audio."""
+    session_pool = getattr(ws.app.state, "session_pool", None)
+    if session_pool is None:
+        await ws.accept()
+        await ws.close(code=1011, reason="session pool unavailable")
+        return
+
+    # Lazy-create Gemini session when Twilio media stream actually connects.
+    existing = await session_pool.get_session(session_id)
+    if existing is None:
+        with _LIVE_AGENT_LOCK:
+            config = _LIVE_AGENT_CONFIGS.pop(session_id, None)
+        # Fallback for flow-dispatched interactive voice sessions.
+        if config is None:
+            try:
+                from app.services.flow_dispatch import pop_interactive_session_config
+            except Exception:
+                pop_interactive_session_config = None
+            if pop_interactive_session_config is not None:
+                flow_cfg = pop_interactive_session_config(session_id)
+                if flow_cfg is not None:
+                    output_mode = (
+                        OutputMode.HYBRID
+                        if str(flow_cfg.get("output_mode", "native_audio")).lower() == "hybrid"
+                        else OutputMode.NATIVE_AUDIO
+                    )
+                    timeout_minutes = int(flow_cfg.get("max_duration_minutes", 10) or 10)
+                    if timeout_minutes <= 0:
+                        timeout_minutes = 10
+                    system_prompt = str(flow_cfg.get("system_prompt", "") or "")
+                    hybrid_tts_provider = str(flow_cfg.get("tts_provider", "edge_tts") or "edge_tts")
+                    hybrid_tts_voice = str(flow_cfg.get("tts_voice", "") or "").strip()
+                    if not hybrid_tts_voice:
+                        hybrid_tts_voice = "ne-NP-HemkalaNeural"
+                    capture_cols = flow_cfg.get("capture_columns") or []
+                    capture_instructions = str(flow_cfg.get("capture_instructions", "") or "")
+                    if capture_cols:
+                        capture_text = ", ".join(str(c) for c in capture_cols)
+                        if capture_instructions:
+                            system_prompt = f"{system_prompt}\n\nCapture goals: {capture_text}. {capture_instructions}".strip()
+                        else:
+                            system_prompt = f"{system_prompt}\n\nCapture goals: {capture_text}.".strip()
+                    config = SessionConfig(
+                        session_id=session_id,
+                        system_instruction=system_prompt,
+                        output_mode=output_mode,
+                        timeout_minutes=timeout_minutes,
+                        hybrid_tts_provider=hybrid_tts_provider,
+                        hybrid_tts_voice=hybrid_tts_voice,
+                    )
+        if config is None:
+            await ws.accept()
+            await ws.close(code=1008, reason="session not found")
+            return
+        try:
+            await session_pool.acquire(config=config, timeout=8.0)
+        except Exception as exc:
+            logger.exception("Failed to create Gemini session for Twilio media-stream %s", session_id)
+            await ws.accept()
+            await ws.close(code=1011, reason=f"Gemini session failed: {exc}")
+            return
+
     from app.services.telephony.media_bridge import TwilioMediaBridge
 
     bridge = TwilioMediaBridge(ws=ws, session_id=session_id)
-    await bridge.run()
+    try:
+        await bridge.run()
+    finally:
+        try:
+            await session_pool.release(session_id)
+        except Exception:
+            logger.exception("Failed to release Twilio live-agent session %s", session_id)
+        with _LIVE_AGENT_LOCK:
+            phone = _LIVE_AGENT_STORE.pop(session_id, None)
+            if phone:
+                _LIVE_AGENT_USED_PHONES.discard(phone)
 
 
 @router.post("/interactive-twiml/{session_id}")
@@ -1074,6 +1234,11 @@ async def handle_webhook(
             audio_store.delete(context.audio_id)
             call_context_store.delete(call_sid)
             logger.info("Cleaned up resources for completed call %s", call_sid)
+        try:
+            from app.services.flow_dispatch import flow_call_config_store
+            flow_call_config_store.delete(call_sid)
+        except Exception:
+            logger.exception("Failed cleaning flow call config for %s", call_sid)
 
     return {"status": "ok", "call_status": call_status.value}
 
@@ -1091,16 +1256,24 @@ async def handle_dtmf(call_id: str, request: Request):
     logger.info("DTMF received: call_id=%s digits=%s", call_id, digits)
 
     context = call_context_store.get(call_id)
-    if context is None:
+    if context is not None:
+        twiml = generate_dtmf_response_twiml(
+            digit=str(digits),
+            routes=context.dtmf_routes,
+        )
+        return PlainTextResponse(content=twiml, media_type="text/xml")
+
+    # Flow-dispatched voice call DTMF capture fallback
+    from app.services.flow_dispatch import flow_call_config_store, flow_dtmf_store
+
+    flow_cfg = flow_call_config_store.get(call_id)
+    if flow_cfg is None:
         logger.warning("DTMF for unknown call_id: %s", call_id)
         raise HTTPException(status_code=404, detail="Call context not found")
 
-    twiml = generate_dtmf_response_twiml(
-        digit=str(digits),
-        routes=context.dtmf_routes,
-    )
-
-    return PlainTextResponse(content=twiml, media_type="text/xml")
+    flow_dtmf_store.put(call_id, str(digits))
+    response = '<?xml version="1.0" encoding="UTF-8"?><Response><Say language="en-US">Input received. Thank you.</Say><Hangup/></Response>'
+    return PlainTextResponse(content=response, media_type="text/xml")
 
 
 @router.get("/calls/{call_id}", response_model=CallStatusResponse)
@@ -1134,11 +1307,6 @@ async def get_call_status(call_id: str):
 # ---------------------------------------------------------------------------
 
 
-def _resample_24k_to_16k(pcm_24k: bytes) -> bytes:
-    """Resample 24 kHz 16-bit mono PCM down to 16 kHz."""
-    return audioop.ratecv(pcm_24k, 2, 1, 24000, 16000, None)[0]
-
-
 @router.post("/live-agent/verify", status_code=201)
 async def verify_live_agent_otp(payload: LiveAgentVerifyRequest, request: Request):
     """Verify OTP, enforce one-call-per-phone, then create a Gemini session for the live-agent demo."""
@@ -1168,17 +1336,55 @@ async def verify_live_agent_otp(payload: LiveAgentVerifyRequest, request: Reques
         phone = state.payload.phone
         _DEMO_CALL_OTP_STORE.pop(payload.request_id, None)
 
-    # --- One-call-per-phone enforcement ---
+    # --- One-call-per-phone enforcement (with stale cleanup & whitelist) ---
+    _DEMO_WHITELIST_PHONES = {"9810223384", "+9779810223384", "+977-9810223384"}
+    normalized_phone = phone.strip().replace("-", "").replace(" ", "")
+    is_whitelisted = normalized_phone in _DEMO_WHITELIST_PHONES or normalized_phone.lstrip("+977") in _DEMO_WHITELIST_PHONES
+
+    session_pool_ref = getattr(request.app.state, "session_pool", None)
+
+    if not is_whitelisted:
+        old_sid = None
+        with _LIVE_AGENT_LOCK:
+            if phone in _LIVE_AGENT_USED_PHONES:
+                for sid, p in _LIVE_AGENT_STORE.items():
+                    if p == phone:
+                        old_sid = sid
+                        break
+                if old_sid is None:
+                    _LIVE_AGENT_USED_PHONES.discard(phone)
+
+        if old_sid and session_pool_ref:
+            old_session = await session_pool_ref.get_session(old_sid)
+            if old_session is None:
+                with _LIVE_AGENT_LOCK:
+                    _LIVE_AGENT_STORE.pop(old_sid, None)
+                    _LIVE_AGENT_USED_PHONES.discard(phone)
+                logger.info("Cleaned up stale session %s for phone %s", old_sid, phone)
+            else:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You've already used your live agent demo. Each phone number gets one demo session.",
+                )
+
+        with _LIVE_AGENT_LOCK:
+            if phone in _LIVE_AGENT_USED_PHONES:
+                raise HTTPException(
+                    status_code=429,
+                    detail="You've already used your live agent demo. Each phone number gets one demo session.",
+                )
+    else:
+        # Whitelisted: clean up any previous session to allow retry
+        with _LIVE_AGENT_LOCK:
+            old_sids = [sid for sid, p in _LIVE_AGENT_STORE.items() if p == phone]
+            for sid in old_sids:
+                _LIVE_AGENT_STORE.pop(sid, None)
+            _LIVE_AGENT_USED_PHONES.discard(phone)
+
     with _LIVE_AGENT_LOCK:
-        if phone in _LIVE_AGENT_USED_PHONES:
-            raise HTTPException(status_code=429, detail="This phone number has already been used for the live-agent demo")
         _LIVE_AGENT_USED_PHONES.add(phone)
 
-    # --- Create Gemini session ---
-    session_pool = getattr(request.app.state, "session_pool", None)
-    if session_pool is None:
-        raise HTTPException(status_code=503, detail="Live-agent demo is unavailable")
-
+    # --- Store config for lazy Gemini creation in WS handler ---
     session_id = uuid.uuid4().hex
     config = SessionConfig(
         session_id=session_id,
@@ -1189,17 +1395,9 @@ async def verify_live_agent_otp(payload: LiveAgentVerifyRequest, request: Reques
         temperature=0.7,
     )
 
-    try:
-        await session_pool.acquire(config=config, timeout=8.0)
-    except Exception as exc:
-        # Roll back the phone reservation so the user can retry
-        with _LIVE_AGENT_LOCK:
-            _LIVE_AGENT_USED_PHONES.discard(phone)
-        logger.exception("Failed to start live-agent session")
-        raise HTTPException(status_code=503, detail=f"Could not start live-agent session: {exc}") from exc
-
     with _LIVE_AGENT_LOCK:
         _LIVE_AGENT_STORE[session_id] = phone
+        _LIVE_AGENT_CONFIGS[session_id] = config
 
     return {"session_id": session_id, "status": "ready"}
 
@@ -1209,10 +1407,34 @@ async def live_agent_ws(ws: WebSocket, session_id: str):
     """Bidirectional audio WebSocket: browser PCM ↔ Gemini Live."""
 
     await ws.accept()
+    print(f"[live-agent] {session_id}: WS accepted", flush=True)
 
     session_pool = getattr(ws.app.state, "session_pool", None)
     if session_pool is None:
+        print(f"[live-agent] {session_id}: session_pool is None!", flush=True)
         await ws.close(code=1011, reason="session pool unavailable")
+        return
+
+    # Pop the pending config and create the Gemini session NOW (no idle gap)
+    with _LIVE_AGENT_LOCK:
+        config = _LIVE_AGENT_CONFIGS.pop(session_id, None)
+    if config is None:
+        print(f"[live-agent] {session_id}: config not found", flush=True)
+        await ws.close(code=1008, reason="session not found or expired")
+        return
+
+    print(f"[live-agent] {session_id}: acquiring Gemini session...", flush=True)
+    try:
+        await session_pool.acquire(config=config, timeout=8.0)
+        print(f"[live-agent] {session_id}: Gemini session acquired", flush=True)
+    except Exception as exc:
+        print(f"[live-agent] {session_id}: Gemini acquire FAILED: {exc}", flush=True)
+        logger.exception("Failed to create Gemini session for live-agent %s", session_id)
+        with _LIVE_AGENT_LOCK:
+            phone = _LIVE_AGENT_STORE.pop(session_id, None)
+            if phone:
+                _LIVE_AGENT_USED_PHONES.discard(phone)
+        await ws.close(code=1011, reason=f"Gemini session failed: {exc}")
         return
 
     try:
@@ -1220,62 +1442,109 @@ async def live_agent_ws(ws: WebSocket, session_id: str):
     except Exception:
         session = None
     if session is None:
-        await ws.close(code=1008, reason="session not found")
+        print(f"[live-agent] {session_id}: session not found after acquire!", flush=True)
+        await ws.close(code=1008, reason="session not found after creation")
         return
+    print(f"[live-agent] {session_id}: session ready, starting audio loop", flush=True)
 
     running = True
+    loop = asyncio.get_running_loop()
+    started_at = loop.time()
+    last_activity_at = started_at
 
     async def _timeout_task():
-        """Close WebSocket after 60 seconds."""
-        await asyncio.sleep(60)
+        """Close WebSocket on idle timeout or hard max session duration."""
         nonlocal running
-        running = False
-        try:
-            await ws.send_text(json.dumps({"type": "timeout"}))
-            await ws.close(code=1000, reason="timeout")
-        except Exception:
-            pass
+        max_session_seconds = 180
+        idle_timeout_seconds = 45
+        while running:
+            await asyncio.sleep(1.0)
+            now = loop.time()
+            if (now - started_at) >= max_session_seconds or (now - last_activity_at) >= idle_timeout_seconds:
+                running = False
+                try:
+                    await ws.send_text(json.dumps({"type": "timeout"}))
+                    await ws.close(code=1000, reason="timeout")
+                except Exception:
+                    pass
+                break
 
     async def _outbound_task():
         """Forward Gemini audio → browser, transcripts as JSON."""
+        nonlocal last_activity_at
+        out_bytes = 0
+        out_chunks = 0
         try:
             async for response in session.receive():
                 if not running:
                     break
                 if response.audio_data:
-                    pcm_16k = _resample_24k_to_16k(response.audio_data)
-                    await ws.send_bytes(pcm_16k)
+                    # Gemini native-audio responses are delivered as PCM bytes.
+                    # Forward as-is so client playback can match model sample rate.
+                    await ws.send_bytes(response.audio_data)
+                    last_activity_at = loop.time()
+                    out_chunks += 1
+                    out_bytes += len(response.audio_data)
+                    if out_chunks % 20 == 1:
+                        print(f"[live-agent] {session_id}: outbound {out_chunks} chunks, {out_bytes} bytes", flush=True)
                 if response.output_transcript:
                     await ws.send_text(json.dumps({
                         "type": "transcript",
                         "role": "assistant",
                         "text": response.output_transcript,
                     }))
+                    last_activity_at = loop.time()
                 if response.input_transcript:
                     await ws.send_text(json.dumps({
                         "type": "transcript",
                         "role": "user",
                         "text": response.input_transcript,
                     }))
+                    last_activity_at = loop.time()
         except asyncio.CancelledError:
             pass
-        except Exception:
-            logger.exception("live-agent outbound error for session %s", session_id)
+        except Exception as exc:
+            print(f"[live-agent] {session_id}: outbound ERROR: {exc}", flush=True)
 
     timeout = asyncio.create_task(_timeout_task())
     outbound = asyncio.create_task(_outbound_task())
 
+    # Proactively start the call so the agent speaks first.
+    try:
+        await session.send_text(
+            "Start speaking immediately in Nepali. Give one short greeting sentence in Nepali, then ask your first scenario question in Nepali and pause."
+        )
+    except Exception as exc:
+        print(f"[live-agent] {session_id}: initial prompt ERROR: {exc}", flush=True)
+
+    in_chunks = 0
     try:
         while running:
             data = await ws.receive()
             if data["type"] == "websocket.disconnect":
                 break
+            if "text" in data and data["text"]:
+                try:
+                    msg = json.loads(data["text"])
+                except Exception:
+                    msg = None
+                if isinstance(msg, dict) and msg.get("type") == "audio_end":
+                    try:
+                        await session.send_audio_end()
+                        last_activity_at = loop.time()
+                    except Exception as exc:
+                        print(f"[live-agent] {session_id}: audio_end ERROR: {exc}", flush=True)
+                continue
             if "bytes" in data and data["bytes"]:
                 await session.send_audio(AudioChunk(data=data["bytes"]))
+                last_activity_at = loop.time()
+                in_chunks += 1
+                if in_chunks % 50 == 1:
+                    print(f"[live-agent] {session_id}: inbound {in_chunks} chunks ({len(data['bytes'])} bytes)", flush=True)
     except WebSocketDisconnect:
-        pass
-    except Exception:
-        logger.exception("live-agent inbound error for session %s", session_id)
+        print(f"[live-agent] {session_id}: client disconnected", flush=True)
+    except Exception as exc:
+        print(f"[live-agent] {session_id}: inbound ERROR: {exc}", flush=True)
     finally:
         running = False
         timeout.cancel()
@@ -1297,11 +1566,60 @@ async def live_agent_ws(ws: WebSocket, session_id: str):
                 _LIVE_AGENT_USED_PHONES.discard(phone)
 
 
+@router.post("/live-agent/{session_id}/call", response_model=DemoCallResponse, status_code=201)
+async def live_agent_start_phone_call(
+    session_id: str,
+    request: Request,
+    payload: LiveAgentCallRequest | None = None,
+):
+    """Start a real Twilio phone call for a live-agent scenario session."""
+    session_pool = getattr(request.app.state, "session_pool", None)
+    if session_pool is None:
+        raise HTTPException(status_code=503, detail="Session pool unavailable")
+
+    with _LIVE_AGENT_LOCK:
+        phone = _LIVE_AGENT_STORE.get(session_id)
+        config = _LIVE_AGENT_CONFIGS.get(session_id)
+
+    if not phone:
+        raise HTTPException(status_code=404, detail="Live-agent session not found")
+
+    # Ensure this session can be materialized for Twilio media-stream bridge.
+    existing = await session_pool.get_session(session_id)
+    if existing is None and config is None:
+        raise HTTPException(status_code=404, detail="Live-agent config not found")
+
+    base_url = settings.TWILIO_BASE_URL or str(request.base_url).rstrip("/")
+    twiml_url = f"{base_url}/api/v1/voice/interactive-twiml/{session_id}"
+    webhook_url = f"{base_url}/api/v1/voice/webhook"
+
+    try:
+        provider = get_twilio_provider()
+    except TelephonyConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    from_number = (payload.from_number if payload else None) or settings.TWILIO_PHONE_NUMBER or provider.default_from_number
+
+    try:
+        result = await provider.initiate_call(
+            to=_normalize_e164(phone),
+            from_number=from_number,
+            twiml_url=twiml_url,
+            status_callback_url=webhook_url,
+        )
+    except TelephonyProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    logger.info("Live-agent Twilio call started: session=%s call_id=%s to=%s", session_id, result.call_id, phone)
+    return DemoCallResponse(call_id=result.call_id, status=result.status)
+
+
 @router.delete("/live-agent/{session_id}", status_code=204)
 async def live_agent_end_session(session_id: str, request: Request):
     """End a live-agent session and release its Gemini connection."""
     removed = False
     with _LIVE_AGENT_LOCK:
+        _LIVE_AGENT_CONFIGS.pop(session_id, None)
         phone = _LIVE_AGENT_STORE.pop(session_id, None)
         if phone is not None:
             _LIVE_AGENT_USED_PHONES.discard(phone)

@@ -57,6 +57,35 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
 
   for (const node of nodes) {
     const cfg = node.data.config;
+    if (node.data.kind === "agent_voice_interactive" && cfg.capture_columns) {
+      const cols = String(cfg.capture_columns)
+        .split(/[,;\n]/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+      const seen = new Set<string>();
+      const duplicates = new Set<string>();
+      for (const col of cols) {
+        if (seen.has(col)) duplicates.add(col);
+        seen.add(col);
+      }
+      const invalid = cols.filter((col) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(col));
+      if (duplicates.size > 0) {
+        issues.push({
+          id: `capture-duplicate-${node.id}`,
+          severity: "warning",
+          nodeId: node.id,
+          message: `Duplicate capture columns: ${Array.from(duplicates).join(", ")}`,
+        });
+      }
+      if (invalid.length > 0) {
+        issues.push({
+          id: `capture-invalid-${node.id}`,
+          severity: "warning",
+          nodeId: node.id,
+          message: `Capture columns should use letters/numbers/underscore and not start with a number: ${invalid.join(", ")}`,
+        });
+      }
+    }
     if ((node.data.kind === "source_url_json" || node.data.kind === "source_url_csv") && !cfg.url) {
       issues.push({
         id: `missing-url-${node.id}`,
@@ -98,16 +127,27 @@ export function validateFlow(nodes: FlowNode[], edges: FlowEdge[]): ValidationIs
       });
     }
     if (node.data.kind === "condition" && cfg.field) {
-      const sourceNode = nodes.find((n) =>
-        n.data.kind === "source_csv" ||
-        n.data.kind === "source_xlsx" ||
-        n.data.kind === "source_file" ||
-        n.data.kind === "source_numbers" ||
-        n.data.kind === "source_manual_table" ||
-        n.data.kind === "source_google_contacts" ||
-        n.data.kind === "source_url_json" ||
-        n.data.kind === "source_url_csv",
-      );
+      const selectedSourceId = String(cfg.input_from || "");
+      if (selectedSourceId && !nodes.some((n) => n.id === selectedSourceId)) {
+        issues.push({
+          id: `condition-bad-input-${node.id}`,
+          severity: "warning",
+          nodeId: node.id,
+          message: "Selected input source no longer exists. Reset to all upstream sources.",
+        });
+      }
+      const sourceNode = selectedSourceId
+        ? nodes.find((n) => n.id === selectedSourceId)
+        : nodes.find((n) =>
+            n.data.kind === "source_csv" ||
+            n.data.kind === "source_xlsx" ||
+            n.data.kind === "source_file" ||
+            n.data.kind === "source_numbers" ||
+            n.data.kind === "source_manual_table" ||
+            n.data.kind === "source_google_contacts" ||
+            n.data.kind === "source_url_json" ||
+            n.data.kind === "source_url_csv",
+          );
       if (sourceNode?.data.columns && sourceNode.data.columns.length > 0) {
         if (!columnNames(sourceNode.data.columns).includes(String(cfg.field))) {
           issues.push({

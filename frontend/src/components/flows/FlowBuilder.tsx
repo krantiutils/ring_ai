@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
   BackgroundVariant,
+  ConnectionLineType,
   Controls,
   MarkerType,
   ReactFlow,
@@ -17,15 +18,15 @@ import {
 import { migrateColumns, type FlowEdge, type FlowNode, type FlowNodeData, type FlowNodeKind, type ColumnDef } from "@/features/flows/builderTypes";
 import { validateFlow, simulateContactsCount } from "@/features/flows/validation";
 import { useVariableContext } from "@/features/flows/useVariableContext";
-import { PALETTE_NODES } from "@/features/flows/nodeRegistry";
+import { NODE_ICON, PALETTE_NODES } from "@/features/flows/nodeRegistry";
 import { api } from "@/lib/api";
 
 import SourceWizard from "./SourceWizard";
 import NodeCard from "./NodeCard";
 import DeletableEdge from "./DeletableEdge";
-import AddNodeMenu from "./AddNodeMenu";
 import CanvasContextMenu from "./CanvasContextMenu";
 import type { ContextMenuTarget } from "./CanvasContextMenu";
+import type { FlowTemplate } from "./FlowLibrary";
 import NodeInspector from "./NodeInspector";
 import RunResultsPanel from "./RunResultsPanel";
 import type { RunData } from "./RunResultsPanel";
@@ -35,16 +36,7 @@ import StatusBar from "./StatusBar";
 /* ── Constants ──────────────────────────────────────────── */
 
 const STORAGE_KEY = "agentshakti_flow_builder_v1";
-
-const SOURCE_KINDS: FlowNodeKind[] = [
-  "source_manual_table",
-  "source_csv",
-  "source_xlsx",
-  "source_url_json",
-  "source_url_csv",
-  "source_google_contacts",
-  "source_numbers",
-];
+const NODE_USAGE_KEY = "agentshakti_flow_builder_node_usage_v1";
 
 const NODE_TYPES = { flowNode: NodeCard };
 const EDGE_TYPES = { deletable: DeletableEdge };
@@ -54,6 +46,19 @@ const DEFAULT_EDGE_OPTIONS = {
   deletable: true,
   animated: true,
   markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+};
+
+const DEFAULT_NODE_USAGE_WEIGHT: Partial<Record<FlowNodeKind, number>> = {
+  source_manual_table: 20,
+  source_csv: 18,
+  validation: 16,
+  condition: 16,
+  sender_number: 20,
+  agent_sms: 24,
+  agent_voice: 24,
+  agent_voice_interactive: 28,
+  lookup_kb: 14,
+  end_success: 16,
 };
 
 /* ── Helpers (preserved from original) ──────────────────── */
@@ -72,6 +77,20 @@ const palette: Array<{ kind: FlowNodeKind; label: string; description: string }>
   ...PALETTE_NODES.map((n) => ({ kind: n.kind, label: n.label, description: n.description })),
 ];
 
+function getPaletteGroup(kind: FlowNodeKind): string {
+  if (kind.startsWith("trigger_")) return "Trigger";
+  if (kind.startsWith("source_")) return "Source";
+  if (kind === "end_success" || kind === "end_failure") return "End";
+  const match = PALETTE_NODES.find((n) => n.kind === kind);
+  if (match?.category === "actions") return "Actions";
+  if (match?.category === "processing") return "Processing";
+  if (match?.category === "control") return "Control";
+  if (match?.category === "end") return "End";
+  return "Other";
+}
+
+const PALETTE_GROUP_ORDER = ["Trigger", "Source", "Actions", "Processing", "Control", "End", "Other"];
+
 function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "source_manual_table") return { table_columns: "name,phone,age,gender", sample_csv: "name,phone,age,gender\nRam,+9779800000000,34,male" };
   if (kind === "source_csv" || kind === "source_xlsx") return { required_columns: "name,phone", sample_csv: "name,phone\nRam,+9779800000000" };
@@ -83,11 +102,14 @@ function defaultConfig(kind: FlowNodeKind): Record<string, string> {
   if (kind === "deduplicate") return { dedup_column: "phone", keep: "first" };
   if (kind === "normalize_phone") return { country_code: "+977", format: "e164" };
   if (kind === "condition") return { field: "", operator: "==", value: "" };
+  if (kind === "enrich_columns") return { columns: "row_number_copy = row_number\nfield_count_copy = field_count\ndelivery_status = _dispatch_status" };
+  if (kind === "response_capture") return { channel: "sms", wait_minutes: "15", output_column: "response_text", status_column: "response_status" };
+  if (kind === "dtmf_menu") return { digit_field: "dtmf_digit", fallback_handle: "no_input" };
   if (kind === "wait") return { duration_minutes: "30" };
   if (kind === "rate_limit") return { per_minute: "20" };
   if (kind === "sender_number") return { number: "" };
   if (kind === "agent_sms") return { message: "" };
-  if (kind === "agent_voice") return { script: "", tts_provider: "edge_tts", tts_voice: "" };
+  if (kind === "agent_voice") return { script: "", tts_provider: "edge_tts", tts_voice: "", capture_dtmf: "false", dtmf_field: "dtmf_digit", dtmf_routes: "" };
   if (kind === "agent_voice_interactive") return { system_prompt: "", output_mode: "native_audio", tts_provider: "edge_tts", tts_voice: "", knowledge_base_id: "", max_duration_minutes: "10" };
   if (kind === "agent_whatsapp") return { message: "", template_name: "" };
   if (kind === "lookup_kb") return { knowledge_base_id: "", query_template: "", top_k: "5", output_variable: "_kb_context" };
@@ -132,9 +154,25 @@ function wouldCreateCycle(sourceId: string, targetId: string, edges: Array<{ sou
   return false;
 }
 
+type BuilderSnapshot = {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  selectedNodeId: string | null;
+};
+
+function cloneSnapshot(snapshot: BuilderSnapshot): BuilderSnapshot {
+  return JSON.parse(JSON.stringify(snapshot)) as BuilderSnapshot;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
+}
+
 /* ── Main Component ─────────────────────────────────────── */
 
-function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialFlowId?: string; onBack?: () => void }) {
+function FlowBuilderInner({ initialFlowId, templateData, onBack: onBackToLibrary }: { initialFlowId?: string; templateData?: FlowTemplate; onBack?: () => void }) {
   const [mode, setMode] = useState<"wizard" | "canvas">("wizard");
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -151,19 +189,65 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runResultsData, setRunResultsData] = useState<RunData | null>(null);
   const [showRunResults, setShowRunResults] = useState(false);
+  const [nodeUsage, setNodeUsage] = useState<Partial<Record<FlowNodeKind, number>>>({});
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const historyPastRef = useRef<BuilderSnapshot[]>([]);
+  const historyFutureRef = useRef<BuilderSnapshot[]>([]);
+  const historyIgnoreRef = useRef(false);
+  const historyLastRef = useRef<BuilderSnapshot | null>(null);
+  const undoRef = useRef<() => void>(() => {});
+  const redoRef = useRef<() => void>(() => {});
+  const runFlowRef = useRef<() => Promise<void>>(async () => {});
+  const runningRef = useRef(false);
 
   const { fitView, screenToFlowPosition } = useReactFlow();
 
   // Computed values
-  const variableContext = useVariableContext(nodes, edges);
+  const { columns: variableContext, columnDefs: columnDefsContext } = useVariableContext(nodes, edges);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
   const issues = useMemo(() => validateFlow(nodes as FlowNode[], edges), [nodes, edges]);
   const errorCount = issues.filter((i) => i.severity === "error").length;
   const warningCount = issues.filter((i) => i.severity === "warning").length;
   const contactEstimate = useMemo(() => simulateContactsCount(nodes as FlowNode[]), [nodes]);
+  const currentFlowUsage = useMemo(() => {
+    const counts: Partial<Record<FlowNodeKind, number>> = {};
+    for (const node of nodes) {
+      const kind = node.data.kind;
+      counts[kind] = (counts[kind] ?? 0) + 1;
+    }
+    return counts;
+  }, [nodes]);
+
+  const rankedPalette = useMemo(() => {
+    return [...palette].sort((a, b) => {
+      const scoreA = (nodeUsage[a.kind] ?? 0) + (currentFlowUsage[a.kind] ?? 0) * 3 + (DEFAULT_NODE_USAGE_WEIGHT[a.kind] ?? 0);
+      const scoreB = (nodeUsage[b.kind] ?? 0) + (currentFlowUsage[b.kind] ?? 0) * 3 + (DEFAULT_NODE_USAGE_WEIGHT[b.kind] ?? 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return a.label.localeCompare(b.label);
+    });
+  }, [currentFlowUsage, nodeUsage]);
+
+  const groupedPalette = useMemo(() => {
+    const grouped = new Map<string, Array<{ kind: FlowNodeKind; label: string; description: string }>>();
+    for (const item of rankedPalette) {
+      const group = getPaletteGroup(item.kind);
+      if (!grouped.has(group)) grouped.set(group, []);
+      grouped.get(group)?.push(item);
+    }
+    return PALETTE_GROUP_ORDER
+      .filter((group) => (grouped.get(group)?.length ?? 0) > 0)
+      .map((group) => ({ group, nodes: grouped.get(group)! }));
+  }, [rankedPalette]);
 
   // Load flow on mount — from backend if initialFlowId, from localStorage only if no library callback
   React.useEffect(() => {
+    if (templateData) {
+      setNodes(templateData.nodes);
+      setEdges(templateData.edges.map((e) => ({ ...e, type: e.type || "deletable" })));
+      setFlowName(templateData.name);
+      setMode("canvas");
+      return;
+    }
     if (initialFlowId) {
       api.getFlowDefinition(initialFlowId)
         .then((flow) => {
@@ -205,7 +289,19 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
     } catch {
       // ignore
     }
-  }, [initialFlowId]);
+  }, [initialFlowId, templateData]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem(NODE_USAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<Record<FlowNodeKind, number>>;
+      setNodeUsage(parsed);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Poll active run for results
   React.useEffect(() => {
@@ -234,6 +330,26 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
     return () => { cancelled = true; };
   }, [activeRunId]);
 
+  React.useEffect(() => {
+    const current: BuilderSnapshot = { nodes, edges, selectedNodeId };
+    if (historyIgnoreRef.current) {
+      historyLastRef.current = cloneSnapshot(current);
+      historyIgnoreRef.current = false;
+      return;
+    }
+    const last = historyLastRef.current;
+    if (!last) {
+      historyLastRef.current = cloneSnapshot(current);
+      return;
+    }
+    const changed = JSON.stringify(last.nodes) !== JSON.stringify(nodes) || JSON.stringify(last.edges) !== JSON.stringify(edges);
+    if (!changed) return;
+    historyPastRef.current.push(cloneSnapshot(last));
+    if (historyPastRef.current.length > 100) historyPastRef.current.shift();
+    historyFutureRef.current = [];
+    historyLastRef.current = cloneSnapshot(current);
+  }, [nodes, edges, selectedNodeId]);
+
   const nodeLabels = useMemo(() => {
     const map: Record<string, string> = {};
     nodes.forEach((n) => {
@@ -250,6 +366,22 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
       steps_total: nodes.length,
     };
   }, [runResultsData, nodes.length]);
+
+  const upstreamNodeOptions = useMemo(() => {
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const incoming: Record<string, Array<{ id: string; label: string }>> = {};
+    for (const edge of edges) {
+      const sourceNode = nodeMap.get(edge.source);
+      if (!sourceNode) continue;
+      if (!incoming[edge.target]) incoming[edge.target] = [];
+      if (incoming[edge.target].some((n) => n.id === edge.source)) continue;
+      incoming[edge.target].push({
+        id: edge.source,
+        label: sourceNode.data.label || sourceNode.data.kind,
+      });
+    }
+    return incoming;
+  }, [edges, nodes]);
 
   // ── Handlers ──────────────────────────────────────────
 
@@ -272,17 +404,42 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
   }
 
   function addNode(kind: FlowNodeKind) {
-    const x = 120 + (nodes.length % 5) * 240;
-    const y = 120 + Math.floor(nodes.length / 5) * 150;
+    let x = 120 + (nodes.length % 5) * 240;
+    let y = 120 + Math.floor(nodes.length / 5) * 150;
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const center = screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+      const offset = (nodes.length % 4) * 24;
+      x = center.x - 90 + offset;
+      y = center.y - 30 + offset;
+    }
     const n = makeNode(kind, x, y);
-    setNodes((prev) => [...prev, n]);
+    setNodes((prev) => [
+      ...prev.map((node) => ({ ...node, selected: false })),
+      { ...n, selected: true },
+    ]);
     setSelectedNodeId(n.id);
+    setNodeUsage((prev) => {
+      const next = { ...prev, [kind]: (prev[kind] ?? 0) + 1 };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(NODE_USAGE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
   }
 
   function deleteNode(nodeId: string) {
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
+  }
+
+  function selectNode(nodeId: string | null) {
+    setSelectedNodeId(nodeId);
+    setNodes((prev) => prev.map((node) => ({ ...node, selected: nodeId !== null && node.id === nodeId })));
   }
 
   function updateNodeConfig(key: string, value: string) {
@@ -311,12 +468,25 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
       if (srcNode.data.kind.startsWith("agent_") && tgtNode.data.kind.startsWith("source_")) return;
 
       const isLoopback = wouldCreateCycle(params.source, params.target, edges);
-      const isBranching = srcNode.data.kind === "condition" || srcNode.data.kind === "validation";
+      const isBranching =
+        srcNode.data.kind === "condition" ||
+        srcNode.data.kind === "validation" ||
+        srcNode.data.kind === "response_capture";
       let sourceHandle = params.sourceHandle || undefined;
 
       if (isBranching && !sourceHandle) {
-        const trueLabel = srcNode.data.kind === "validation" ? "valid" : "true";
-        const falseLabel = srcNode.data.kind === "validation" ? "invalid" : "false";
+        const trueLabel =
+          srcNode.data.kind === "validation"
+            ? "valid"
+            : srcNode.data.kind === "response_capture"
+              ? "received"
+              : "true";
+        const falseLabel =
+          srcNode.data.kind === "validation"
+            ? "invalid"
+            : srcNode.data.kind === "response_capture"
+              ? "timeout"
+              : "false";
         const used = new Set(edges.filter((e) => e.source === params.source).map((e) => e.sourceHandle).filter(Boolean));
         sourceHandle = !used.has(trueLabel) ? trueLabel : !used.has(falseLabel) ? falseLabel : undefined;
       }
@@ -343,12 +513,15 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
         addEdge(
           {
             ...params,
-            sourceHandle,
+            sourceHandle: srcNode.data.kind === "dtmf_menu" && branchLabel ? branchLabel : sourceHandle,
             style: isLoopback ? { strokeDasharray: "6 4", strokeWidth: 2 } : undefined,
             label: isBranching ? sourceHandle : isLoopback ? "loopback" : branchLabel,
             labelStyle: isBranching
               ? {
-                  fill: sourceHandle === "true" || sourceHandle === "valid" ? "#16A34A" : "#DC2626",
+                  fill:
+                    sourceHandle === "true" || sourceHandle === "valid" || sourceHandle === "received"
+                      ? "#16A34A"
+                      : "#DC2626",
                   fontWeight: 700,
                   fontSize: 11,
                 }
@@ -421,6 +594,33 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
       setRunning(false);
     }
   }
+
+  function undo() {
+    const prev = historyPastRef.current.pop();
+    if (!prev) return;
+    historyFutureRef.current.push(cloneSnapshot({ nodes, edges, selectedNodeId }));
+    historyIgnoreRef.current = true;
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    setSelectedNodeId(prev.selectedNodeId);
+  }
+
+  function redo() {
+    const next = historyFutureRef.current.pop();
+    if (!next) return;
+    historyPastRef.current.push(cloneSnapshot({ nodes, edges, selectedNodeId }));
+    historyIgnoreRef.current = true;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSelectedNodeId(next.selectedNodeId);
+  }
+
+  React.useEffect(() => {
+    undoRef.current = undo;
+    redoRef.current = redo;
+    runFlowRef.current = runFlow;
+    runningRef.current = running;
+  });
 
   function handleBack() {
     if (onBackToLibrary) {
@@ -530,6 +730,29 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
     setContextMenu(null);
   }
 
+  React.useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undoRef.current();
+        return;
+      }
+      if ((key === "z" && event.shiftKey) || key === "y") {
+        event.preventDefault();
+        redoRef.current();
+        return;
+      }
+      if (key === "r") {
+        event.preventDefault();
+        if (!runningRef.current) void runFlowRef.current();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // ── Render ────────────────────────────────────────────
 
   if (mode === "wizard") {
@@ -551,13 +774,48 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Rail */}
-        <div className="flex w-12 flex-col items-center gap-1 border-r border-[var(--border)] bg-[var(--card)] py-2">
-          <AddNodeMenu onAdd={addNode} />
+        {/* Left Palette */}
+        <div className="w-[22rem] shrink-0 overflow-y-auto border-r border-[var(--border)] bg-[var(--card)]">
+          <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">Node Library</p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Ordered by your usage and current flow context.</p>
+          </div>
+
+          <div className="space-y-5 p-4">
+            {groupedPalette.map((group) => (
+              <section key={group.group}>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                  {group.group}
+                </h3>
+                <div className="space-y-1.5">
+                  {group.nodes.map((item) => {
+                    const Icon = NODE_ICON[item.kind];
+                    return (
+                      <button
+                        key={item.kind}
+                        type="button"
+                        onClick={() => addNode(item.kind)}
+                        title="Click to add node to canvas"
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--muted)]"
+                      >
+                        <span className="rounded-md bg-[var(--muted)] p-1 text-[var(--muted-foreground)]">
+                          {Icon ? <Icon size={13} /> : null}
+                        </span>
+                        <span>
+                          <span className="block text-sm text-[var(--foreground)]">{item.label}</span>
+                          <span className="block text-xs text-[var(--muted-foreground)]">{item.description}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
 
         {/* Canvas */}
-        <div className="flex-1">
+        <div className="flex-1" ref={canvasRef}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -567,11 +825,12 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onPaneClick={() => { setSelectedNodeId(null); setContextMenu(null); }}
+            onNodeClick={(_, node) => selectNode(node.id)}
+            onPaneClick={() => { selectNode(null); setContextMenu(null); }}
             onPaneContextMenu={handlePaneContextMenu}
             onNodeContextMenu={handleNodeContextMenu}
             onEdgeContextMenu={handleEdgeContextMenu}
+            connectionLineType={ConnectionLineType.SmoothStep}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
             proOptions={{ hideAttribution: true }}
@@ -581,21 +840,14 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
           </ReactFlow>
         </div>
 
-        {/* Inspector / Run Results */}
-        {showRunResults && runResultsData ? (
-          <RunResultsPanel
-            run={runResultsData}
-            onClose={() => {
-              setShowRunResults(false);
-              setActiveRunId(null);
-            }}
-            nodeLabels={nodeLabels}
-          />
-        ) : selectedNodeId && selectedNode ? (
+        {/* Inspector */}
+        {selectedNodeId && selectedNode ? (
           <div className="w-80 shrink-0">
             <NodeInspector
               node={selectedNode}
               columns={variableContext[selectedNode.id] ?? []}
+              columnDefs={columnDefsContext[selectedNode.id] ?? []}
+              upstreamNodes={upstreamNodeOptions[selectedNode.id] ?? []}
               onUpdate={updateNodeConfig}
               onUpdateData={updateNodeData}
               onClose={() => setSelectedNodeId(null)}
@@ -622,14 +874,39 @@ function FlowBuilderInner({ initialFlowId, onBack: onBackToLibrary }: { initialF
           onAction={handleContextMenuAction}
         />
       )}
+
+      {showRunResults && runResultsData && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4"
+          onClick={() => {
+            setShowRunResults(false);
+            setActiveRunId(null);
+          }}
+        >
+          <div
+            className="max-h-[86vh] w-[min(96vw,34rem)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <RunResultsPanel
+              run={runResultsData}
+              onClose={() => {
+                setShowRunResults(false);
+                setActiveRunId(null);
+              }}
+              nodeLabels={nodeLabels}
+              className="max-h-[86vh] w-full"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default function FlowBuilder({ initialFlowId, onBack }: { initialFlowId?: string; onBack?: () => void } = {}) {
+export default function FlowBuilder({ initialFlowId, templateData, onBack }: { initialFlowId?: string; templateData?: FlowTemplate; onBack?: () => void } = {}) {
   return (
     <ReactFlowProvider>
-      <FlowBuilderInner initialFlowId={initialFlowId} onBack={onBack} />
+      <FlowBuilderInner initialFlowId={initialFlowId} templateData={templateData} onBack={onBack} />
     </ReactFlowProvider>
   );
 }
