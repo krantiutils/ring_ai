@@ -65,6 +65,10 @@ async function request<T>(
     throw new ApiError(res.status, body);
   }
 
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+
   return res.json();
 }
 
@@ -558,7 +562,10 @@ export const api = {
   },
 
   getFlowPhoneNumbers: () =>
-    request<{ sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[]>(
+    request<{
+      default_from_number: string;
+      numbers: { sid: string; number: string; friendly_name: string; capabilities: { sms: boolean; voice: boolean } }[];
+    }>(
       "/flows/phone-numbers",
     ),
 
@@ -712,17 +719,17 @@ export const api = {
 
   // Knowledge Base URL upload
   uploadKBDocumentFromUrl: (kbId: string, orgId: string, url: string) =>
-    request<any>(`/knowledge-bases/${kbId}/documents/url?org_id=${orgId}`, {
+    request<{ id: string; status: string }>(`/knowledge-bases/${kbId}/documents/url?org_id=${orgId}`, {
       method: "POST",
       body: JSON.stringify({ url }),
     }),
 
   // Knowledge Bases (for flow node — uses stored org)
-  getKnowledgeBasesForFlow: async () => {
+  getKnowledgeBasesForFlow: async (): Promise<{ id: string; name: string }[]> => {
     const orgId = getStoredOrgId();
     if (!orgId) return [];
-    const res = await request<any>(withOrgId("/knowledge-bases", orgId));
-    return Array.isArray(res) ? res : res?.items ?? [];
+    const res = await request<{ id: string; name: string }[] | { items: { id: string; name: string }[] }>(withOrgId("/knowledge-bases", orgId));
+    return Array.isArray(res) ? res : (res as { items: { id: string; name: string }[] })?.items ?? [];
   },
 
   // Flow credit estimate
@@ -912,6 +919,16 @@ export const api = {
     request<{ session_id: string; status: string }>("/voice/live-agent/verify", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  startLiveAgentPhoneCall: (
+    sessionId: string,
+    data?: {
+      from_number?: string;
+    },
+  ) =>
+    request<{ call_id: string; status: string }>(`/voice/live-agent/${sessionId}/call`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
     }),
   endLiveAgentSession: async (sessionId: string): Promise<void> => {
     const token = getToken();

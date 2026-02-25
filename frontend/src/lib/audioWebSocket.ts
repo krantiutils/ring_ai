@@ -1,31 +1,35 @@
 /**
  * LiveAudioSession — real-time bidirectional audio over WebSocket.
  *
- * Captures mic via AudioWorklet, streams 16 kHz Int16 PCM to the backend,
- * receives Int16 PCM + JSON transcript frames, and plays audio through a
- * phone-realism filter chain (300 Hz–3400 Hz bandpass).
+ * Rewritten for stable long-form playback and deterministic interruption:
+ * - Mic capture: AudioWorklet -> 16k Int16 PCM -> 20ms WS chunks
+ * - Playback: continuous AudioWorklet PCM sink (no per-chunk source scheduling)
+ * - Barge-in: speech-energy based interrupt + stale-turn audio drop
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-const PLAYBACK_SAMPLE_RATE = 16000;
+const MIC_WS_CHUNK_BYTES = 640; // 20 ms @ 16kHz Int16 mono
+const ENABLE_LOCAL_BROWSER_STT = false; // Keep phone behavior backend-driven
 
-function buildWsUrl(base: string): string {
-  if (base.startsWith("http")) {
-    return base.replace(/^http/, "ws");
-  }
-  // Relative path — build from current page location
+function buildWsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}${base}`;
+  return `${proto}//${window.location.host}/api/v1`;
 }
 
 export type SessionState = "connecting" | "active" | "ended";
 
 export interface LiveAudioSessionOptions {
   onTranscript?: (text: string, speaker: "agent" | "user") => void;
+  onLocalTranscript?: (text: string, isFinal: boolean) => void;
   onTimeout?: () => void;
   onStateChange?: (state: SessionState) => void;
   onAudioLevel?: (level: number) => void;
 }
+
+type PlaybackStats = {
+  type: "stats";
+  queuedSamples: number;
+  queuedSeconds: number;
+};
 
 export class LiveAudioSession {
   private sessionId: string;
@@ -35,6 +39,10 @@ export class LiveAudioSession {
   private audioCtx: AudioContext | null = null;
   private micStream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
+  private workletSink: GainNode | null = null;
+  private playbackNode: AudioWorkletNode | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Web Speech API has no standard TS types
+  private speechRecognition: any = null;
 
   // Playback filter chain nodes
   private lowpassFilter: BiquadFilterNode | null = null;
@@ -44,31 +52,55 @@ export class LiveAudioSession {
 
   private animFrameId: number | null = null;
   private state: SessionState = "connecting";
+  private micSendBuffer = new Uint8Array(0);
+
+  // Interruption / turn state
+  private userSpeaking = false;
+  private consecutiveSpeechChunks = 0;
+  private lastSpeechAtMs = 0;
+  private lastAudioEndSignalAtMs = 0;
+  private lastBargeInAtMs = 0;
+  private droppingStaleAgentAudio = false;
+  private waitingForFreshAssistantTurn = false;
+  private waitingSinceMs = 0;
+
+  // Startup gate so assistant can speak first
+  private allowMicStreaming = false;
+  private micStartTimer: number | null = null;
+
+  // Playback backlog telemetry from playback worklet
+  private queuedPlaybackSec = 0;
 
   constructor(sessionId: string, options: LiveAudioSessionOptions = {}) {
     this.sessionId = sessionId;
     this.opts = options;
   }
 
-  // ---------------------------------------------------------------------------
-  // Public API
-  // ---------------------------------------------------------------------------
-
   async connect(): Promise<void> {
     this.setState("connecting");
 
-    // 1. Request microphone access
-    this.micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Microphone not available. Use HTTPS or localhost.");
+    }
 
-    // 2. Create AudioContext (browser default sample rate, usually 48 kHz)
+    this.micStream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Microphone prompt timed out")), 15000),
+      ),
+    ]);
+
     this.audioCtx = new AudioContext();
+    if (this.audioCtx.state === "suspended") {
+      await this.audioCtx.resume();
+    }
 
-    // 3. Build playback filter chain: source -> lowpass(3400) -> highpass(300) -> gain -> analyser -> destination
+    // Playback chain: playback worklet -> lowpass -> highpass -> gain -> analyser -> destination
     this.lowpassFilter = this.audioCtx.createBiquadFilter();
     this.lowpassFilter.type = "lowpass";
     this.lowpassFilter.frequency.value = 3400;
@@ -83,37 +115,82 @@ export class LiveAudioSession {
     this.analyser = this.audioCtx.createAnalyser();
     this.analyser.fftSize = 256;
 
-    // Chain: lowpass -> highpass -> gain -> analyser -> destination
     this.lowpassFilter.connect(this.highpassFilter);
     this.highpassFilter.connect(this.gainNode);
     this.gainNode.connect(this.analyser);
     this.analyser.connect(this.audioCtx.destination);
 
-    // 4. Set up mic capture via AudioWorklet
     await this.audioCtx.audioWorklet.addModule("/pcm-capture-processor.js");
+    await this.audioCtx.audioWorklet.addModule("/pcm-playback-processor.js");
+
+    // Mic capture worklet
     const micSource = this.audioCtx.createMediaStreamSource(this.micStream);
     this.workletNode = new AudioWorkletNode(this.audioCtx, "pcm-capture-processor");
 
     this.workletNode.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-      // Forward Int16 PCM buffer to the WebSocket
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(ev.data);
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (!this.allowMicStreaming) return;
+
+      const incoming = new Uint8Array(ev.data);
+      const merged = new Uint8Array(this.micSendBuffer.length + incoming.length);
+      merged.set(this.micSendBuffer, 0);
+      merged.set(incoming, this.micSendBuffer.length);
+      this.micSendBuffer = merged;
+
+      while (this.micSendBuffer.length >= MIC_WS_CHUNK_BYTES) {
+        const chunk = this.micSendBuffer.slice(0, MIC_WS_CHUNK_BYTES);
+        this.updateSpeechStateAndBargeIn(chunk);
+        if (this.shouldForwardMicChunk()) {
+          this.ws.send(chunk.buffer);
+        }
+        this.micSendBuffer = this.micSendBuffer.slice(MIC_WS_CHUNK_BYTES);
       }
     };
 
     micSource.connect(this.workletNode);
-    // AudioWorkletNode output is not needed (no passthrough to speakers)
-    // but we must connect to keep the node alive in some browsers.
-    this.workletNode.connect(this.audioCtx.createGain()); // sink (silent)
+    this.workletSink = this.audioCtx.createGain();
+    this.workletSink.gain.value = 0;
+    this.workletNode.connect(this.workletSink);
+    this.workletSink.connect(this.audioCtx.destination);
 
-    // 5. Open WebSocket
-    const wsUrl = buildWsUrl(API_BASE);
-    this.ws = new WebSocket(`${wsUrl}/voice/live-agent/ws/${this.sessionId}`);
+    // Playback worklet
+    this.playbackNode = new AudioWorkletNode(this.audioCtx, "pcm-playback-processor");
+    this.playbackNode.port.onmessage = (ev: MessageEvent<PlaybackStats>) => {
+      const msg = ev.data;
+      if (!msg || msg.type !== "stats") return;
+      this.queuedPlaybackSec = msg.queuedSeconds;
+    };
+    this.playbackNode.connect(this.lowpassFilter);
+
+    const wsUrl = buildWsUrl();
+    const fullWsUrl = `${wsUrl}/voice/live-agent/ws/${this.sessionId}`;
+    this.ws = new WebSocket(fullWsUrl);
     this.ws.binaryType = "arraybuffer";
 
-    this.ws.onopen = () => {
-      this.setState("active");
-    };
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error("WebSocket connection timed out"));
+      }, 10000);
+
+      this.ws!.onopen = () => {
+        clearTimeout(timer);
+        this.setState("active");
+
+        // Greeting-first behavior: brief hold before mic uplink.
+        this.allowMicStreaming = false;
+        this.micStartTimer = window.setTimeout(() => {
+          this.allowMicStreaming = true;
+          this.micStartTimer = null;
+        }, 350);
+
+        resolve();
+      };
+
+      this.ws!.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("WebSocket connection failed"));
+      };
+    });
 
     this.ws.onmessage = (ev: MessageEvent) => {
       if (typeof ev.data === "string") {
@@ -123,26 +200,24 @@ export class LiveAudioSession {
       }
     };
 
-    this.ws.onerror = () => {
-      // WebSocket errors are also followed by onclose, handled there.
-    };
-
     this.ws.onclose = () => {
       this.setState("ended");
     };
 
-    // 6. Start audio-level animation loop
+    if (ENABLE_LOCAL_BROWSER_STT) {
+      this.startLocalRecognition();
+    }
     this.startAudioLevelLoop();
   }
 
   disconnect(): void {
-    // Stop animation loop
+    this.interruptPlayback();
+
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
 
-    // Close WebSocket
     if (this.ws) {
       try {
         this.ws.close();
@@ -152,7 +227,11 @@ export class LiveAudioSession {
       this.ws = null;
     }
 
-    // Disconnect worklet
+    if (this.micStartTimer !== null) {
+      window.clearTimeout(this.micStartTimer);
+      this.micStartTimer = null;
+    }
+
     if (this.workletNode) {
       try {
         this.workletNode.disconnect();
@@ -162,7 +241,24 @@ export class LiveAudioSession {
       this.workletNode = null;
     }
 
-    // Stop all mic tracks
+    if (this.playbackNode) {
+      try {
+        this.playbackNode.disconnect();
+      } catch {
+        // ignore
+      }
+      this.playbackNode = null;
+    }
+
+    if (this.workletSink) {
+      try {
+        this.workletSink.disconnect();
+      } catch {
+        // ignore
+      }
+      this.workletSink = null;
+    }
+
     if (this.micStream) {
       for (const track of this.micStream.getTracks()) {
         track.stop();
@@ -170,7 +266,6 @@ export class LiveAudioSession {
       this.micStream = null;
     }
 
-    // Close AudioContext
     if (this.audioCtx) {
       try {
         this.audioCtx.close();
@@ -180,18 +275,29 @@ export class LiveAudioSession {
       this.audioCtx = null;
     }
 
-    // Null out filter chain references
     this.lowpassFilter = null;
     this.highpassFilter = null;
     this.gainNode = null;
     this.analyser = null;
 
     this.setState("ended");
-  }
 
-  // ---------------------------------------------------------------------------
-  // Internal helpers
-  // ---------------------------------------------------------------------------
+    this.micSendBuffer = new Uint8Array(0);
+    this.userSpeaking = false;
+    this.consecutiveSpeechChunks = 0;
+    this.lastSpeechAtMs = 0;
+    this.lastAudioEndSignalAtMs = 0;
+    this.lastBargeInAtMs = 0;
+    this.droppingStaleAgentAudio = false;
+    this.waitingForFreshAssistantTurn = false;
+    this.waitingSinceMs = 0;
+    this.allowMicStreaming = false;
+    this.queuedPlaybackSec = 0;
+
+    if (ENABLE_LOCAL_BROWSER_STT) {
+      this.stopLocalRecognition();
+    }
+  }
 
   private setState(s: SessionState): void {
     if (this.state === s) return;
@@ -199,9 +305,6 @@ export class LiveAudioSession {
     this.opts.onStateChange?.(s);
   }
 
-  /**
-   * Handle a JSON text frame from the WebSocket.
-   */
   private handleJsonMessage(raw: string): void {
     try {
       const msg = JSON.parse(raw) as {
@@ -211,8 +314,23 @@ export class LiveAudioSession {
       };
 
       if (msg.type === "transcript" && msg.text) {
-        const speaker: "agent" | "user" =
-          msg.role === "user" ? "user" : "agent";
+        const speaker: "agent" | "user" = msg.role === "user" ? "user" : "agent";
+
+        if (speaker === "agent") {
+          this.allowMicStreaming = true;
+          if (this.waitingForFreshAssistantTurn) {
+            this.droppingStaleAgentAudio = false;
+            this.waitingForFreshAssistantTurn = false;
+          }
+        }
+
+        if (speaker === "user" && this.audioCtx) {
+          const hasQueuedAgentAudio = this.queuedPlaybackSec > 0.08;
+          if (hasQueuedAgentAudio) {
+            this.beginBargeInCutover();
+          }
+        }
+
         this.opts.onTranscript?.(msg.text, speaker);
       } else if (msg.type === "timeout") {
         this.opts.onTimeout?.();
@@ -222,39 +340,103 @@ export class LiveAudioSession {
     }
   }
 
-  /**
-   * Handle a binary audio frame (Int16 PCM at 16 kHz) from the WebSocket.
-   * Convert to Float32, create an AudioBuffer, and play through the
-   * phone-realism filter chain.
-   */
   private handleAudioFrame(buffer: ArrayBuffer): void {
-    if (!this.audioCtx || !this.lowpassFilter) return;
+    if (!this.playbackNode) return;
 
-    const int16 = new Int16Array(buffer);
-    const float32 = new Float32Array(int16.length);
-
-    for (let i = 0; i < int16.length; i++) {
-      float32[i] = int16[i] / 0x7fff;
+    if (this.droppingStaleAgentAudio) {
+      // Fail-open in case transcript markers are delayed.
+      if (Date.now() - this.waitingSinceMs > 1600) {
+        this.droppingStaleAgentAudio = false;
+        this.waitingForFreshAssistantTurn = false;
+      } else {
+        return;
+      }
     }
 
-    const audioBuf = this.audioCtx.createBuffer(
-      1, // mono
-      float32.length,
-      PLAYBACK_SAMPLE_RATE,
-    );
-    audioBuf.getChannelData(0).set(float32);
-
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = audioBuf;
-    // Connect source into the phone-realism filter chain
-    source.connect(this.lowpassFilter);
-    source.start();
+    const clone = buffer.slice(0);
+    this.playbackNode.port.postMessage({ type: "enqueue", data: clone }, [clone]);
   }
 
-  /**
-   * Periodically read the analyser node to produce an audio level 0-1,
-   * delivered via the onAudioLevel callback.
-   */
+  private beginBargeInCutover(): void {
+    this.droppingStaleAgentAudio = true;
+    this.waitingForFreshAssistantTurn = true;
+    this.waitingSinceMs = Date.now();
+    this.interruptPlayback();
+  }
+
+  private interruptPlayback(): void {
+    if (!this.playbackNode) return;
+    try {
+      this.playbackNode.port.postMessage({ type: "clear" });
+    } catch {
+      // ignore
+    }
+    this.queuedPlaybackSec = 0;
+  }
+
+  private updateSpeechStateAndBargeIn(chunk: Uint8Array): void {
+    const nowMs = Date.now();
+    const speakingNow = this.isLikelyUserSpeech(chunk);
+
+    if (speakingNow) {
+      this.userSpeaking = true;
+      this.lastSpeechAtMs = nowMs;
+      this.consecutiveSpeechChunks += 1;
+
+      const hasQueuedAgentAudio = this.queuedPlaybackSec > 0.08;
+      if (hasQueuedAgentAudio && this.consecutiveSpeechChunks >= 6 && nowMs - this.lastBargeInAtMs > 700) {
+        this.beginBargeInCutover();
+        this.lastBargeInAtMs = nowMs;
+      }
+      return;
+    }
+
+    this.consecutiveSpeechChunks = 0;
+    if (!this.userSpeaking) return;
+
+    if (nowMs - this.lastSpeechAtMs >= 500) {
+      this.userSpeaking = false;
+      this.sendAudioEndSignal(nowMs);
+    }
+  }
+
+  private sendAudioEndSignal(nowMs: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    if (nowMs - this.lastAudioEndSignalAtMs < 600) return;
+    try {
+      this.ws.send(JSON.stringify({ type: "audio_end" }));
+      this.lastAudioEndSignalAtMs = nowMs;
+      this.waitingForFreshAssistantTurn = true;
+      this.waitingSinceMs = nowMs;
+    } catch {
+      // ignore
+    }
+  }
+
+  private isLikelyUserSpeech(chunk: Uint8Array): boolean {
+    const int16 = new Int16Array(chunk.buffer, chunk.byteOffset, Math.floor(chunk.byteLength / 2));
+    if (int16.length === 0) return false;
+
+    let energy = 0;
+    let count = 0;
+    for (let i = 0; i < int16.length; i += 2) {
+      const x = int16[i] / 0x7fff;
+      energy += x * x;
+      count += 1;
+    }
+
+    const rms = Math.sqrt(energy / Math.max(1, count));
+    const playbackActive = this.queuedPlaybackSec > 0.08;
+    return playbackActive ? rms > 0.11 : rms > 0.035;
+  }
+
+  private shouldForwardMicChunk(): boolean {
+    // During assistant playback, suppress non-speech uplink to prevent echo loops.
+    const playbackActive = this.queuedPlaybackSec > 0.08 || this.droppingStaleAgentAudio;
+    if (!playbackActive) return true;
+    return this.userSpeaking;
+  }
+
   private startAudioLevelLoop(): void {
     if (!this.analyser || !this.opts.onAudioLevel) return;
 
@@ -265,19 +447,79 @@ export class LiveAudioSession {
 
       this.analyser.getByteFrequencyData(dataArray);
 
-      // Compute RMS-like average, normalized to 0-1
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) {
         sum += dataArray[i];
       }
-      const avg = sum / dataArray.length; // 0-255
+      const avg = sum / dataArray.length;
       const level = Math.min(1, avg / 255);
 
       this.opts.onAudioLevel?.(level);
-
       this.animFrameId = requestAnimationFrame(tick);
     };
 
     this.animFrameId = requestAnimationFrame(tick);
+  }
+
+  private startLocalRecognition(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Web Speech API has no standard TS types
+    const w = window as any;
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) return;
+
+    try {
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "ne-NP";
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SpeechRecognitionEvent not in standard TS DOM types
+      rec.onresult = (ev: any) => {
+        let interim = "";
+        let finalText = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const result = ev.results[i];
+          const text = String(result?.[0]?.transcript ?? "").trim();
+          if (!text) continue;
+          if (result.isFinal) {
+            finalText += (finalText ? " " : "") + text;
+          } else {
+            interim += (interim ? " " : "") + text;
+          }
+        }
+        if (interim) this.opts.onLocalTranscript?.(interim, false);
+        if (finalText) this.opts.onLocalTranscript?.(finalText, true);
+      };
+
+      rec.onerror = () => {
+        // Keep silent; fallback is server-side transcripts.
+      };
+
+      rec.onend = () => {
+        if (this.state === "active") {
+          try {
+            rec.start();
+          } catch {
+            // ignore
+          }
+        }
+      };
+
+      rec.start();
+      this.speechRecognition = rec;
+    } catch {
+      // ignore unsupported/runtime failures
+    }
+  }
+
+  private stopLocalRecognition(): void {
+    if (!this.speechRecognition) return;
+    try {
+      this.speechRecognition.onend = null;
+      this.speechRecognition.stop();
+    } catch {
+      // ignore
+    }
+    this.speechRecognition = null;
   }
 }

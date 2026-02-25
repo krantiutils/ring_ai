@@ -951,7 +951,7 @@ function VoiceAgentInspector({
 
   React.useEffect(() => {
     api.getTTSProviderDetails()
-      .then((list: any) => setProviders(list.map((p: any) => ({
+      .then((list) => setProviders(list.map((p) => ({
         provider: p.provider,
         display_name: p.display_name,
         requires_api_key: p.requires_api_key,
@@ -963,7 +963,7 @@ function VoiceAgentInspector({
     if (!selectedProvider) return;
     setLoadingVoices(true);
     api.getTTSVoices(selectedProvider, "ne-NP")
-      .then((list: any) => setVoices(list.map((v: any) => ({
+      .then((list) => setVoices(list.map((v) => ({
         voice_id: v.voice_id,
         name: v.name,
         gender: v.gender,
@@ -1166,7 +1166,7 @@ function KBLookupInspector({
 
   React.useEffect(() => {
     api.getKnowledgeBasesForFlow()
-      .then((list: any[]) => setKbs(list.map((kb: any) => ({ id: kb.id, name: kb.name }))))
+      .then((list) => setKbs(list.map((kb: { id: string; name: string }) => ({ id: kb.id, name: kb.name }))))
       .catch(() => {});
   }, []);
 
@@ -1250,10 +1250,10 @@ function InteractiveVoiceInspector({
 
   React.useEffect(() => {
     api.getKnowledgeBasesForFlow()
-      .then((list: any[]) => setKbs(list.map((kb: any) => ({ id: kb.id, name: kb.name }))))
+      .then((list) => setKbs(list.map((kb: { id: string; name: string }) => ({ id: kb.id, name: kb.name }))))
       .catch(() => {});
     api.getTTSProviderDetails()
-      .then((list: any) => setProviders(list.map((p: any) => ({
+      .then((list) => setProviders(list.map((p) => ({
         provider: p.provider,
         display_name: p.display_name,
         requires_api_key: p.requires_api_key,
@@ -1265,7 +1265,7 @@ function InteractiveVoiceInspector({
     if (!selectedProvider || outputMode === "native_audio") return;
     setLoadingVoices(true);
     api.getTTSVoices(selectedProvider, "ne-NP")
-      .then((list: any) => setVoices(list.map((v: any) => ({
+      .then((list) => setVoices(list.map((v) => ({
         voice_id: v.voice_id,
         name: v.name,
         gender: v.gender,

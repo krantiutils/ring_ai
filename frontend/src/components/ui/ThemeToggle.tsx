@@ -25,21 +25,24 @@ function applyTheme(theme: Theme) {
   localStorage.setItem(STORAGE_KEY, theme);
 }
 
+function getInitialTheme(): Theme {
+  if (typeof window === "undefined") return "light";
+  return detectStoredTheme() ?? detectSystemTheme();
+}
+
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    const stored = detectStoredTheme();
-    const initial = stored ?? detectSystemTheme();
-    setTheme(initial);
-    applyTheme(initial);
+    applyTheme(theme);
+  }, [theme]);
 
-    if (stored) return;
+  useEffect(() => {
+    if (detectStoredTheme()) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onSystemThemeChange = (event: MediaQueryListEvent) => {
       const next = event.matches ? "dark" : "light";
       setTheme(next);
-      applyTheme(next);
     };
     media.addEventListener("change", onSystemThemeChange);
     return () => media.removeEventListener("change", onSystemThemeChange);
@@ -52,7 +55,6 @@ export default function ThemeToggle() {
       type="button"
       onClick={() => {
         setTheme(nextTheme);
-        applyTheme(nextTheme);
       }}
       aria-label={`Switch to ${nextTheme} mode`}
       className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] shadow-sm transition-colors hover:border-[rgba(0,82,255,0.4)]"
