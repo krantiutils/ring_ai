@@ -22,7 +22,7 @@ import type {
 } from "@/types/dashboard";
 
 // Placeholder org ID — in production this comes from user context
-const ORG_ID = "00000000-0000-0000-0000-000000000001";
+const ORG_ID = "bc93a6be-5741-488a-94df-70406390c85d";
 
 type View = "list" | "detail";
 

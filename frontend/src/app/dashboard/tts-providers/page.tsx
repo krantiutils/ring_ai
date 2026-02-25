@@ -745,15 +745,21 @@ function AudioPlayer({ src, durationMs }: { src: string; durationMs: number }) {
     };
   }, []);
 
-  const toggle = () => {
+  const toggle = async () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (playing) {
       audio.pause();
+      setPlaying(false);
     } else {
-      audio.play();
+      try {
+        await audio.play();
+        setPlaying(true);
+      } catch (err) {
+        console.error("Audio playback failed:", err);
+        setPlaying(false);
+      }
     }
-    setPlaying(!playing);
   };
 
   const stop = () => {

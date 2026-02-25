@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Plus,
   Clipboard,
@@ -90,11 +90,24 @@ export default function CanvasContextMenu({
         ? NODE_ITEMS
         : EDGE_ITEMS;
 
+  // Flip menu to the left / upward when it would overflow the viewport
+  const { safeX, safeY } = useMemo(() => {
+    const menuWidth = 208; // w-52 = 13rem = 208px
+    const menuHeight = items.length * 36 + 16; // ~36px per item + padding
+    const sx =
+      target.x + menuWidth > window.innerWidth ? target.x - menuWidth : target.x;
+    const sy =
+      target.y + menuHeight > window.innerHeight
+        ? target.y - menuHeight
+        : target.y;
+    return { safeX: sx, safeY: sy };
+  }, [target.x, target.y, items.length]);
+
   return (
     <div
       ref={ref}
       className="fixed z-50 w-52 rounded-xl border border-[var(--border)] bg-[var(--card)] p-2 shadow-xl"
-      style={{ left: target.x, top: target.y }}
+      style={{ left: safeX, top: safeY }}
     >
       {items.map((item) => {
         const Icon = item.icon;
