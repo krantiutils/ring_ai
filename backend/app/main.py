@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import warnings
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,8 +18,38 @@ from app.services.scheduler import scheduler_loop
 logger = logging.getLogger(__name__)
 
 
+def _configure_third_party_loggers() -> None:
+    """Reduce noisy SDK logs that flood PM2 output during live audio streaming."""
+    for name in (
+        "google.genai",
+        "google.genai.live",
+        "google_genai",
+        "absl",
+        "absl.logging",
+        "websockets.client",
+    ):
+        logging.getLogger(name).setLevel(logging.ERROR)
+    try:
+        from absl import logging as absl_logging
+
+        absl_logging.set_verbosity("error")
+        absl_logging.set_stderrthreshold("error")
+    except Exception:
+        pass
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*non-data parts in the response.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*non-text parts in the response.*",
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _configure_third_party_loggers()
+
     # Start scheduler
     task = asyncio.create_task(scheduler_loop())
 
@@ -74,6 +105,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-TTS-Duration-Ms", "X-TTS-Provider", "X-TTS-Chars-Consumed"],
 )
 
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)

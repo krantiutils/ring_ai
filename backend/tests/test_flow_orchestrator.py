@@ -1,9 +1,11 @@
 import uuid
+from unittest.mock import patch
 
 import pytest
 
 from app.models.flow_definition import FlowDefinition
 from app.models.flow_run import FlowRun, FlowStepResult
+from app.services.flow_dispatch import DispatchResult
 from app.services.flow_orchestrator import run_flow
 
 
@@ -304,3 +306,41 @@ class TestRowCountIntegrity:
         assert sms1_step.input_row_count + sms2_step.input_row_count == 100
         assert sms1_step.input_row_count == 50
         assert sms2_step.input_row_count == 50
+
+
+class TestInteractiveVoiceCaptureColumns:
+    def test_interactive_capture_columns_are_added_to_rows_and_metadata(self, db):
+        flow = _make_flow(db, [
+            _node("t1", "trigger_manual"),
+            _node("s1", "source_manual_table", {"sample_csv": "name,phone\nRam,+9779800000000"}),
+            _node(
+                "iv1",
+                "agent_voice_interactive",
+                {
+                    "system_prompt": "Talk to {{name}}",
+                    "capture_columns": "intent,budget",
+                },
+            ),
+            _node("e1", "end_success"),
+        ], [
+            _edge("e1", "t1", "s1"),
+            _edge("e2", "s1", "iv1"),
+            _edge("e3", "iv1", "e1"),
+        ])
+        run = _make_run(db, flow)
+
+        with patch("app.services.flow_orchestrator.dispatch_action") as mock_dispatch:
+            mock_dispatch.return_value = DispatchResult(status="queued", provider_id="CA-test-1")
+            run_flow(run.id, db)
+
+        db.refresh(run)
+        assert run.status == "completed"
+        assert len(run.contact_rows) == 1
+        assert run.contact_rows[0]["intent"] == ""
+        assert run.contact_rows[0]["budget"] == ""
+        assert run.contact_rows[0]["_capture_status"] == "pending"
+
+        step = db.query(FlowStepResult).filter_by(flow_run_id=run.id, node_id="iv1").first()
+        assert step is not None
+        assert step.metadata_ is not None
+        assert step.metadata_["capture_columns"] == ["intent", "budget"]

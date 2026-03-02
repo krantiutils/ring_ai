@@ -1,10 +1,9 @@
-"""Piper TTS provider — fast offline TTS via piper binary."""
+"""Piper TTS provider — fast offline TTS via piper Python API."""
 
 import asyncio
 import io
 import json
 import logging
-import subprocess
 import wave
 from functools import partial
 from pathlib import Path
@@ -24,19 +23,25 @@ from app.tts.models import (
 
 logger = logging.getLogger(__name__)
 
+# Lazy-loaded voice cache: voice_id -> PiperVoice
+_voice_cache: dict[str, "PiperVoice"] = {}
+
 
 class PiperProvider(BaseTTSProvider):
-    """Offline TTS using the Piper binary.
+    """Offline TTS using Piper ONNX models.
 
-    Requires `piper` installed at PIPER_BINARY_PATH and ONNX model files
-    in PIPER_MODELS_DIR.
+    Requires `piper-tts` pip package and ONNX model files in PIPER_MODELS_DIR.
     """
 
     def __init__(self) -> None:
-        self._binary = Path(settings.PIPER_BINARY_PATH)
+        from piper import PiperVoice  # noqa: F401 — import check
+
         self._models_dir = Path(settings.PIPER_MODELS_DIR)
-        if not self._binary.exists():
-            raise FileNotFoundError(f"Piper binary not found: {self._binary}")
+        if not self._models_dir.exists():
+            raise FileNotFoundError(f"Piper models directory not found: {self._models_dir}")
+        # Check that at least one model exists
+        if not list(self._models_dir.glob("*.onnx")):
+            raise FileNotFoundError(f"No ONNX models found in {self._models_dir}")
 
     @property
     def name(self) -> str:
@@ -57,65 +62,39 @@ class PiperProvider(BaseTTSProvider):
             supported_formats=[AudioFormat.WAV],
         )
 
-    def _find_model(self, voice_id: str) -> Path:
-        """Find the ONNX model file for a voice ID."""
-        model_path = self._models_dir / f"{voice_id}.onnx"
-        if model_path.exists():
-            return model_path
-        if Path(voice_id).suffix == ".onnx" and Path(voice_id).exists():
-            return Path(voice_id)
-        raise TTSProviderError("piper", f"Model not found: {voice_id}")
+    def _get_voice(self, voice_id: str):
+        """Load or return cached PiperVoice."""
+        if voice_id not in _voice_cache:
+            from piper import PiperVoice
 
-    def _synthesize_blocking(self, model_path: str, text: str) -> tuple[bytes, int]:
-        """Run piper binary (blocking — called via run_in_executor)."""
+            model_path = self._models_dir / f"{voice_id}.onnx"
+            if not model_path.exists():
+                raise TTSProviderError("piper", f"Model not found: {voice_id}")
+            logger.info("Loading Piper voice model: %s", voice_id)
+            _voice_cache[voice_id] = PiperVoice.load(str(model_path))
+        return _voice_cache[voice_id]
+
+    def _synthesize_blocking(self, voice_id: str, text: str) -> tuple[bytes, int]:
+        """Run Piper synthesis (blocking — called via run_in_executor)."""
         try:
-            result = subprocess.run(
-                [
-                    str(self._binary),
-                    "--model", model_path,
-                    "--output_raw",
-                ],
-                input=text.encode("utf-8"),
-                capture_output=True,
-                timeout=30,
-            )
-        except subprocess.TimeoutExpired:
-            raise TTSProviderError("piper", "Synthesis timed out (30s)")
-        except Exception as exc:
-            raise TTSProviderError("piper", f"Synthesis failed: {exc}") from exc
-
-        if result.returncode != 0:
-            raise TTSProviderError("piper", f"Piper exited with code {result.returncode}: {result.stderr.decode()}")
-
-        raw_audio = result.stdout
-        if not raw_audio:
-            raise TTSProviderError("piper", "Synthesis returned empty audio")
-
-        # Wrap raw PCM in WAV container (piper outputs 16kHz 16-bit mono by default)
-        sample_rate = 16000
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(raw_audio)
-
-        audio_bytes = wav_buffer.getvalue()
-        duration_ms = int(len(raw_audio) / (sample_rate * 2) * 1000)
-        return audio_bytes, duration_ms
-
-    async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
-        model_path = self._find_model(config.voice)
-
-        loop = asyncio.get_running_loop()
-        try:
-            audio_bytes, duration_ms = await loop.run_in_executor(
-                None, partial(self._synthesize_blocking, str(model_path), text)
-            )
+            voice = self._get_voice(voice_id)
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as wav_file:
+                voice.synthesize_wav(text, wav_file)
+            audio_bytes = buf.getvalue()
+            sample_rate = voice.config.sample_rate
+            duration_ms = int((len(audio_bytes) - 44) / (sample_rate * 2) * 1000)
+            return audio_bytes, duration_ms
         except TTSProviderError:
             raise
         except Exception as exc:
             raise TTSProviderError("piper", f"Synthesis failed: {exc}") from exc
+
+    async def synthesize(self, text: str, config: TTSConfig) -> TTSResult:
+        loop = asyncio.get_running_loop()
+        audio_bytes, duration_ms = await loop.run_in_executor(
+            None, partial(self._synthesize_blocking, config.voice, text)
+        )
 
         return TTSResult(
             audio_bytes=audio_bytes,

@@ -27,19 +27,26 @@ def _create_router() -> TTSRouter:
             router.register(ElevenLabsProvider())
         except Exception:
             pass
-    # Parler-TTS: only register if torch/model available
-    try:
-        from app.tts.providers.parler import ParlerTTSProvider
-
-        router.register(ParlerTTSProvider())
-    except (ImportError, Exception):
-        pass
-    # Piper: only register if binary exists
+    # Piper: only register if models directory exists
     try:
         from app.tts.providers.piper import PiperProvider
 
         router.register(PiperProvider())
     except (FileNotFoundError, Exception):
+        pass
+    # Nepali VITS (tuskbyte): only register if transformers available
+    try:
+        from app.tts.providers.mms import MMSTTSProvider
+
+        router.register(MMSTTSProvider())
+    except (ImportError, Exception):
+        pass
+    # AI4Bharat Indic Parler-TTS: only register if torch + parler available + model accessible
+    try:
+        from app.tts.providers.parler import ParlerTTSProvider
+
+        router.register(ParlerTTSProvider())
+    except (ImportError, Exception):
         pass
     return router
 

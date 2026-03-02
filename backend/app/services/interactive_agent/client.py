@@ -120,9 +120,10 @@ class GeminiLiveClient:
         self._config = config
         self._genai_client = genai.Client(
             api_key=api_key,
-            http_options={"api_version": "v1alpha"},
+            http_options={"api_version": "v1beta"},
         )
         self._session = None
+        self._session_ctx = None  # Must keep context manager alive to prevent GC closing the WS
         self._live_config = _build_live_config(config)
         self._connected = False
         self._resumption_handle: str | None = None
@@ -164,10 +165,11 @@ class GeminiLiveClient:
             )
 
         try:
-            self._session = await self._genai_client.aio.live.connect(
+            self._session_ctx = self._genai_client.aio.live.connect(
                 model=self._config.model_id,
                 config=live_config,
-            ).__aenter__()
+            )
+            self._session = await self._session_ctx.__aenter__()
             self._connected = True
             logger.info(
                 "Gemini session %s connected (model=%s, voice=%s)",
@@ -181,13 +183,17 @@ class GeminiLiveClient:
 
     async def close(self) -> None:
         """Close the WebSocket connection and clean up."""
-        if self._session is not None:
+        if self._session_ctx is not None:
             try:
-                await self._session.__aexit__(None, None, None)
+                if hasattr(self._session_ctx, "__aexit__"):
+                    await self._session_ctx.__aexit__(None, None, None)
+                elif self._session is not None and hasattr(self._session, "close"):
+                    await self._session.close()
             except Exception as exc:
                 logger.warning("Error closing session %s: %s", self.session_id, exc)
             finally:
                 self._session = None
+                self._session_ctx = None
                 self._connected = False
                 logger.info("Gemini session %s closed", self.session_id)
 
@@ -205,6 +211,14 @@ class GeminiLiveClient:
             await self._session.send_realtime_input(
                 audio={"data": chunk.data, "mime_type": chunk.mime_type},
             )
+        except AttributeError:
+            # Backward compatibility with older SDKs.
+            try:
+                await self._session.send(
+                    input={"data": chunk.data, "mime_type": chunk.mime_type},
+                )
+            except Exception as exc:
+                raise GeminiClientError(f"Failed to send audio on session {self.session_id}: {exc}") from exc
         except Exception as exc:
             raise GeminiClientError(f"Failed to send audio on session {self.session_id}: {exc}") from exc
 
@@ -231,10 +245,20 @@ class GeminiLiveClient:
         """
         self._ensure_connected()
         try:
+            # Follow the current Live API pattern for text turns.
             await self._session.send_client_content(
-                turns=Content(role="user", parts=[Part(text=text)]),
+                turns=Content(role="user", parts=[Part(text=text or ".")]),
                 turn_complete=True,
             )
+        except AttributeError:
+            # Backward compatibility with older SDK method naming.
+            try:
+                await self._session.send(
+                    input=text or ".",
+                    end_of_turn=True,
+                )
+            except Exception as exc:
+                raise GeminiClientError(f"Failed to send text on session {self.session_id}: {exc}") from exc
         except Exception as exc:
             raise GeminiClientError(f"Failed to send text on session {self.session_id}: {exc}") from exc
 
@@ -284,8 +308,7 @@ class GeminiLiveClient:
         """
         self._ensure_connected()
         try:
-            turn = self._session.receive()
-            async for message in turn:
+            async for message in self._session.receive():
                 # Capture session resumption handles for reconnection
                 if hasattr(message, "session_resumption_update"):
                     update = message.session_resumption_update
@@ -340,11 +363,9 @@ class GeminiLiveClient:
                         if hasattr(part, "text") and part.text:
                             response.text = part.text
 
-                # Shorthand accessors (data/text directly on message)
-                if response.audio_data is None and hasattr(message, "data") and message.data:
-                    response.audio_data = message.data
-                if response.text is None and hasattr(message, "text") and message.text:
-                    response.text = message.text
+                # Avoid shorthand accessors like message.data/message.text because
+                # the SDK logs warnings when mixed content parts exist; model_turn
+                # parsing above already captures both audio and text content.
 
                 # Input/output transcriptions
                 input_tx = getattr(server_content, "input_transcription", None)

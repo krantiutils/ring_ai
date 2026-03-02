@@ -76,8 +76,49 @@ class FlowRunResponse(BaseModel):
     id: uuid.UUID
     flow_id: uuid.UUID
     status: str
+    mode: str = "live"
+    contact_count: int = 0
     started_at: datetime | None
     completed_at: datetime | None
     current_node_id: str | None
     error: str | None
+
+
+class FlowRunCreate(BaseModel):
+    mode: str = "live"
+
+
+class FlowStepResultResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    node_id: str
+    node_kind: str
+    status: str
+    input_row_count: int
+    output_row_count: int
+    error: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    metadata: dict | None = None
+
+    @classmethod
+    def from_orm_step(cls, step) -> "FlowStepResultResponse":
+        return cls(
+            id=step.id,
+            node_id=step.node_id,
+            node_kind=step.node_kind,
+            status=step.status,
+            input_row_count=step.input_row_count,
+            output_row_count=step.output_row_count,
+            error=step.error,
+            started_at=step.started_at,
+            completed_at=step.completed_at,
+            metadata=step.metadata_,
+        )
+
+
+class FlowRunDetailResponse(FlowRunResponse):
+    steps: list[FlowStepResultResponse] = []
+    flow_name: str = ""
 

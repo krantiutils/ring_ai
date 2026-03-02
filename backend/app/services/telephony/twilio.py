@@ -69,6 +69,22 @@ class TwilioProvider(BaseTelephonyProvider):
     def default_from_number(self) -> str:
         return self._default_from_number
 
+    def list_phone_numbers(self) -> list[dict]:
+        """Return all incoming phone numbers on this Twilio account."""
+        numbers = self._client.incoming_phone_numbers.list()
+        return [
+            {
+                "sid": n.sid,
+                "number": n.phone_number,
+                "friendly_name": n.friendly_name,
+                "capabilities": {
+                    "sms": n.capabilities.get("sms", False),
+                    "voice": n.capabilities.get("voice", False),
+                },
+            }
+            for n in numbers
+        ]
+
     async def initiate_call(
         self,
         to: str,
@@ -114,7 +130,7 @@ class TwilioProvider(BaseTelephonyProvider):
         try:
             call = await loop.run_in_executor(
                 None,
-                partial(self._client.calls, call_id).fetch,
+                self._client.calls(call_id).fetch,
             )
         except Exception as exc:
             raise TelephonyProviderError("twilio", f"Failed to fetch call {call_id}: {exc}") from exc

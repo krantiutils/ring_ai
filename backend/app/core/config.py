@@ -103,7 +103,7 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/1"
 
-    model_config = {"env_file": ".env", "case_sensitive": True}
+    model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}
 
 
 settings = Settings()

@@ -42,7 +42,7 @@ INPUT_SAMPLE_RATE = 16000
 OUTPUT_SAMPLE_RATE = 24000
 SAMPLE_WIDTH_BYTES = 2  # 16-bit
 CHANNELS = 1
-INPUT_MIME_TYPE = "audio/pcm"
+INPUT_MIME_TYPE = "audio/pcm;rate=16000"
 
 
 class SessionConfig(BaseModel):

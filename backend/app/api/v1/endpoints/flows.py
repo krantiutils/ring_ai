@@ -408,7 +408,7 @@ def delete_flow_definition(
     db.commit()
 
 
-_phone_numbers_cache: dict[str, tuple[float, list]] = {}
+_phone_numbers_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300  # 5 minutes
 
 
@@ -422,15 +422,21 @@ def list_flow_phone_numbers(
     if cached and now - cached[0] < _CACHE_TTL:
         return cached[1]
 
+    default_from_number = ""
     try:
         from app.services.telephony import get_twilio_provider
         provider = get_twilio_provider()
+        default_from_number = provider.default_from_number or ""
         numbers = provider.list_phone_numbers()
     except Exception:
         numbers = []
 
-    _phone_numbers_cache[cache_key] = (now, numbers)
-    return numbers
+    payload = {
+        "default_from_number": default_from_number,
+        "numbers": numbers,
+    }
+    _phone_numbers_cache[cache_key] = (now, payload)
+    return payload
 
 
 @router.post("/estimate-credits")

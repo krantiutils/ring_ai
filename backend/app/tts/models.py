@@ -9,6 +9,8 @@ class TTSProvider(str, Enum):
     ELEVENLABS = "elevenlabs"
     PARLER_TTS = "parler_tts"
     PIPER = "piper"
+    MMS_TTS = "mms_tts"
+    COQUI_XTTS = "coqui_xtts"
 
 
 class AudioFormat(str, Enum):

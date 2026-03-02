@@ -18,6 +18,7 @@ class FlowRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     flow_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flow_definitions.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
+    mode: Mapped[str] = mapped_column(String(20), nullable=False, server_default="live")
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     current_node_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -27,6 +28,14 @@ class FlowRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     steps: Mapped[list["FlowStepResult"]] = relationship(back_populates="flow_run", cascade="all, delete-orphan")
+
+    @property
+    def contact_count(self) -> int:
+        if self.steps:
+            source_steps = [s for s in self.steps if s.node_kind.startswith("source_")]
+            if source_steps:
+                return max(s.output_row_count for s in source_steps)
+        return len(self.contact_rows) if self.contact_rows else 0
 
 
 class FlowStepResult(Base):

@@ -11,6 +11,8 @@ from app.services.flow_dispatch import (
     dispatch_action,
     dispatch_sms,
     dispatch_voice,
+    dispatch_voice_interactive,
+    pop_interactive_session_config,
     render_template,
 )
 
@@ -99,6 +101,15 @@ class TestDispatchSms:
         assert result.status == "failed"
         assert "Twilio down" in result.error
 
+    def test_uses_configured_from_number_when_row_override_missing(self, mock_provider):
+        row = {"phone": "+1234"}
+        config = {"message": "Hi", "from_number": "+15550001111"}
+        asyncio.get_event_loop().run_until_complete(
+            dispatch_sms(mock_provider, row, config)
+        )
+        call_kwargs = mock_provider.send_sms.call_args
+        assert call_kwargs.kwargs["from_number"] == "+15550001111"
+
 
 # ---------------------------------------------------------------------------
 # dispatch_voice
@@ -132,6 +143,45 @@ class TestDispatchVoice:
         )
         assert result.status == "failed"
         mock_provider.initiate_call.assert_not_called()
+
+    def test_uses_configured_from_number_when_row_override_missing(self, mock_provider):
+        row = {"phone": "+9779800000000", "name": "Ram"}
+        config = {"script": "Hello {{name}}", "from_number": "+15550002222"}
+        asyncio.get_event_loop().run_until_complete(
+            dispatch_voice(mock_provider, row, config, base_url="https://example.com")
+        )
+        call_kwargs = mock_provider.initiate_call.call_args
+        assert call_kwargs.kwargs["from_number"] == "+15550002222"
+
+
+class TestDispatchVoiceInteractive:
+    @pytest.fixture
+    def mock_provider(self):
+        provider = MagicMock()
+        provider.default_from_number = "+14155238886"
+        provider.initiate_call = AsyncMock(
+            return_value=MagicMock(call_id="CA123", status="initiated")
+        )
+        return provider
+
+    def test_stores_and_pops_interactive_session_config(self, mock_provider):
+        row = {"phone": "+9779800000000", "name": "Ram"}
+        config = {
+            "system_prompt": "Talk to {{name}}",
+            "capture_columns": "intent,budget",
+            "capture_instructions": "Capture key outcomes",
+        }
+        result = asyncio.get_event_loop().run_until_complete(
+            dispatch_voice_interactive(mock_provider, row, config, base_url="https://example.com")
+        )
+        assert result.status == "initiated"
+        # session_id is embedded in twiml URL passed to provider
+        twiml_url = mock_provider.initiate_call.call_args.kwargs["twiml_url"]
+        session_id = twiml_url.rsplit("/", 1)[-1]
+        saved = pop_interactive_session_config(session_id)
+        assert saved is not None
+        assert saved["capture_columns"] == ["intent", "budget"]
+        assert saved["capture_instructions"] == "Capture key outcomes"
 
 
 # ---------------------------------------------------------------------------

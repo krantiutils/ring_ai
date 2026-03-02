@@ -49,6 +49,7 @@ class TwilioMediaBridge:
     stream_sid: str = ""
     call_sid: str = ""
     _running: bool = False
+    _kickoff_sent: bool = False
 
     async def run(self) -> None:
         """Main loop: receive Twilio events, forward audio to Gemini session."""
@@ -73,7 +74,12 @@ class TwilioMediaBridge:
             await self.ws.close(code=1008, reason="Session not found")
             return
 
-        outbound_task = asyncio.create_task(self._send_audio_to_twilio(session))
+        outbound_task: asyncio.Task | None = None
+
+        def _ensure_outbound_task() -> None:
+            nonlocal outbound_task
+            if outbound_task is None or outbound_task.done():
+                outbound_task = asyncio.create_task(self._send_audio_to_twilio(session))
 
         try:
             async for raw_message in self.ws.iter_text():
@@ -91,6 +97,14 @@ class TwilioMediaBridge:
                         self.stream_sid,
                         self.call_sid,
                     )
+                    # Ensure voice-first behavior on phone calls, same as browser WS flow.
+                    if not self._kickoff_sent:
+                        await session.send_text(
+                            "Start speaking immediately in Nepali. Give one short greeting sentence in Nepali, then ask your first scenario question in Nepali and pause."
+                        )
+                        self._kickoff_sent = True
+                    # Start outbound receive loop only after first upstream send.
+                    _ensure_outbound_task()
 
                 elif event == "media":
                     payload = msg["media"]["payload"]
@@ -98,6 +112,7 @@ class TwilioMediaBridge:
                     pcm_8k = ulaw_to_pcm16(ulaw_bytes)
                     pcm_16k = resample_8k_to_16k(pcm_8k)
                     await session.send_audio(AudioChunk(data=pcm_16k))
+                    _ensure_outbound_task()
 
                 elif event == "stop":
                     logger.info("Media stream stopped for session %s", self.session_id)
@@ -107,11 +122,12 @@ class TwilioMediaBridge:
             logger.error("TwilioMediaBridge error: %s", exc)
         finally:
             self._running = False
-            outbound_task.cancel()
-            try:
-                await outbound_task
-            except asyncio.CancelledError:
-                pass
+            if outbound_task is not None:
+                outbound_task.cancel()
+                try:
+                    await outbound_task
+                except asyncio.CancelledError:
+                    pass
             logger.info("TwilioMediaBridge ended for session %s", self.session_id)
 
     async def _send_audio_to_twilio(self, session) -> None:
@@ -121,6 +137,9 @@ class TwilioMediaBridge:
                 if not self._running:
                     break
                 if not response.audio_data:
+                    continue
+                # Twilio requires streamSid on outbound media frames.
+                if not self.stream_sid:
                     continue
                 pcm_8k = resample_24k_to_8k(response.audio_data)
                 ulaw_bytes = pcm16_to_ulaw(pcm_8k)

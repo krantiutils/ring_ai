@@ -1,4 +1,4 @@
-"""Parler-TTS provider — self-hosted AI4Bharat Indic TTS model."""
+"""AI4Bharat Indic Parler-TTS provider — high-quality Nepali TTS."""
 
 import asyncio
 import io
@@ -24,38 +24,39 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded model cache
 _model = None
 _tokenizer = None
+_desc_tokenizer = None
 _device = None
 
-# Voice description presets
+# Voice presets with natural language descriptions for controllable synthesis
 VOICE_PRESETS = {
-    "nepali_female_calm": {
-        "name": "Nepali Female (Calm)",
-        "description": "A female speaker with a calm, clear Nepali accent, speaking at a moderate pace in a quiet environment.",
+    "amrita_calm": {
+        "name": "Amrita (Calm)",
+        "description": "Amrita speaks with a high pitch at a slow pace. Her voice is clear, with excellent recording quality.",
         "gender": "female",
     },
-    "nepali_male_warm": {
-        "name": "Nepali Male (Warm)",
-        "description": "A male speaker with a warm, conversational Nepali accent, speaking naturally with moderate pace.",
+    "amrita_happy": {
+        "name": "Amrita (Happy)",
+        "description": "Amrita speaks with a happy tone, high pitch at a moderate pace. Her voice is clear and cheerful.",
+        "gender": "female",
+    },
+    "arvind_calm": {
+        "name": "Arvind (Calm)",
+        "description": "Arvind speaks with a low pitch at a moderate pace. His voice is calm and clear, with good recording quality.",
         "gender": "male",
     },
-    "nepali_female_energetic": {
-        "name": "Nepali Female (Energetic)",
-        "description": "A female speaker with an energetic, enthusiastic Nepali accent, speaking clearly at a slightly fast pace.",
-        "gender": "female",
-    },
-    "nepali_male_deep": {
-        "name": "Nepali Male (Deep)",
-        "description": "A male speaker with a deep, authoritative Nepali accent, speaking slowly and clearly.",
+    "arvind_formal": {
+        "name": "Arvind (Formal)",
+        "description": "Arvind speaks with a deep, authoritative tone at a slow pace. His voice is steady and professional.",
         "gender": "male",
     },
 }
 
 
 def _load_model():
-    """Load the Parler-TTS model on first use."""
-    global _model, _tokenizer, _device
+    """Load the Indic Parler-TTS model on first use."""
+    global _model, _tokenizer, _desc_tokenizer, _device
     if _model is not None:
-        return _model, _tokenizer, _device
+        return _model, _tokenizer, _desc_tokenizer, _device
 
     import torch
     from parler_tts import ParlerTTSForConditionalGeneration
@@ -69,21 +70,30 @@ def _load_model():
         raise RuntimeError("CUDA not available and PARLER_FORCE_CPU is not set")
 
     model_id = settings.PARLER_MODEL_ID
-    logger.info("Loading Parler-TTS model %s on %s...", model_id, _device)
-    _model = ParlerTTSForConditionalGeneration.from_pretrained(model_id).to(_device)
+    dtype = torch.float16 if _device == "cuda" else torch.float32
+    logger.info("Loading Indic Parler-TTS model %s on %s (dtype=%s)...", model_id, _device, dtype)
+    _model = ParlerTTSForConditionalGeneration.from_pretrained(model_id, torch_dtype=dtype).to(_device)
+    # DAC audio encoder/decoder needs float32 to avoid silent output from fp16 underflow
+    if dtype == torch.float16:
+        _model.audio_encoder = _model.audio_encoder.to(torch.float32)
+        logger.info("Upcast audio_encoder to float32 for DAC stability")
     _tokenizer = AutoTokenizer.from_pretrained(model_id)
-    logger.info("Parler-TTS model loaded successfully")
-    return _model, _tokenizer, _device
+    _desc_tokenizer = AutoTokenizer.from_pretrained(_model.config.text_encoder._name_or_path)
+    logger.info("Indic Parler-TTS model loaded successfully")
+    return _model, _tokenizer, _desc_tokenizer, _device
 
 
 class ParlerTTSProvider(BaseTTSProvider):
     """Self-hosted TTS using AI4Bharat's Indic Parler-TTS model.
 
-    Requires torch + CUDA (or PARLER_FORCE_CPU=true for CPU inference).
+    Supports 21 languages (20 Indic + English) with controllable voice descriptions.
+    Requires torch + CUDA (or PARLER_FORCE_CPU=true). Uses float16 on GPU.
     """
 
     def __init__(self) -> None:
         import torch
+        from parler_tts import ParlerTTSForConditionalGeneration  # noqa: F401
+
         if not torch.cuda.is_available() and not settings.PARLER_FORCE_CPU:
             raise ImportError("CUDA not available and PARLER_FORCE_CPU not set")
 
@@ -95,8 +105,8 @@ class ParlerTTSProvider(BaseTTSProvider):
     def info(self) -> ProviderInfo:
         return ProviderInfo(
             provider=TTSProvider.PARLER_TTS,
-            display_name="Parler-TTS (AI4Bharat)",
-            description="Self-hosted Indic TTS model. Free to run, GPU recommended.",
+            display_name="Indic Parler-TTS",
+            description="AI4Bharat's high-quality Indic TTS. Free, GPU recommended. Native Nepali support.",
             pricing=ProviderPricing(
                 cost_per_million_chars=0.0,
                 currency="USD",
@@ -111,22 +121,26 @@ class ParlerTTSProvider(BaseTTSProvider):
         import torch
         import numpy as np
 
-        model, tokenizer, device = _load_model()
+        model, tokenizer, desc_tokenizer, device = _load_model()
 
-        input_ids = tokenizer(voice_description, return_tensors="pt").input_ids.to(device)
-        prompt_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
+        desc_inputs = desc_tokenizer(voice_description, return_tensors="pt").to(device)
+        prompt_inputs = tokenizer(text, return_tensors="pt").to(device)
 
         with torch.no_grad():
-            generation = model.generate(input_ids=input_ids, prompt_input_ids=prompt_ids)
+            generation = model.generate(
+                input_ids=desc_inputs.input_ids,
+                attention_mask=desc_inputs.attention_mask,
+                prompt_input_ids=prompt_inputs.input_ids,
+                prompt_attention_mask=prompt_inputs.attention_mask,
+            )
 
-        audio_np = generation.cpu().numpy().squeeze()
+        audio_np = generation.cpu().float().numpy().squeeze()
         sample_rate = model.config.sampling_rate
 
-        # Convert to WAV bytes
         wav_buffer = io.BytesIO()
         with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setsampwidth(2)
             wav_file.setframerate(sample_rate)
             audio_int16 = (audio_np * 32767).astype(np.int16)
             wav_file.writeframes(audio_int16.tobytes())
