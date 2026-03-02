@@ -1,0 +1,11 @@
+.git
+.github
+.beads
+.claude
+.playwright-mcp
+*.png
+*.md
+!README.md
+docs/
+e2e/
+state.json

@@ -1,0 +1,11 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.env
+.env.*
+uploads/
+piper-models/
+certificates/
+tests/
+alembic/versions/__pycache__
