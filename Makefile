@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend test test-backend lint db-migrate db-upgrade db-seed docker-up docker-down
+.PHONY: dev dev-backend dev-frontend test test-backend lint db-migrate db-upgrade db-seed docker-up docker-down docker-logs docker-ps docker-migrate docker-shell
 
 # Development
 dev:
@@ -26,12 +26,24 @@ db-upgrade:
 db-seed:
 	cd backend && PYTHONPATH=. uv run python -m app.seed
 
-# Docker
+# Docker (production)
 docker-up:
-	docker compose up -d
+	docker compose up -d --build
 
 docker-down:
 	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+docker-ps:
+	docker compose ps
+
+docker-migrate:
+	docker compose exec backend uv run alembic upgrade head
+
+docker-shell:
+	docker compose exec backend bash
 
 # Lint
 lint:

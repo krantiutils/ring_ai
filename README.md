@@ -83,34 +83,31 @@ Core flows captured from E2E validation runs:
 
 ## Production Deploy (agentshakti.xyz)
 
-This app currently runs on an Ubuntu server behind nginx + PM2.
+Dockerized stack behind Traefik on EC2.
 
-### Frontend PM2 target
-
-Use Next standalone server path:
+### First-time setup
 
 ```bash
-cd /home/ubuntu/ring_ai/frontend
-pm2 delete ring-ai-frontend || true
-pm2 start .next/standalone/frontend/server.js --name ring-ai-frontend --cwd /home/ubuntu/ring_ai/frontend
-pm2 save
+cp .env.production.template .env
+# Edit .env with real secrets
+docker compose up -d --build
 ```
 
-### Safe deploy sequence
+### Deploy updates
 
 ```bash
 cd /home/ubuntu/ring_ai
 git pull
-cd frontend
-npm ci
-npm run build
-cd ..
-./scripts/fix_next_standalone_assets.sh frontend
-pm2 restart ring-ai-frontend
-./scripts/post_deploy_asset_check.sh https://agentshakti.xyz
+docker compose up -d --build
 ```
 
-If the last command reports `BAD > 0`, do not consider deployment complete.
+### Useful commands
+
+```bash
+docker compose ps              # Check service status
+docker compose logs -f backend # Tail backend logs
+docker compose exec backend bash  # Shell into backend
+```
 
 ## API Endpoints
 
