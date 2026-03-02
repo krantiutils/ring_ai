@@ -1,19 +1,4 @@
 services:
-  # --- Reverse Proxy ---
-  traefik:
-    image: traefik:v3
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro
-      - letsencrypt:/letsencrypt
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
   # --- Database ---
   postgres:
     image: postgres:16-alpine
@@ -57,18 +42,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - default
+      - traefik-proxy
     labels:
       - "traefik.enable=true"
-      # API + health routes
-      - "traefik.http.routers.backend.rule=Host(`agentshakti.xyz`) && (PathPrefix(`/api`) || PathPrefix(`/health`))"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      # WebSocket routes (voice media-stream, live-agent, gateway)
-      - "traefik.http.routers.backend-ws.rule=Host(`agentshakti.xyz`) && PathPrefix(`/api/v1/voice/media-stream`, `/api/v1/voice/live-agent/ws`, `/api/v1/gateway/ws`)"
-      - "traefik.http.routers.backend-ws.entrypoints=websecure"
-      - "traefik.http.routers.backend-ws.tls.certresolver=letsencrypt"
-      - "traefik.http.services.backend-ws.loadbalancer.server.port=8000"
+      - "traefik.docker.network=traefik-proxy"
+      # API + health routes (higher priority)
+      - "traefik.http.routers.ringai-api.rule=Host(`agentshakti.xyz`) && (PathPrefix(`/api`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.ringai-api.entrypoints=websecure"
+      - "traefik.http.routers.ringai-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ringai-api.priority=2"
+      - "traefik.http.services.ringai-api.loadbalancer.server.port=8000"
 
   # --- Background Worker ---
   celery-worker:
@@ -97,15 +82,23 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - default
+      - traefik-proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`agentshakti.xyz`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.frontend.priority=1"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.docker.network=traefik-proxy"
+      - "traefik.http.routers.ringai-fe.rule=Host(`agentshakti.xyz`)"
+      - "traefik.http.routers.ringai-fe.entrypoints=websecure"
+      - "traefik.http.routers.ringai-fe.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ringai-fe.priority=1"
+      - "traefik.http.services.ringai-fe.loadbalancer.server.port=3000"
 
 volumes:
   pgdata:
-  letsencrypt:
   uploads:
+
+networks:
+  traefik-proxy:
+    external: true
+    name: traefik-proxy
