@@ -14,6 +14,8 @@ COPY . .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+ENV PYTHONPATH=/app
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=5 \
