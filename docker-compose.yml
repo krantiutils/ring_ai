@@ -1,32 +1,111 @@
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: ring_ai
-      POSTGRES_PASSWORD: ring_ai
-      POSTGRES_DB: ring_ai
+  # --- Reverse Proxy ---
+  traefik:
+    image: traefik:v3
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - letsencrypt:/letsencrypt
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # --- Database ---
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ring_ai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ring_ai}
+      POSTGRES_DB: ${POSTGRES_DB:-ring_ai}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ring_ai}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
+  # --- Message Broker ---
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- Backend API ---
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
+    env_file: .env
     environment:
-      DATABASE_URL: postgresql://ring_ai:ring_ai@postgres:5432/ring_ai
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ring_ai}:${POSTGRES_PASSWORD:-ring_ai}@postgres:5432/${POSTGRES_DB:-ring_ai}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./backend/piper-models:/opt/piper-models:ro
+      - uploads:/app/uploads
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      # API + health routes
+      - "traefik.http.routers.backend.rule=Host(`agentshakti.xyz`) && (PathPrefix(`/api`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      # WebSocket routes (voice media-stream, live-agent, gateway)
+      - "traefik.http.routers.backend-ws.rule=Host(`agentshakti.xyz`) && PathPrefix(`/api/v1/voice/media-stream`, `/api/v1/voice/live-agent/ws`, `/api/v1/gateway/ws`)"
+      - "traefik.http.routers.backend-ws.entrypoints=websecure"
+      - "traefik.http.routers.backend-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend-ws.loadbalancer.server.port=8000"
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
+  # --- Background Worker ---
+  celery-worker:
+    build: ./backend
+    restart: unless-stopped
+    command: uv run celery -A app.core.celery_app worker -l info --concurrency=2
+    env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ring_ai}:${POSTGRES_PASSWORD:-ring_ai}@postgres:5432/${POSTGRES_DB:-ring_ai}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --- Frontend ---
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://agentshakti.xyz}
+    restart: unless-stopped
     depends_on:
       - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`agentshakti.xyz`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
 
 volumes:
   pgdata:
+  letsencrypt:
+  uploads:
