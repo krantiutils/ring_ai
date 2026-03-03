@@ -27,6 +27,7 @@ services:
 
   # --- Backend API ---
   backend:
+    image: ghcr.io/krantiutils/ring_ai-backend:latest
     build: ./backend
     restart: unless-stopped
     env_file: .env
@@ -57,6 +58,7 @@ services:
 
   # --- Background Worker ---
   celery-worker:
+    image: ghcr.io/krantiutils/ring_ai-backend:latest
     build: ./backend
     restart: unless-stopped
     command: uv run celery -A app.core.celery_app worker -l info --concurrency=2
@@ -75,6 +77,7 @@ services:
 
   # --- Frontend ---
   frontend:
+    image: ghcr.io/krantiutils/ring_ai-frontend:latest
     build:
       context: ./frontend
       args:
