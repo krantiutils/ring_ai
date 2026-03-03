@@ -27,7 +27,7 @@ services:
 
   # --- Backend API ---
   backend:
-    build: ./backend
+    image: ghcr.io/krantiutils/ring_ai-backend:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -56,7 +56,7 @@ services:
 
   # --- Background Worker ---
   celery-worker:
-    build: ./backend
+    image: ghcr.io/krantiutils/ring_ai-backend:latest
     restart: unless-stopped
     command: uv run celery -A app.core.celery_app worker -l info --concurrency=2
     env_file: .env
@@ -74,10 +74,7 @@ services:
 
   # --- Frontend ---
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://agentshakti.xyz}
+    image: ghcr.io/krantiutils/ring_ai-frontend:latest
     restart: unless-stopped
     depends_on:
       - backend
