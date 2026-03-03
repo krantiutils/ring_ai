@@ -77,7 +77,14 @@ jobs:
             docker compose up -d
             docker image prune -f
 
-            # Verify health
-            sleep 10
-            curl -sf http://localhost:8000/health || exit 1
-            echo "Deploy successful"
+            # Verify health (backend needs time for alembic migrations)
+            for i in 1 2 3 4 5 6; do
+              sleep 10
+              if curl -sf http://localhost:8000/health; then
+                echo " Deploy successful"
+                exit 0
+              fi
+              echo "Waiting for backend... attempt $i"
+            done
+            echo "Health check failed after 60s"
+            exit 1
