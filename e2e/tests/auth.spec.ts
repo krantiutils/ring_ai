@@ -12,6 +12,25 @@ const STORAGE_STATE_FILE = path.resolve(
 const STATE_FILE = path.resolve(__dirname, "..", ".auth", "state.json");
 
 test.describe("Authentication Flows", () => {
+  test("homepage Get Started routes unauthenticated users to login", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Get Started" }).first().click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.screenshot({
+      path: "feature_parity_validation/auth/home-get-started-to-login.png",
+      fullPage: true,
+    });
+  });
+
+  test("dashboard redirects to login when unauthenticated", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/login$/);
+    await page.screenshot({
+      path: "feature_parity_validation/auth/dashboard-redirect-to-login.png",
+      fullPage: true,
+    });
+  });
+
   test("login page renders with form elements", async ({ page }) => {
     await page.goto("/login");
 

@@ -16,6 +16,23 @@ function getToken(): string | null {
   return getAccessToken();
 }
 
+function getStoredOrgId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("ring_org_id");
+}
+
+function storeOrgId(orgId?: string | null): void {
+  if (typeof window === "undefined" || !orgId) return;
+  localStorage.setItem("ring_org_id", orgId);
+}
+
+function withOrgId(path: string, orgId?: string): string {
+  const resolvedOrgId = orgId || getStoredOrgId();
+  if (!resolvedOrgId) return path;
+  const delim = path.includes("?") ? "&" : "?";
+  return `${path}${delim}org_id=${encodeURIComponent(resolvedOrgId)}`;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -83,19 +100,136 @@ export const api = {
   getKycStatus: () => request<import("@/types/dashboard").KYCStatus>("/auth/kyc/status"),
 
   // Campaigns
-  getCampaigns: (params?: string) =>
-    request<import("@/types/dashboard").CampaignListResponse>(`/campaigns/${params ? `?${params}` : ""}`),
+  getCampaigns: async (params?: string) => {
+    const raw = await request<{
+      campaigns?: import("@/types/dashboard").Campaign[];
+      items?: (import("@/types/dashboard").Campaign & { org_id?: string })[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(`/campaigns/${params ? `?${params}` : ""}`);
+
+    const items = (raw.campaigns || raw.items || []) as (import("@/types/dashboard").Campaign & { org_id?: string })[];
+    if (items.length > 0 && items[0].org_id) storeOrgId(items[0].org_id);
+
+    return {
+      campaigns: items,
+      total: raw.total || 0,
+      page: raw.page || 1,
+      per_page: raw.per_page || raw.page_size || 20,
+    };
+  },
   getCampaign: (id: string) => request<import("@/types/dashboard").Campaign>(`/campaigns/${id}`),
 
   // Analytics
-  getOverview: () => request<import("@/types/dashboard").OverviewAnalytics>("/analytics/overview"),
+  getOverview: async () => {
+    const orgIdPath = withOrgId("/analytics/overview");
+    if (orgIdPath === "/analytics/overview") {
+      return {
+        total_campaigns: 0,
+        campaigns_by_status: {},
+        campaigns_by_category: {},
+        total_reach: 0,
+        delivery_rate: 0,
+        total_credits_consumed: 0,
+      };
+    }
+
+    try {
+      const raw = await request<{
+        total_campaigns?: number;
+        campaigns_by_status?: Record<string, number>;
+        campaigns_by_category?: Record<string, number>;
+        total_reach?: number;
+        delivery_rate?: number;
+        total_credits_consumed?: number;
+        total_calls?: number;
+        overall_delivery_rate?: number;
+        credits_consumed?: number;
+      }>(orgIdPath);
+
+      return {
+        total_campaigns: raw.total_campaigns || 0,
+        campaigns_by_status: raw.campaigns_by_status || {},
+        campaigns_by_category: raw.campaigns_by_category || {},
+        total_reach: raw.total_reach || raw.total_calls || 0,
+        delivery_rate: raw.delivery_rate || raw.overall_delivery_rate || 0,
+        total_credits_consumed: raw.total_credits_consumed || raw.credits_consumed || 0,
+      };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422) {
+        return {
+          total_campaigns: 0,
+          campaigns_by_status: {},
+          campaigns_by_category: {},
+          total_reach: 0,
+          delivery_rate: 0,
+          total_credits_consumed: 0,
+        };
+      }
+      throw err;
+    }
+  },
   getCampaignAnalytics: (id: string) =>
     request<import("@/types/dashboard").CampaignAnalytics>(`/analytics/campaigns/${id}`),
-  getCarrierBreakdown: () => request<import("@/types/dashboard").CarrierStat[]>("/analytics/carrier-breakdown"),
+  getCarrierBreakdown: async () => {
+    const raw = await request<Array<{
+      carrier: string;
+      total: number;
+      successful?: number;
+      failed?: number;
+      success?: number;
+      fail?: number;
+      pickup_rate?: number;
+      pickup_pct?: number;
+    }>>("/analytics/carrier-breakdown");
+    return raw.map((r) => ({
+      carrier: r.carrier,
+      total: r.total,
+      successful: r.successful ?? r.success ?? 0,
+      failed: r.failed ?? r.fail ?? 0,
+      pickup_rate: r.pickup_rate ?? r.pickup_pct ?? 0,
+    }));
+  },
   getCategoryBreakdown: () =>
     request<import("@/types/dashboard").CategoryBreakdown[]>("/analytics/campaigns/by-category"),
-  getDashboardPlayback: () =>
-    request<import("@/types/dashboard").DashboardPlaybackWidget>("/analytics/dashboard/playback"),
+  getDashboardPlayback: async () => {
+    const raw = await request<{
+      average_playback_percentage?: number;
+      distribution?: import("@/types/dashboard").DashboardPlaybackWidget["distribution"] | { bucket: string; count: number }[];
+      avg_playback_percentage?: number | null;
+    }>("/analytics/dashboard/playback");
+
+    if (Array.isArray(raw.distribution)) {
+      const bucketMap: Record<string, number> = {
+        bucket_0_25: 0,
+        bucket_26_50: 0,
+        bucket_51_75: 0,
+        bucket_76_100: 0,
+      };
+      for (const b of raw.distribution) {
+        if (b.bucket === "0-25") bucketMap.bucket_0_25 = b.count;
+        if (b.bucket === "26-50") bucketMap.bucket_26_50 = b.count;
+        if (b.bucket === "51-75") bucketMap.bucket_51_75 = b.count;
+        if (b.bucket === "76-100") bucketMap.bucket_76_100 = b.count;
+      }
+      return {
+        average_playback_percentage: raw.average_playback_percentage ?? raw.avg_playback_percentage ?? 0,
+        distribution: bucketMap,
+      };
+    }
+
+    return {
+      average_playback_percentage: raw.average_playback_percentage ?? raw.avg_playback_percentage ?? 0,
+      distribution: raw.distribution || {
+        bucket_0_25: 0,
+        bucket_26_50: 0,
+        bucket_51_75: 0,
+        bucket_76_100: 0,
+      },
+    };
+  },
   getIntentDistribution: (campaignId?: string) =>
     request<import("@/types/dashboard").IntentDistribution>(
       `/analytics/intents${campaignId ? `?campaign_id=${campaignId}` : ""}`,
@@ -104,13 +238,59 @@ export const api = {
     request<import("@/types/dashboard").CampaignIntentSummary>(`/analytics/campaigns/${id}/intents`),
 
   // Credits
-  getCreditBalance: () => request<import("@/types/dashboard").CreditBalance>("/credits/balance"),
-  getCreditHistory: (params?: string) =>
-    request<import("@/types/dashboard").CreditHistoryResponse>(`/credits/history${params ? `?${params}` : ""}`),
+  getCreditBalance: async () => {
+    const path = withOrgId("/credits/balance");
+    if (path === "/credits/balance") {
+      return { balance: 0, total_purchased: 0, total_consumed: 0 };
+    }
+    try {
+      return await request<import("@/types/dashboard").CreditBalance>(path);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422) {
+        return { balance: 0, total_purchased: 0, total_consumed: 0 };
+      }
+      throw err;
+    }
+  },
+  getCreditHistory: async (params?: string) => {
+    const base = `/credits/history${params ? `?${params}` : ""}`;
+    const path = withOrgId(base);
+    if (path === base) {
+      return { transactions: [], total: 0, page: 1, per_page: 20 };
+    }
+    const raw = await request<{
+      transactions?: import("@/types/dashboard").CreditTransaction[];
+      items?: import("@/types/dashboard").CreditTransaction[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(path);
+    return {
+      transactions: raw.transactions || raw.items || [],
+      total: raw.total || 0,
+      page: raw.page || 1,
+      per_page: raw.per_page || raw.page_size || 20,
+    };
+  },
 
   // Templates
-  getTemplates: (params?: string) =>
-    request<import("@/types/dashboard").TemplateListResponse>(`/templates/${params ? `?${params}` : ""}`),
+  getTemplates: async (params?: string) => {
+    const raw = await request<{
+      templates?: import("@/types/dashboard").Template[];
+      items?: import("@/types/dashboard").Template[];
+      total?: number;
+      page?: number;
+      per_page?: number;
+      page_size?: number;
+    }>(`/templates/${params ? `?${params}` : ""}`);
+    return {
+      templates: raw.templates || raw.items || [],
+      total: raw.total || 0,
+      page: raw.page || 1,
+      per_page: raw.per_page || raw.page_size || 20,
+    };
+  },
   createTemplate: (data: { name: string; type: string; content: string }) =>
     request<import("@/types/dashboard").Template>("/templates/", { method: "POST", body: JSON.stringify(data) }),
   updateTemplate: (id: string, data: { name?: string; content?: string }) =>
